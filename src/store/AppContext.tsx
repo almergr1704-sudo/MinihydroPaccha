@@ -94,12 +94,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: generateId(),
       fechaRegistro: new Date().toISOString()
     };
-    persistState({ ...state, clients: [...state.clients, newClient] });
+    setState(prev => {
+      const newState = { ...prev, clients: [...prev.clients, newClient] };
+      setLocalData(newState);
+      return newState;
+    });
   };
 
   const updateClient = async (id: string, updates: Partial<Client>) => {
-    const newClients = state.clients.map(c => c.id === id ? { ...c, ...updates } : c);
-    persistState({ ...state, clients: newClients });
+    setState(prev => {
+      const newClients = prev.clients.map(c => c.id === id ? { ...c, ...updates } : c);
+      const newState = { ...prev, clients: newClients };
+      setLocalData(newState);
+      return newState;
+    });
   };
 
   const addConsumption = async (consumption: Omit<Consumption, 'id' | 'montoCalculado' | 'estadoPago'>) => {

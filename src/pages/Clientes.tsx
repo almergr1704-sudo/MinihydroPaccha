@@ -6,15 +6,16 @@ import { Client, ClientType } from '../store/types';
 import * as XLSX from 'xlsx';
 
 export default function Clientes() {
-  const { clients, addClient } = useAppContext();
+  const { clients, addClient, updateClient } = useAppContext();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<ClientType | 'TODOS'>('TODOS');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form state
   const [suministrosStr, setSuministrosStr] = useState('');
-  const [formData, setFormData] = useState<Omit<Client, 'id' | 'fechaRegistro'>>({
+  const initialFormState: Omit<Client, 'id' | 'fechaRegistro'> = {
     nombres: '',
     apellidos: '',
     dni: '',
@@ -27,7 +28,28 @@ export default function Clientes() {
     suministros: [],
     tipo: 'USUARIO',
     estado: 'ACTIVO'
-  });
+  };
+  const [formData, setFormData] = useState<Omit<Client, 'id' | 'fechaRegistro'>>(initialFormState);
+
+  const openEditModal = (client: Client) => {
+    setEditingId(client.id);
+    setFormData({
+      nombres: client.nombres || client.nombre?.split(' ')[0] || '',
+      apellidos: client.apellidos || client.nombre?.split(' ').slice(1).join(' ') || '',
+      dni: client.dni,
+      direccion: client.direccion || '',
+      numeroDireccion: client.numeroDireccion || '',
+      referenciaDireccion: client.referenciaDireccion || '',
+      telefono: client.telefono || '',
+      correo: client.correo || '',
+      codigoSuministro: client.codigoSuministro || '',
+      suministros: client.suministros || [],
+      tipo: client.tipo,
+      estado: client.estado || 'ACTIVO'
+    });
+    setSuministrosStr((client.suministros || [client.codigoSuministro]).join(', '));
+    setIsModalOpen(true);
+  };
 
   const filteredClients = clients.filter(c => {
     const fullName = c.nombre ? c.nombre.toLowerCase() : `${c.nombres || ''} ${c.apellidos || ''}`.toLowerCase();
@@ -42,16 +64,25 @@ export default function Clientes() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const suministrosArray = suministrosStr.split(',').map(s => s.trim()).filter(s => s);
-    addClient({
+    const clientData = {
       ...formData,
       suministros: suministrosArray,
       codigoSuministro: suministrosArray[0] || formData.codigoSuministro
-    });
+    };
+
+    if (editingId) {
+      updateClient(editingId, clientData);
+    } else {
+      addClient(clientData);
+    }
+    closeModal();
+  };
+
+  const closeModal = () => {
     setIsModalOpen(false);
+    setEditingId(null);
     setSuministrosStr('');
-    setFormData({
-      nombres: '', apellidos: '', dni: '', direccion: '', numeroDireccion: '', referenciaDireccion: '', telefono: '', correo: '', codigoSuministro: '', suministros: [], tipo: 'USUARIO', estado: 'ACTIVO'
-    });
+    setFormData(initialFormState);
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -217,7 +248,12 @@ export default function Clientes() {
                       </Badge>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button className="text-blue-600 hover:text-blue-900">Editar</button>
+                      <button 
+                        onClick={() => openEditModal(client)}
+                        className="text-blue-600 hover:text-blue-900"
+                      >
+                        Editar
+                      </button>
                     </td>
                   </tr>
                 )) : (
@@ -245,7 +281,7 @@ export default function Clientes() {
                   <div className="sm:flex sm:items-start">
                     <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
                       <h3 className="text-lg leading-6 font-medium text-slate-100" id="modal-title">
-                        Registrar Nuevo Cliente
+                        {editingId ? 'Editar Cliente' : 'Registrar Nuevo Cliente'}
                       </h3>
                       <div className="mt-4 space-y-4">
                         <div className="grid grid-cols-2 gap-4">
@@ -283,7 +319,7 @@ export default function Clientes() {
                             <input type="text" value={formData.referenciaDireccion} onChange={e => setFormData({...formData, referenciaDireccion: e.target.value})} className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" />
                           </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-3 gap-4">
                           <div>
                             <label className="block text-sm font-medium text-slate-300">Teléfono</label>
                             <input type="text" value={formData.telefono} onChange={e => setFormData({...formData, telefono: e.target.value})} className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" />
@@ -295,6 +331,13 @@ export default function Clientes() {
                               <option value="SOCIO">SOCIO (S/ 0.20/kWh)</option>
                             </select>
                           </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-300">Estado</label>
+                            <select value={formData.estado} onChange={e => setFormData({...formData, estado: e.target.value as any})} className="mt-1 block w-full bg-[#0B0E14] border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-slate-100">
+                              <option value="ACTIVO">ACTIVO</option>
+                              <option value="INACTIVO">INACTIVO</option>
+                            </select>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -302,9 +345,9 @@ export default function Clientes() {
                 </div>
                 <div className="bg-slate-800/50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
                   <Button type="submit" className="w-full sm:ml-3 sm:w-auto">
-                    Guardar Registro
+                    {editingId ? 'Actualizar' : 'Guardar Registro'}
                   </Button>
-                  <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)} className="mt-3 w-full sm:mt-0 sm:w-auto">
+                  <Button type="button" variant="outline" onClick={closeModal} className="mt-3 w-full sm:mt-0 sm:w-auto">
                     Cancelar
                   </Button>
                 </div>

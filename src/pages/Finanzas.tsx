@@ -5,7 +5,7 @@ import { Button, Card, CardContent, Badge, CardHeader, CardTitle } from '../comp
 import { formatCurrency } from '../lib/utils';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { TransactionType, Transaction } from '../store/types';

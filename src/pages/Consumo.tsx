@@ -5,8 +5,9 @@ import { Button, Card, CardContent, Badge } from '../components/ui';
 import { formatCurrency } from '../lib/utils';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 import { Consumption } from '../store/types';
 
 export default function Consumo() {
@@ -37,6 +38,55 @@ export default function Consumo() {
     
     setIsModalOpen(false);
     setFormData({ clientAndSuministro: '', kwh: '' });
+  };
+
+  const handleExportConsumosExcel = (consumptionsList: Consumption[]) => {
+    if (consumptionsList.length === 0) return;
+    const exportData = consumptionsList.map(cons => {
+      const client = clients.find(c => c.id === cons.clientId);
+      const clientName = client?.nombre ? client.nombre : `${client?.nombres || ''} ${client?.apellidos || ''}`;
+      return {
+        Periodo: cons.mes,
+        Cliente: clientName,
+        DNI: client?.dni,
+        'Tipo Cliente': client?.tipo,
+        Suministro: cons.codigoSuministro,
+        'Consumo (kWh)': cons.kwh,
+        'Monto a Pagar (S/)': cons.montoCalculado,
+        Estado: cons.estadoPago
+      };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Consumos");
+    XLSX.writeFile(wb, `Reporte_Consumos_${selectedMes}.xlsx`);
+  };
+
+  const handleExportConsumosPDF = (consumptionsList: Consumption[]) => {
+    if (consumptionsList.length === 0) return;
+    const doc = new jsPDF();
+    doc.text(`Reporte de Consumos - ${selectedMes}`, 14, 20);
+    
+    const tableData = consumptionsList.map(cons => {
+      const client = clients.find(c => c.id === cons.clientId);
+      const clientName = client?.nombre ? client.nombre : `${client?.nombres || ''} ${client?.apellidos || ''}`;
+      return [
+        clientName,
+        cons.codigoSuministro || '',
+        cons.kwh?.toString() || '0',
+        cons.montoCalculado.toFixed(2),
+        cons.estadoPago
+      ];
+    });
+
+    (doc as any).autoTable({
+      startY: 30,
+      head: [['Cliente', 'Suministro', 'kWh', 'Monto', 'Estado']],
+      body: tableData,
+    });
+
+    doc.save(`Reporte_Consumos_${selectedMes}.pdf`);
   };
 
   const handleGenerateMassReceipts = (consumptionsList: Consumption[]) => {
@@ -254,15 +304,33 @@ export default function Consumo() {
                    className="block border-slate-700 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm border bg-[#0B0E14] text-slate-100"
                  />
               </div>
-              <Button 
-                variant="outline" 
-                onClick={() => handleGenerateMassReceipts(filteredConsumptions)}
-                disabled={filteredConsumptions.length === 0}
-                className="flex items-center"
-              >
-                <FileText className="h-4 w-4 mr-2" />
-                Imprimir Recibos Masivos
-              </Button>
+              <div className="flex items-center space-x-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => handleExportConsumosExcel(filteredConsumptions)}
+                  disabled={filteredConsumptions.length === 0}
+                  className="hidden sm:inline-flex"
+                >
+                  Excel
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => handleExportConsumosPDF(filteredConsumptions)}
+                  disabled={filteredConsumptions.length === 0}
+                  className="hidden sm:inline-flex"
+                >
+                  PDF
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => handleGenerateMassReceipts(filteredConsumptions)}
+                  disabled={filteredConsumptions.length === 0}
+                  className="flex items-center"
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  Imprimir Recibos Masivos
+                </Button>
+              </div>
             </div>
           )}
 
