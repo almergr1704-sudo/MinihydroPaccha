@@ -2,11 +2,6 @@ import React, { useState } from 'react';
 import { Shield, ShieldAlert, UserCheck, Plus, X } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Card, CardContent, Badge, Button } from '../components/ui';
-import { initializeApp, deleteApp } from 'firebase/app';
-import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../lib/firebase';
-import firebaseConfig from '../../firebase-applet-config.json';
 
 export default function Usuarios() {
   const { admins, updateAdmin, user } = useAppContext();
@@ -21,7 +16,6 @@ export default function Usuarios() {
   const [newDni, setNewDni] = useState('');
   const [newRole, setNewRole] = useState<'ADMIN' | 'OPERATOR' | 'SUPERVISOR'>('OPERATOR');
   const [creatingUser, setCreatingUser] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
 
   const handleUpdateRole = (id: string) => {
     updateAdmin(id, { role: selectedRole });
@@ -33,39 +27,31 @@ export default function Usuarios() {
     if (!newEmail || !newPassword) return;
     
     setCreatingUser(true);
-    setErrorMsg('');
     
-    let tempApp;
     try {
-      tempApp = initializeApp(firebaseConfig, `TempApp-${Date.now()}`);
-      const tempAuth = getAuth(tempApp);
+      // Local addition
+      const newAdmin = {
+         id: Math.random().toString(36).substr(2, 9),
+         email: newEmail,
+         nombres: newNombres,
+         apellidos: newApellidos,
+         dni: newDni,
+         role: newRole,
+         createdAt: new Date().toISOString()
+      };
+
+      // Workaround: if updateAdmin acts as "create" if we mock it, or we need to add an addAdmin in context.
+      // But we can just use localStorage hack for now because context is local.
+      const currentData = JSON.parse(localStorage.getItem('erp_data') || '{"admins":[]}');
+      const updatedAdmins = [...(currentData.admins || []), newAdmin];
+      currentData.admins = updatedAdmins;
+      localStorage.setItem('erp_data', JSON.stringify(currentData));
       
-      const userCredential = await createUserWithEmailAndPassword(tempAuth, newEmail, newPassword);
-      
-      // Store in admins collection
-      await setDoc(doc(db, 'admins', userCredential.user.uid), {
-        email: newEmail,
-        nombres: newNombres,
-        apellidos: newApellidos,
-        dni: newDni,
-        role: newRole,
-        createdAt: serverTimestamp()
-      });
-      
-      setIsModalOpen(false);
-      setNewEmail('');
-      setNewPassword('');
-      setNewNombres('');
-      setNewApellidos('');
-      setNewDni('');
-      setNewRole('OPERATOR');
+      // Need a full reload to reflect changes in this simple hack
+      window.location.reload();
     } catch (err: any) {
       console.error(err);
-      setErrorMsg(err.message || 'Error al crear usuario local');
     } finally {
-      if (tempApp) {
-        await deleteApp(tempApp);
-      }
       setCreatingUser(false);
     }
   };
@@ -94,7 +80,7 @@ export default function Usuarios() {
           <div className="bg-yellow-500/10 p-4 border-b border-yellow-500/20 flex items-start space-x-3">
              <ShieldAlert className="h-5 w-5 text-yellow-500 mt-0.5 flex-shrink-0" />
              <p className="text-sm text-yellow-200/80">
-               Solo los usuarios con rol <strong className="text-yellow-500">ADMIN</strong> pueden modificar los roles del sistema. Un usuario de Google nuevo debe ingresar primero al sistema para aparecer en esta lista.
+               Solo los usuarios con rol <strong className="text-yellow-500">ADMIN</strong> pueden modificar los roles del sistema. (Modo Local).
              </p>
           </div>
           <div className="overflow-x-auto">
@@ -127,7 +113,7 @@ export default function Usuarios() {
                           <div className="text-xs text-slate-400">
                             {admin.nombres ? admin.email : ''} {admin.dni ? `• DNI: ${admin.dni}` : ''}
                           </div>
-                          {admin.id === user?.uid && (
+                          {admin.email === user?.email && (
                             <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 mt-1">
                               Tú
                             </span>
@@ -170,7 +156,7 @@ export default function Usuarios() {
                             setEditingId(admin.id);
                             setSelectedRole(admin.role);
                           }}
-                          disabled={admin.id === user?.uid} // Mismo usuario no se quita permisos solo
+                          disabled={admin.email === user?.email}
                         >
                           Cambiar Rol
                         </Button>
@@ -213,13 +199,6 @@ export default function Usuarios() {
               </div>
               <form onSubmit={handleCreateLocalUser}>
                 <div className="px-4 py-5 sm:p-6 space-y-4">
-                  
-                  {errorMsg && (
-                    <div className="p-3 bg-red-900/20 text-red-500 rounded text-sm">
-                      {errorMsg}
-                    </div>
-                  )}
-
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-slate-300">Nombres</label>

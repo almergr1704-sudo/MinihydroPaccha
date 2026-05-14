@@ -5,8 +5,6 @@ import {
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAppContext } from '../../store/AppContext';
-import { auth } from '../../lib/firebase';
-import { signOut } from 'firebase/auth';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: Home },
@@ -20,10 +18,10 @@ const navigation = [
 
 export function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { user } = useAppContext();
+  const { user, logout } = useAppContext();
 
   const handleLogout = () => {
-    signOut(auth);
+    logout();
   }
 
   const userInitial = user?.email ? user.email.charAt(0).toUpperCase() : 'U';
@@ -50,7 +48,7 @@ export function AppLayout() {
           <div className="flex-1 h-0 pt-5 pb-4 overflow-y-auto">
             <div className="flex-shrink-0 flex items-center px-4">
               <Activity className="h-8 w-8 text-blue-500 mr-2" />
-              <span className="text-2xl font-bold text-white tracking-tight">Hydro<span className="text-blue-500">ERP</span></span>
+              <span className="text-2xl font-bold text-white tracking-tight">Mini<span className="text-blue-500">Hydro</span></span>
             </div>
             <nav className="mt-8 px-2 space-y-1">
               {navigation.map((item) => (
@@ -91,7 +89,7 @@ export function AppLayout() {
             <div className="flex-1 flex flex-col pt-5 pb-4 overflow-y-auto">
               <div className="flex items-center flex-shrink-0 px-6 mb-8">
                 <Activity className="h-8 w-8 text-blue-500 mr-2" />
-                <span className="text-2xl font-bold text-white tracking-tight">Hydro<span className="text-blue-500">ERP</span></span>
+                <span className="text-2xl font-bold text-white tracking-tight">Mini<span className="text-blue-500">Hydro</span></span>
               </div>
               <nav className="mt-5 flex-1 px-3 space-y-1">
                 {navigation.map((item) => (
@@ -142,7 +140,7 @@ export function AppLayout() {
         <div className="lg:hidden pt-1 pb-1 pr-1 pl-1 bg-[#0B0E14] border-b border-slate-800 sm:pl-3 sm:pt-3 sm:pb-3 flex justify-between items-center shadow-sm z-10">
           <div className="flex items-center px-4">
              <Activity className="h-6 w-6 text-blue-500 mr-2" />
-             <span className="text-xl font-bold text-white">Hydro<span className="text-blue-500">ERP</span></span>
+             <span className="text-xl font-bold text-white">Mini<span className="text-blue-500">Hydro</span></span>
           </div>
           <button
             type="button"

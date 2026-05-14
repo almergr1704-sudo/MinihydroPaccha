@@ -1,9 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { auth } from '../lib/firebase';
-import { signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword } from 'firebase/auth';
 import { Zap } from 'lucide-react';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../lib/firebase';
 import { useAppContext } from '../store/AppContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -12,7 +8,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { user, loadingAuth } = useAppContext();
+  const { user, loadingAuth, login } = useAppContext();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -21,21 +17,6 @@ export default function Login() {
     }
   }, [user, loadingAuth, navigate]);
 
-  const handleGoogleLogin = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      
-      await handleLoginSuccess(result.user);
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || 'Error al iniciar sesión con Google');
-      setLoading(false);
-    }
-  };
-
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) return;
@@ -43,49 +24,23 @@ export default function Login() {
       setLoading(true);
       setError('');
       
-      let authEmail = email;
-      let authPassword = password;
-      
       // Local setup for Admin / Admin
-      if (email.toLowerCase() === 'admin' && password === 'Admin') {
-        authEmail = 'admin@paccha.local';
-        authPassword = 'Admin123456';
+      if (email.toLowerCase() === 'admin' && password.toLowerCase() === 'admin') {
+        login('admin@paccha.local');
+        return;
+      }
+      
+      if (email.includes('@') && password.length >= 6) {
+        login(email);
+        return;
       }
 
-      try {
-        const result = await signInWithEmailAndPassword(auth, authEmail, authPassword);
-        await handleLoginSuccess(result.user);
-      } catch (err: any) {
-        // If it's the hardcoded admin and it fails, let's create it on the fly
-        if (authEmail === 'admin@paccha.local' && (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password')) {
-          const { createUserWithEmailAndPassword } = await import('firebase/auth');
-          const result = await createUserWithEmailAndPassword(auth, authEmail, authPassword);
-          await handleLoginSuccess(result.user);
-        } else {
-          throw err;
-        }
-      }
+      setError('Para usuario local usa "admin" y contraseña "admin".');
+      setLoading(false);
     } catch (err: any) {
-      console.error(err);
+      console.error("Login attempt failed:", err);
       setError('Credenciales incorrectas o error al iniciar sesión.');
       setLoading(false);
-    }
-  };
-
-  const handleLoginSuccess = async (userObj: any) => {
-    try {
-      // Check if admin profile exists, if not, create it
-      const adminRef = doc(db, 'admins', userObj.uid);
-      const adminSnap = await getDoc(adminRef);
-      if (!adminSnap.exists()) {
-        await setDoc(adminRef, {
-          email: userObj.email,
-          role: 'ADMIN', // The first one usually should be ADMIN, or maybe let's just use OPERATOR as default? We will leave it as ADMIN for safety in dev setup
-          createdAt: serverTimestamp()
-        });
-      }
-    } catch (err: any) {
-      console.error('Error verificando perfil:', err);
     }
   };
 
@@ -101,7 +56,7 @@ export default function Login() {
           MiniHydro PACCHA
         </h2>
         <p className="mt-2 text-center text-sm text-slate-400">
-          Gestión de Central Hidroeléctrica
+          Gestión de Central Hidroeléctrica (Modo Local)
         </p>
       </div>
 
@@ -134,22 +89,6 @@ export default function Login() {
               className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
             >
               {loading ? 'Iniciando sesión...' : 'Ingresar'}
-            </button>
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-slate-700" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-[#0B0E14] text-slate-500">O ingresa con Google</span>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={handleGoogleLogin}
-              disabled={loading}
-              className="w-full flex justify-center py-3 px-4 border border-slate-700 rounded-md shadow-sm text-sm font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500 disabled:opacity-50"
-            >
-              Iniciar sesión con Google
             </button>
             {error && (
               <div className="text-red-500 text-sm text-center bg-red-900/20 p-3 rounded">
