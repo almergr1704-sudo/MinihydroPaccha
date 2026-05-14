@@ -1,13 +1,15 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { AppState, Client, Consumption, Transaction, Meeting, ClientType } from './types';
+import { AppState, Client, Consumption, Transaction, Meeting, ClientType, Fine } from './types';
 
 interface AppContextType extends AppState {
   user: any;
+  userRole: string;
   loadingAuth: boolean;
   addClient: (client: Omit<Client, 'id' | 'fechaRegistro'>) => Promise<void>;
   updateClient: (id: string, client: Partial<Client>) => Promise<void>;
   addConsumption: (consumption: Omit<Consumption, 'id' | 'montoCalculado' | 'estadoPago'>) => Promise<void>;
   payConsumption: (consumptionId: string) => Promise<void>;
+  payFine: (fineId: string) => Promise<void>;
   addTransaction: (transaction: Omit<Transaction, 'id' | 'fecha'>) => Promise<void>;
   addMeeting: (meeting: Omit<Meeting, 'id'>) => Promise<void>;
   recordAttendance: (meetingId: string, clientId: string, status: Meeting['asistencia'][string]) => Promise<void>;
@@ -28,6 +30,7 @@ const initialData: AppState = {
   transactions: [],
   meetings: [],
   admins: [],
+  fines: [],
 };
 
 const getLocalData = (): AppState => {
@@ -43,7 +46,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [user, setUser] = useState<any>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
 
-  const [state, setState] = useState<AppState>(getLocalData());
+  const [state, setState] = useState<AppState>(() => {
+    const data = getLocalData();
+    if (!data.fines) {
+      data.fines = []; // fallback for legacy data
+    }
+    return data;
+  });
+
+  const adminProfile = state.admins.find(a => a.email === user?.email || a.username === user?.email);
+  const userRole = adminProfile?.role || 'ADMIN';
 
   useEffect(() => {
     const savedUser = localStorage.getItem('erp_user');
@@ -128,6 +140,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  const payFine = async (fineId: string) => {
+    const fine = state.fines?.find(f => f.id === fineId);
+    if (!fine) return;
+
+    const newFines = (state.fines || []).map(f => 
+      f.id === fineId ? { ...f, estadoPago: 'PAGADO' as const } : f
+    );
+    persistState({ ...state, fines: newFines });
+
+    await addTransaction({
+      tipo: 'INGRESO',
+      categoria: 'MULTA',
+      monto: fine.monto,
+      descripcion: `Pago Multa - ${fine.motivo}`,
+      clientId: fine.clientId,
+    });
+  };
+
   const addTransaction = async (transaction: Omit<Transaction, 'id' | 'fecha'>) => {
     const newTx: Transaction = {
       ...transaction,
@@ -156,19 +186,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const newAsistencia = { ...(meeting.asistencia || {}), [clientId]: status };
     const newMeetings = state.meetings.map(m => m.id === meetingId ? { ...m, asistencia: newAsistencia } : m);
-    persistState({ ...state, meetings: newMeetings });
-    // removed automatic fine logic
+    
+    let newFines = [...(state.fines || [])];
+    
+    if (status === 'FALTA_INJUSTIFICADA') {
+      const existingFine = newFines.find(f => f.clientId === clientId && f.meetingId === meetingId);
+      if (!existingFine) {
+        newFines.push({
+          id: generateId(),
+          clientId,
+          meetingId,
+          monto: MULTA_FALTA,
+          motivo: `Falta a reunión ${new Date(meeting.fecha).toLocaleDateString()}`,
+          estadoPago: 'PENDIENTE',
+          fecha: new Date().toISOString()
+        });
+      }
+    } else {
+      // Remove fine if the user was updated to something else
+      newFines = newFines.filter(f => !(f.clientId === clientId && f.meetingId === meetingId && f.estadoPago === 'PENDIENTE'));
+    }
+
+    persistState({ ...state, meetings: newMeetings, fines: newFines });
   };
 
   return (
     <AppContext.Provider value={{
       ...state,
       user,
+      userRole,
       loadingAuth,
       addClient,
       updateClient,
       addConsumption,
       payConsumption,
+      payFine,
       addTransaction,
       addMeeting,
       recordAttendance,

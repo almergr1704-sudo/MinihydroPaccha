@@ -1,14 +1,16 @@
-import React, { useState } from 'react';
-import { Plus, Search, User, Filter } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Plus, Search, User, Filter, Upload } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Button, Card, CardContent, Badge } from '../components/ui';
 import { Client, ClientType } from '../store/types';
+import * as XLSX from 'xlsx';
 
 export default function Clientes() {
   const { clients, addClient } = useAppContext();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<ClientType | 'TODOS'>('TODOS');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form state
   const [suministrosStr, setSuministrosStr] = useState('');
@@ -52,6 +54,60 @@ export default function Clientes() {
     });
   };
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws);
+        
+        // Process records
+        let processed = 0;
+        data.forEach((row: any) => {
+          // Identify fields loosely based on possible naming
+          const nombres = row.Nombres || row.nombres || row.Nombre || row.nombre || '';
+          const apellidos = row.Apellidos || row.apellidos || row.Apellido || row.apellido || '';
+          const dni = (row.DNI || row.dni || row.Documento || '').toString();
+          const tipo = (row.Tipo || row.tipo || 'USUARIO').toString().toUpperCase() === 'SOCIO' ? 'SOCIO' as const : 'USUARIO' as const;
+          const suministroStr = (row.Suministro || row.suministro || row.Suministros || '').toString();
+          
+          if (nombres || apellidos || dni) {
+            const suministrosArray = suministroStr.split(',').map((s: string) => s.trim()).filter((s: string) => s);
+            addClient({
+              nombres,
+              apellidos,
+              dni,
+              tipo,
+              estado: 'ACTIVO',
+              direccion: row.Direccion || row.direccion || '',
+              numeroDireccion: (row.Numero || row.numero || '').toString(),
+              referenciaDireccion: row.Referencia || row.referencia || '',
+              telefono: (row.Telefono || row.telefono || '').toString(),
+              correo: row.Correo || row.correo || row.Email || row.email || '',
+              codigoSuministro: suministrosArray[0] || '',
+              suministros: suministrosArray
+            });
+            processed++;
+          }
+        });
+        
+        alert(`Se importaron ${processed} registros correctamente. (Se requiere recargar la página para ver cambios agregados muy rapido)`);
+        window.location.reload(); // Quick refresh to force sync state since we might fire multiple synchronous addClient which relies on previous state
+      } catch (err) {
+        console.error(err);
+        alert('Hubo un error importando el archivo.');
+      }
+    };
+    reader.readAsBinaryString(file);
+    if(fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   return (
     <div className="space-y-6">
       <div className="sm:flex sm:items-center sm:justify-between">
@@ -63,7 +119,18 @@ export default function Clientes() {
             Directorio de socios y usuarios de la central.
           </p>
         </div>
-        <div className="mt-4 sm:mt-0">
+        <div className="mt-4 sm:mt-0 flex gap-2">
+          <input 
+            type="file" 
+            accept=".xlsx, .xls, .csv" 
+            className="hidden" 
+            ref={fileInputRef} 
+            onChange={handleFileUpload} 
+          />
+          <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+            <Upload className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
+            Importar Excel
+          </Button>
           <Button onClick={() => setIsModalOpen(true)}>
             <Plus className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
             Nuevo Registro

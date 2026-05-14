@@ -11,7 +11,7 @@ import * as XLSX from 'xlsx';
 import { TransactionType, Transaction } from '../store/types';
 
 export default function Finanzas() {
-  const { transactions, addTransaction, clients, consumptions, payConsumption } = useAppContext();
+  const { transactions, addTransaction, clients, consumptions, payConsumption, fines, payFine } = useAppContext();
   const [isModalOpen, setIsModalOpen] = useState<false | 'INGRESO' | 'EGRESO'>(false);
   const [filterType, setFilterType] = useState<TransactionType>('INGRESO');
   const [clientSearch, setClientSearch] = useState('');
@@ -46,8 +46,8 @@ export default function Finanzas() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isModalOpen === 'INGRESO' && formData.categoria === 'CONSUMO') {
-      // In this mode, handled individually by pay consumption, but if they hit save
+    if (isModalOpen === 'INGRESO' && ['CONSUMO', 'MULTA'].includes(formData.categoria)) {
+      // In this mode, handled individually by pay consumption/fine buttons
       return;
     }
     
@@ -131,7 +131,8 @@ export default function Finanzas() {
   }).filter(c => c.estado === 'ACTIVO');
 
   const pendingConsumptions = consumptions.filter(c => c.clientId === selectedClientId && c.estadoPago === 'PENDIENTE');
-  const totalDeuda = pendingConsumptions.reduce((acc, c) => acc + c.montoCalculado, 0);
+  const pendingFines = (fines || []).filter(c => c.clientId === selectedClientId && c.estadoPago === 'PENDIENTE');
+  const totalDeuda = pendingConsumptions.reduce((acc, c) => acc + c.montoCalculado, 0) + pendingFines.reduce((acc, f) => acc + f.monto, 0);
 
   return (
     <div className="space-y-6">
@@ -349,7 +350,7 @@ export default function Finanzas() {
                         </div>
                     )}
                     
-                    {formData.categoria === 'CONSUMO' && isModalOpen === 'INGRESO' ? (
+                    {['CONSUMO', 'MULTA'].includes(formData.categoria) && isModalOpen === 'INGRESO' ? (
                       <div className="space-y-4">
                         {selectedClientId && (
                           <div className="bg-slate-800/50 p-4 rounded-md border border-slate-700">
@@ -377,8 +378,24 @@ export default function Finanzas() {
                             </div>
 
                             <div className="mb-4 pt-4 border-t border-slate-700">
-                              <h5 className="text-xs font-semibold text-slate-400 uppercase mb-2">Por Multas o Otras Deudas</h5>
-                              <p className="text-sm text-slate-400">No tiene multas u otras deudas pendientes registradas.</p>
+                              <h5 className="text-xs font-semibold text-slate-400 uppercase mb-2">Por Multas (Faltas a Reuniones, etc)</h5>
+                              {pendingFines.length > 0 ? (
+                                <ul className="space-y-2 mb-3">
+                                  {pendingFines.map(f => (
+                                    <li key={f.id} className="flex justify-between items-center text-sm gap-4">
+                                      <span className="text-slate-300 flex-1 truncate" title={f.motivo}>{f.motivo}</span>
+                                      <div className="flex items-center space-x-3 flex-shrink-0">
+                                        <span className="text-slate-200 font-medium">{formatCurrency(f.monto)}</span>
+                                        <Button size="sm" type="button" onClick={() => {
+                                          payFine(f.id);
+                                        }}>Cobrar</Button>
+                                      </div>
+                                    </li>
+                                  ))}
+                                </ul>
+                              ) : (
+                                <p className="text-sm text-slate-400 mb-2">No tiene multas pendientes registradas.</p>
+                              )}
                             </div>
 
                             <div className="pt-2 border-t border-slate-700 flex justify-between">
@@ -417,7 +434,7 @@ export default function Finanzas() {
                   </div>
                 </div>
                 <div className="bg-slate-800/50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                  {formData.categoria !== 'CONSUMO' && (
+                  {!['CONSUMO', 'MULTA'].includes(formData.categoria) && (
                     <Button type="submit" className="w-full sm:ml-3 sm:w-auto">Guardar Transacción</Button>
                   )}
                   <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)} className="mt-3 w-full sm:mt-0 sm:w-auto">Cerrar</Button>

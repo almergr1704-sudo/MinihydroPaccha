@@ -6,7 +6,7 @@ import {
 import { cn } from '../../lib/utils';
 import { useAppContext } from '../../store/AppContext';
 
-const navigation = [
+const baseNavigation = [
   { name: 'Dashboard', href: '/', icon: Home },
   { name: 'Socios & Usuarios', href: '/clientes', icon: Users },
   { name: 'Consumo & Facturación', href: '/consumo', icon: Zap },
@@ -18,13 +18,17 @@ const navigation = [
 
 export function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { user, logout } = useAppContext();
+  const { user, userRole, logout } = useAppContext();
 
   const handleLogout = () => {
     logout();
   }
 
   const userInitial = user?.email ? user.email.charAt(0).toUpperCase() : 'U';
+
+  const navigation = userRole === 'OPERATOR' 
+    ? baseNavigation.filter(nav => nav.name === 'Consumo & Facturación') 
+    : baseNavigation;
 
   return (
     <div className="h-screen flex overflow-hidden bg-[#0B0E14] font-sans">
@@ -119,7 +123,9 @@ export function AppLayout() {
                   </div>
                   <div className="ml-3 truncate max-w-[150px]">
                     <p className="text-sm font-medium text-white truncate" title={user?.email || 'Usuario'}>{user?.email || 'Admin User'}</p>
-                    <p className="text-xs font-medium text-slate-400 group-hover:text-slate-300">Administrador</p>
+                    <p className="text-xs font-medium text-slate-400 group-hover:text-slate-300">
+                      {userRole === 'ADMIN' ? 'Administrador' : userRole === 'OPERATOR' ? 'Operador' : 'Supervisor'}
+                    </p>
                   </div>
                 </div>
               </div>

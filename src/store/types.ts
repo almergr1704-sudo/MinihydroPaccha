@@ -52,10 +52,21 @@ export interface Meeting {
   asistencia: Record<string, AttendanceStatus>; // clientId -> status
 }
 
+export interface Fine {
+  id: string;
+  clientId: string;
+  meetingId: string;
+  monto: number;
+  motivo: string;
+  estadoPago: PaymentStatus;
+  fecha: string;
+}
+
 export interface AppState {
   clients: Client[];
   consumptions: Consumption[];
   transactions: Transaction[];
   meetings: Meeting[];
   admins: any[];
+  fines: Fine[];
 }
