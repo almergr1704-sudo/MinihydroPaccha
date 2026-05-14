@@ -15,6 +15,8 @@ export default function Clientes() {
 
   // Form state
   const [suministrosStr, setSuministrosStr] = useState('');
+  const [apellidoPaterno, setApellidoPaterno] = useState('');
+  const [apellidoMaterno, setApellidoMaterno] = useState('');
   const initialFormState: Omit<Client, 'id' | 'fechaRegistro'> = {
     nombres: '',
     apellidos: '',
@@ -33,9 +35,14 @@ export default function Clientes() {
 
   const openEditModal = (client: Client) => {
     setEditingId(client.id);
+    const aps = client.apellidos || client.nombre?.split(' ').slice(1).join(' ') || '';
+    const parts = aps.split(' ');
+    setApellidoPaterno(parts[0] || '');
+    setApellidoMaterno(parts.slice(1).join(' ') || '');
+    
     setFormData({
       nombres: client.nombres || client.nombre?.split(' ')[0] || '',
-      apellidos: client.apellidos || client.nombre?.split(' ').slice(1).join(' ') || '',
+      apellidos: aps,
       dni: client.dni,
       direccion: client.direccion || '',
       numeroDireccion: client.numeroDireccion || '',
@@ -66,6 +73,7 @@ export default function Clientes() {
     const suministrosArray = suministrosStr.split(',').map(s => s.trim()).filter(s => s);
     const clientData = {
       ...formData,
+      apellidos: `${apellidoPaterno} ${apellidoMaterno}`.trim(),
       suministros: suministrosArray,
       codigoSuministro: suministrosArray[0] || formData.codigoSuministro
     };
@@ -82,6 +90,8 @@ export default function Clientes() {
     setIsModalOpen(false);
     setEditingId(null);
     setSuministrosStr('');
+    setApellidoPaterno('');
+    setApellidoMaterno('');
     setFormData(initialFormState);
   };
 
@@ -103,7 +113,14 @@ export default function Clientes() {
         data.forEach((row: any) => {
           // Identify fields loosely based on possible naming
           const nombres = row.Nombres || row.nombres || row.Nombre || row.nombre || '';
-          const apellidos = row.Apellidos || row.apellidos || row.Apellido || row.apellido || '';
+          
+          let apellidos = '';
+          if (row['Apellido Paterno'] || row['Apellido Materno']) {
+            apellidos = `${row['Apellido Paterno'] || ''} ${row['Apellido Materno'] || ''}`.trim();
+          } else {
+            apellidos = row.Apellidos || row.apellidos || row.Apellido || row.apellido || '';
+          }
+          
           const dni = (row.DNI || row.dni || row.Documento || '').toString();
           const tipo = (row.Tipo || row.tipo || 'USUARIO').toString().toUpperCase() === 'SOCIO' ? 'SOCIO' as const : 'USUARIO' as const;
           const suministroStr = (row.Suministro || row.suministro || row.Suministros || '').toString();
@@ -141,8 +158,9 @@ export default function Clientes() {
 
   const handleDownloadTemplate = () => {
     const ws = XLSX.utils.json_to_sheet([{
-      Nombres: 'Juan Perez',
-      Apellidos: 'Gomez',
+      Nombres: 'Juan',
+      'Apellido Paterno': 'Perez',
+      'Apellido Materno': 'Gomez',
       DNI: '12345678',
       Tipo: 'SOCIO o USUARIO',
       Suministro: 'SUM-001, SUM-002',
@@ -306,14 +324,18 @@ export default function Clientes() {
                         {editingId ? 'Editar Cliente' : 'Registrar Nuevo Cliente'}
                       </h3>
                       <div className="mt-4 space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-3 gap-4">
                           <div>
                             <label className="block text-sm font-medium text-slate-300">Nombres</label>
                             <input type="text" required value={formData.nombres} onChange={e => setFormData({...formData, nombres: e.target.value})} className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" />
                           </div>
                           <div>
-                            <label className="block text-sm font-medium text-slate-300">Apellidos</label>
-                            <input type="text" required value={formData.apellidos} onChange={e => setFormData({...formData, apellidos: e.target.value})} className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" />
+                            <label className="block text-sm font-medium text-slate-300">Apellido Paterno</label>
+                            <input type="text" required value={apellidoPaterno} onChange={e => setApellidoPaterno(e.target.value)} className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-300">Apellido Materno</label>
+                            <input type="text" value={apellidoMaterno} onChange={e => setApellidoMaterno(e.target.value)} className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" />
                           </div>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
