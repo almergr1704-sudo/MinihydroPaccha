@@ -42,8 +42,29 @@ export default function Login() {
     try {
       setLoading(true);
       setError('');
-      const result = await signInWithEmailAndPassword(auth, email, password);
-      await handleLoginSuccess(result.user);
+      
+      let authEmail = email;
+      let authPassword = password;
+      
+      // Local setup for Admin / Admin
+      if (email.toLowerCase() === 'admin' && password === 'Admin') {
+        authEmail = 'admin@paccha.local';
+        authPassword = 'Admin123456';
+      }
+
+      try {
+        const result = await signInWithEmailAndPassword(auth, authEmail, authPassword);
+        await handleLoginSuccess(result.user);
+      } catch (err: any) {
+        // If it's the hardcoded admin and it fails, let's create it on the fly
+        if (authEmail === 'admin@paccha.local' && (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password')) {
+          const { createUserWithEmailAndPassword } = await import('firebase/auth');
+          const result = await createUserWithEmailAndPassword(auth, authEmail, authPassword);
+          await handleLoginSuccess(result.user);
+        } else {
+          throw err;
+        }
+      }
     } catch (err: any) {
       console.error(err);
       setError('Credenciales incorrectas o error al iniciar sesión.');
@@ -77,7 +98,7 @@ export default function Login() {
           </div>
         </div>
         <h2 className="mt-6 text-center text-3xl font-extrabold text-slate-100">
-          HydroERP
+          MiniHydro PACCHA
         </h2>
         <p className="mt-2 text-center text-sm text-slate-400">
           Gestión de Central Hidroeléctrica
@@ -88,9 +109,9 @@ export default function Login() {
         <div className="bg-[#0B0E14] py-8 px-4 shadow sm:rounded-lg sm:px-10 border border-slate-800">
           <form className="space-y-6" onSubmit={handleEmailLogin}>
             <div>
-              <label className="block text-sm font-medium text-slate-300">Correo Electrónico</label>
+              <label className="block text-sm font-medium text-slate-300">Usuario o Correo Electrónico</label>
               <input
-                type="email"
+                type="text"
                 required
                 value={email}
                 onChange={e => setEmail(e.target.value)}
