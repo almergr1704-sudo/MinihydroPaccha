@@ -26,6 +26,14 @@ const AuthGuard = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+const RoleGuard = ({ children, allowedRoles }: { children: React.ReactNode, allowedRoles: string[] }) => {
+  const { userRole } = useAppContext();
+  if (!allowedRoles.includes(userRole)) {
+    return <Navigate to={userRole === 'OPERATOR' ? '/consumo' : '/'} replace />;
+  }
+  return <>{children}</>;
+};
+
 export default function App() {
   return (
     <AppProvider>
@@ -33,17 +41,17 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<AuthGuard><AppLayout /></AuthGuard>}>
-            <Route index element={<Dashboard />} />
-            <Route path="clientes" element={<Clientes />} />
-            <Route path="consumo" element={<Consumo />} />
-            <Route path="finanzas" element={<Finanzas />} />
-            <Route path="reuniones" element={<Reuniones />} />
-            <Route path="reportes" element={<Reportes />} />
-            <Route path="usuarios" element={<Usuarios />} />
+            <Route index element={<RoleGuard allowedRoles={['ADMIN', 'SUPERVISOR']}><Dashboard /></RoleGuard>} />
+            <Route path="clientes" element={<RoleGuard allowedRoles={['ADMIN', 'SUPERVISOR']}><Clientes /></RoleGuard>} />
+            <Route path="consumo" element={<RoleGuard allowedRoles={['ADMIN', 'SUPERVISOR', 'OPERATOR']}><Consumo /></RoleGuard>} />
+            <Route path="finanzas" element={<RoleGuard allowedRoles={['ADMIN', 'SUPERVISOR']}><Finanzas /></RoleGuard>} />
+            <Route path="reuniones" element={<RoleGuard allowedRoles={['ADMIN', 'SUPERVISOR']}><Reuniones /></RoleGuard>} />
+            <Route path="reportes" element={<RoleGuard allowedRoles={['ADMIN', 'SUPERVISOR']}><Reportes /></RoleGuard>} />
+            <Route path="usuarios" element={<RoleGuard allowedRoles={['ADMIN', 'SUPERVISOR']}><Usuarios /></RoleGuard>} />
             <Route path="*" element={
               <div className="flex flex-col items-center justify-center h-full">
                 <h2 className="text-2xl font-bold text-slate-100">Módulo no encontrado</h2>
-                <p className="text-slate-400 mt-2">La ruta solicitada no existe.</p>
+                <p className="text-slate-400 mt-2">La ruta solicitada no existe o no tiene permisos para acceder.</p>
               </div>
             } />
           </Route>

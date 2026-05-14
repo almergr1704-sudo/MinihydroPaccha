@@ -6,7 +6,7 @@ import { formatCurrency } from '../lib/utils';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { TransactionType, Transaction } from '../store/types';
 
@@ -87,7 +87,7 @@ export default function Finanzas() {
       t.tipo === 'EGRESO' ? formatCurrency(t.monto) : ''
     ]);
 
-    (doc as any).autoTable({
+    autoTable(doc, {
       startY: 30,
       head: [['Fecha', 'Categoría', 'Descripción', 'Ingreso', 'Egreso']],
       body: tableData,

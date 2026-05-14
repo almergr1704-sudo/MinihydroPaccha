@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Plus, Search, User, Filter, Upload } from 'lucide-react';
+import { Plus, Search, User, Filter, Upload, Download } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Button, Card, CardContent, Badge } from '../components/ui';
 import { Client, ClientType } from '../store/types';
@@ -139,6 +139,24 @@ export default function Clientes() {
     if(fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const handleDownloadTemplate = () => {
+    const ws = XLSX.utils.json_to_sheet([{
+      Nombres: 'Juan Perez',
+      Apellidos: 'Gomez',
+      DNI: '12345678',
+      Tipo: 'SOCIO o USUARIO',
+      Suministro: 'SUM-001, SUM-002',
+      Direccion: 'Av. Principal',
+      Numero: '123',
+      Referencia: 'Frente al parque',
+      Telefono: '987654321',
+      Correo: 'juan@example.com'
+    }]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Plantilla');
+    XLSX.writeFile(wb, 'Plantilla_Clientes.xlsx');
+  };
+
   return (
     <div className="space-y-6">
       <div className="sm:flex sm:items-center sm:justify-between">
@@ -158,6 +176,10 @@ export default function Clientes() {
             ref={fileInputRef} 
             onChange={handleFileUpload} 
           />
+          <Button variant="outline" className="hidden sm:inline-flex" onClick={handleDownloadTemplate}>
+            <Download className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
+            Descargar Plantilla
+          </Button>
           <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
             <Upload className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
             Importar Excel

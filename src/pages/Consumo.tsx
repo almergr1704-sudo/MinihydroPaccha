@@ -6,12 +6,12 @@ import { formatCurrency } from '../lib/utils';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { Consumption } from '../store/types';
 
 export default function Consumo() {
-  const { clients, consumptions, addConsumption, payConsumption } = useAppContext();
+  const { clients, consumptions, addConsumption } = useAppContext();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedMes, setSelectedMes] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
   
@@ -80,7 +80,7 @@ export default function Consumo() {
       ];
     });
 
-    (doc as any).autoTable({
+    autoTable(doc, {
       startY: 30,
       head: [['Cliente', 'Suministro', 'kWh', 'Monto', 'Estado']],
       body: tableData,
@@ -126,7 +126,7 @@ export default function Consumo() {
       const tarifaAplicada = client.tipo === 'SOCIO' ? 0.20 : 0.30;
       const kwhFacturado = Math.max(cons.kwh || 0, 6);
 
-      (doc as any).autoTable({
+      autoTable(doc, {
         startY: yOffset + 40,
         head: [['Descripción', 'Cantidad (kWh)', 'Precio (S/)', 'Subtotal']],
         body: [
@@ -156,17 +156,6 @@ export default function Consumo() {
     });
 
     doc.save(`Recibos_Masivos_${selectedMes}.pdf`);
-  };
-
-  const handlePay = (id: string) => {
-    if(window.confirm('¿Confirmar el pago de este recibo?')) {
-      payConsumption(id);
-      const consInfo = consumptions.find(c => c.id === id);
-      if(consInfo) {
-        // Generación automática del recibo tras pagar
-        handleGenerateReceipt({...consInfo, estadoPago: 'PAGADO'});
-      }
-    }
   };
 
   const handleGenerateReceipt = (cons: Consumption) => {
@@ -202,7 +191,7 @@ export default function Consumo() {
 
     const formatCurrencyStr = (val: number) => new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(val);
 
-    (doc as any).autoTable({
+    autoTable(doc, {
       startY: 95,
       head: [['Descripción', 'Cantidad (kWh)', 'Precio Unitario (S/)', 'Subtotal']],
       body: [
@@ -371,11 +360,6 @@ export default function Consumo() {
                         </Badge>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                        {cons.estadoPago === 'PENDIENTE' && (
-                          <Button size="sm" variant="outline" onClick={() => handlePay(cons.id)} className="border-red-500/50 text-red-500 hover:bg-red-500/10">
-                            <Check className="h-4 w-4 mr-1" /> Pagar
-                          </Button>
-                        )}
                         {cons.estadoPago === 'PAGADO' && (
                           <Button size="sm" variant="ghost" className="text-blue-600" onClick={() => handleGenerateReceipt(cons)}>
                             <Download className="h-4 w-4 mr-1" /> Recibo
