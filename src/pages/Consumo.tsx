@@ -1,0 +1,341 @@
+import React, { useState } from 'react';
+import { Plus, Check, FileText, Download } from 'lucide-react';
+import { useAppContext } from '../store/AppContext';
+import { Button, Card, CardContent, Badge } from '../components/ui';
+import { formatCurrency } from '../lib/utils';
+import { format, parseISO } from 'date-fns';
+import { es } from 'date-fns/locale';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+import { Consumption } from '../store/types';
+
+export default function Consumo() {
+  const { clients, consumptions, addConsumption, payConsumption } = useAppContext();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedMes, setSelectedMes] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
+  
+  const [clientSearch, setClientSearch] = useState('');
+
+  const [formData, setFormData] = useState({
+    clientAndSuministro: '',
+    kwh: ''
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.clientAndSuministro || !formData.kwh) return;
+    
+    const [clientId, codigoSuministro] = formData.clientAndSuministro.split('|');
+
+    addConsumption({
+      clientId,
+      codigoSuministro,
+      kwh: Number(formData.kwh),
+      fechaLectura: new Date().toISOString(),
+      mes: selectedMes,
+    });
+    
+    setIsModalOpen(false);
+    setFormData({ clientAndSuministro: '', kwh: '' });
+  };
+
+  const handlePay = (id: string) => {
+    if(window.confirm('¿Confirmar el pago de este recibo?')) {
+      payConsumption(id);
+      const consInfo = consumptions.find(c => c.id === id);
+      if(consInfo) {
+        // Generación automática del recibo tras pagar
+        handleGenerateReceipt({...consInfo, estadoPago: 'PAGADO'});
+      }
+    }
+  };
+
+  const handleGenerateReceipt = (cons: Consumption) => {
+    const client = clients.find(c => c.id === cons.clientId);
+    if (!client) return;
+
+    const clientName = client.nombre ? client.nombre : `${client.nombres} ${client.apellidos}`;
+
+    const doc = new jsPDF();
+    
+    // Header
+    doc.setFontSize(20);
+    doc.text('Central Hidroeléctrica', 14, 22);
+    doc.setFontSize(12);
+    doc.text('Recibo de Consumo Eléctrico', 14, 30);
+    
+    doc.setFontSize(10);
+    doc.text(`Fecha de Emisión: ${format(new Date(), 'dd MMM yyyy')}`, 14, 40);
+    doc.text(`Periodo Facturado: ${cons.mes}`, 14, 45);
+    doc.text(`Estado: ${cons.estadoPago}`, 14, 50);
+
+    // Client Info
+    doc.text('Datos del Cliente:', 14, 60);
+    doc.text(`Nombre: ${clientName}`, 14, 65);
+    doc.text(`DNI: ${client.dni}`, 14, 70);
+    doc.text(`Dirección: ${client.direccion} ${client.numeroDireccion ? `N° ${client.numeroDireccion}` : ''}`, 14, 75);
+    doc.text(`Tipo de Cliente: ${client.tipo}`, 14, 80);
+    doc.text(`Suministro: ${cons.codigoSuministro || client.codigoSuministro}`, 14, 85);
+
+    // Table
+    const tarifaAplicada = client.tipo === 'SOCIO' ? 0.20 : 0.30;
+    const kwhFacturado = Math.max(cons.kwh || 0, 6);
+
+    const formatCurrencyStr = (val: number) => new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(val);
+
+    (doc as any).autoTable({
+      startY: 95,
+      head: [['Descripción', 'Cantidad (kWh)', 'Precio Unitario (S/)', 'Subtotal']],
+      body: [
+        [
+          'Consumo Eléctrico' + (cons.kwh < 6 ? ' (Mínimo aplicado)' : ''),
+          kwhFacturado.toString(),
+          tarifaAplicada.toFixed(2),
+          formatCurrencyStr(cons.montoCalculado)
+        ]
+      ],
+      theme: 'grid',
+      headStyles: { fillColor: [15, 23, 42] }
+    });
+
+    const finalY = (doc as any).lastAutoTable.finalY || 120;
+    doc.setFontSize(14);
+    doc.text(`Total a Pagar: ${formatCurrencyStr(cons.montoCalculado)}`, 14, finalY + 10);
+
+    doc.save(`Recibo_${client.codigoSuministro}_${cons.mes}.pdf`);
+  };
+
+  const [activeTab, setActiveTab] = useState<'LECTURAS' | 'DEUDAS'>('LECTURAS');
+
+  // Filter consumptions by selected month
+  const filteredConsumptions = consumptions.filter(c => c.mes === selectedMes);
+  
+  // All pending debts
+  const pendingDebts = consumptions.filter(c => c.estadoPago === 'PENDIENTE').sort((a,b) => new Date(b.fechaLectura).getTime() - new Date(a.fechaLectura).getTime());
+
+  const searchedClients = clients.filter(c => {
+    if (!clientSearch) return true;
+    const searchLower = clientSearch.toLowerCase();
+    const fullName = c.nombre ? c.nombre.toLowerCase() : `${c.nombres || ''} ${c.apellidos || ''}`.toLowerCase();
+    return c.codigoSuministro.toLowerCase().includes(searchLower) ||
+           c.dni.includes(searchLower) ||
+           fullName.includes(searchLower);
+  }).filter(c => c.estado === 'ACTIVO');
+
+  const selectedClient = formData.clientAndSuministro ? clients.find(c => c.id === formData.clientAndSuministro.split('|')[0]) : undefined;
+  const selectedClientConsumptions = selectedClient 
+    ? consumptions.filter(c => c.clientId === selectedClient.id && c.codigoSuministro === formData.clientAndSuministro.split('|')[1]).sort((a,b) => new Date(b.fechaLectura).getTime() - new Date(a.fechaLectura).getTime())
+    : [];
+  const ultimaLectura = selectedClientConsumptions.length > 0 ? selectedClientConsumptions[0] : null;
+
+  return (
+    <div className="space-y-6">
+      <div className="sm:flex sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-2xl font-bold leading-7 text-slate-100 sm:truncate sm:text-3xl sm:tracking-tight">
+            Consumo & Facturación
+          </h2>
+          <p className="mt-1 text-sm text-slate-400">
+            Registro de lecturas de medidor y control de pagos.
+          </p>
+        </div>
+        <div className="mt-4 sm:mt-0">
+          <Button onClick={() => setIsModalOpen(true)}>
+            <Plus className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
+            Registrar Lectura
+          </Button>
+        </div>
+      </div>
+
+      <Card>
+        <CardContent className="p-0">
+          <div className="border-b border-slate-800">
+            <nav className="flex -mb-px" aria-label="Tabs">
+              <button
+                onClick={() => setActiveTab('LECTURAS')}
+                className={`w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm ${
+                  activeTab === 'LECTURAS'
+                    ? 'border-blue-500 text-blue-500'
+                    : 'border-transparent text-slate-400 hover:text-slate-300 hover:border-slate-300'
+                }`}
+              >
+                Lecturas del Mes
+              </button>
+              <button
+                onClick={() => setActiveTab('DEUDAS')}
+                className={`w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm ${
+                  activeTab === 'DEUDAS'
+                    ? 'border-red-500 text-red-500'
+                    : 'border-transparent text-slate-400 hover:text-slate-300 hover:border-slate-300'
+                }`}
+              >
+                Todas las Deudas Pendientes
+              </button>
+            </nav>
+          </div>
+
+          {activeTab === 'LECTURAS' && (
+            <div className="p-4 border-b border-slate-800 bg-slate-800/50 flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                 <label className="text-sm font-medium text-slate-300">Periodo de Facturación:</label>
+                 <input 
+                   type="month" 
+                   value={selectedMes}
+                   onChange={(e) => setSelectedMes(e.target.value)}
+                   className="block border-slate-700 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm border bg-[#0B0E14] text-slate-100"
+                 />
+              </div>
+            </div>
+          )}
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-800">
+              <thead className="bg-slate-800/50">
+                <tr>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Cliente</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Consumo</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Monto Calculado</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Estado</th>
+                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="bg-[#0B0E14] divide-y divide-slate-800">
+                {(activeTab === 'LECTURAS' ? filteredConsumptions : pendingDebts).length > 0 ? (activeTab === 'LECTURAS' ? filteredConsumptions : pendingDebts).map((cons) => {
+                  const client = clients.find(c => c.id === cons.clientId);
+                  const clientName = client?.nombre ? client.nombre : `${client?.nombres || ''} ${client?.apellidos || ''}`;
+                  return (
+                    <tr key={cons.id} className="hover:bg-slate-800/50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-slate-100">{clientName}</div>
+                        <div className="text-xs text-slate-400">{cons.codigoSuministro || client?.codigoSuministro} • {client?.tipo}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-slate-100 font-semibold">{cons.kwh} kWh</div>
+                        <div className="text-xs text-slate-400 text-emerald-400">
+                          {cons.mes} • {format(parseISO(cons.fechaLectura), 'dd MMM yyyy', { locale: es })}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-bold text-slate-100">{formatCurrency(cons.montoCalculado)}</div>
+                        <div className="text-xs text-slate-400">Tarifa: S/ {client?.tipo === 'SOCIO' ? '0.20' : '0.30'}/kWh</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <Badge variant={cons.estadoPago === 'PAGADO' ? 'success' : 'warning'}>
+                          {cons.estadoPago}
+                        </Badge>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                        {cons.estadoPago === 'PENDIENTE' && (
+                          <Button size="sm" variant="outline" onClick={() => handlePay(cons.id)} className="border-red-500/50 text-red-500 hover:bg-red-500/10">
+                            <Check className="h-4 w-4 mr-1" /> Pagar
+                          </Button>
+                        )}
+                        {cons.estadoPago === 'PAGADO' && (
+                          <Button size="sm" variant="ghost" className="text-blue-600" onClick={() => handleGenerateReceipt(cons)}>
+                            <Download className="h-4 w-4 mr-1" /> Recibo
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                }) : (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-10 text-center text-slate-400">
+                      {activeTab === 'LECTURAS' ? `No hay lecturas registradas para el periodo ${selectedMes}.` : 'No hay deudas pendientes registradas.'}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Modal Add Consumption */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 bg-slate-900 bg-opacity-75 transition-opacity" onClick={() => setIsModalOpen(false)}></div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div className="relative z-10 inline-block align-bottom bg-[#0B0E14] rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full">
+              <form onSubmit={handleSubmit}>
+                <div className="bg-[#0B0E14] px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                  <h3 className="text-lg leading-6 font-medium text-slate-100" id="modal-title">
+                    Registrar Lectura Mensual
+                  </h3>
+                  <div className="mt-4 space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300">Periodo</label>
+                      <input 
+                        type="month" 
+                        required 
+                        value={selectedMes} 
+                        onChange={e => setSelectedMes(e.target.value)} 
+                        className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300">Buscar Cliente (Suministro, DNI o Nombre)</label>
+                      <input 
+                        type="text" 
+                        placeholder="Buscar..."
+                        value={clientSearch}
+                        onChange={(e) => setClientSearch(e.target.value)}
+                        className="mt-1 mb-2 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-slate-800/50 text-slate-100"
+                      />
+                      <label className="block text-sm font-medium text-slate-300">Seleccionar Cliente / Suministro</label>
+                      <select 
+                        required 
+                        size={clientSearch ? 4 : 1}
+                        value={formData.clientAndSuministro} 
+                        onChange={e => setFormData({...formData, clientAndSuministro: e.target.value})} 
+                        className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100"
+                      >
+                        <option value="">Seleccione un suministro...</option>
+                        {searchedClients.flatMap(c => {
+                          const supplies = c.suministros?.length ? c.suministros : [c.codigoSuministro];
+                          return supplies.map(sup => (
+                            <option key={`${c.id}|${sup}`} value={`${c.id}|${sup}`}>
+                              {sup} - {c.nombre ? c.nombre : `${c.nombres} ${c.apellidos}`} ({c.tipo}) - DNI: {c.dni}
+                            </option>
+                          ));
+                        })}
+                      </select>
+                      {ultimaLectura && (
+                        <div className="mt-2 p-2 bg-slate-800 rounded-md border border-slate-700 text-xs text-slate-300">
+                          <strong className="text-emerald-400 block mb-1">Última lectura registrada:</strong>
+                          {ultimaLectura.mes} - {ultimaLectura.kwh} kWh ({formatCurrency(ultimaLectura.montoCalculado)}) • Estado: <span className={ultimaLectura.estadoPago === 'PAGADO' ? 'text-emerald-400' : 'text-yellow-400'}>{ultimaLectura.estadoPago}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300">Consumo (kWh)</label>
+                      <input 
+                        type="number" 
+                        min="0" 
+                        step="1"
+                        required 
+                        value={formData.kwh} 
+                        onChange={e => setFormData({...formData, kwh: e.target.value})} 
+                        className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" 
+                      />
+                      {formData.clientAndSuministro && formData.kwh && (
+                        <p className="mt-2 text-sm text-slate-400 font-medium">
+                          Monto estimado: {formatCurrency(Number(formData.kwh) * (clients.find(c => c.id === formData.clientAndSuministro.split('|')[0])?.tipo === 'SOCIO' ? 0.20 : 0.30))}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-slate-800/50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                  <Button type="submit" className="w-full sm:ml-3 sm:w-auto">Guardar Lectura</Button>
+                  <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)} className="mt-3 w-full sm:mt-0 sm:w-auto">Cancelar</Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
