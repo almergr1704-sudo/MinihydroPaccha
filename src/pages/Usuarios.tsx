@@ -24,15 +24,19 @@ export default function Usuarios() {
 
   const handleCreateLocalUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newEmail || !newPassword) return;
+    if (!newPassword || (!newNombres && !newEmail)) return;
     
     setCreatingUser(true);
     
     try {
       // Local addition
+      const newUsername = (newNombres.charAt(0) + (newApellidos.split(' ')[0] || '')).toLowerCase().replace(/[^a-z0-9]/g, '') + (newDni.slice(-2) || '');
+      
       const newAdmin = {
          id: Math.random().toString(36).substr(2, 9),
-         email: newEmail,
+         email: newEmail || `${newUsername}@paccha.local`,
+         username: newUsername,
+         password: newPassword,
          nombres: newNombres,
          apellidos: newApellidos,
          dni: newDni,
@@ -88,7 +92,7 @@ export default function Usuarios() {
               <thead className="bg-slate-800/50">
                 <tr>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
-                    Usuario
+                    Usuario / Nombres
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
                     Rol Actual
@@ -108,10 +112,10 @@ export default function Usuarios() {
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-slate-100">
-                            {admin.nombres ? `${admin.nombres} ${admin.apellidos}` : admin.email}
+                            {admin.nombres ? `${admin.nombres} ${admin.apellidos}` : admin.username || admin.email}
                           </div>
                           <div className="text-xs text-slate-400">
-                            {admin.nombres ? admin.email : ''} {admin.dni ? `• DNI: ${admin.dni}` : ''}
+                            {admin.username || admin.email} {admin.dni ? `• DNI: ${admin.dni}` : ''}
                           </div>
                           {admin.email === user?.email && (
                             <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 mt-1">
@@ -248,10 +252,9 @@ export default function Usuarios() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-slate-300">Correo Electrónico</label>
+                    <label className="block text-sm font-medium text-slate-300">Correo Electrónico (Opcional)</label>
                     <input 
                       type="email" 
-                      required 
                       value={newEmail} 
                       onChange={e => setNewEmail(e.target.value)} 
                       className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" 

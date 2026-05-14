@@ -30,7 +30,21 @@ export default function Login() {
         return;
       }
       
+      // Check local configuration
+      const storedData = JSON.parse(localStorage.getItem('erp_data') || '{"admins":[]}');
+      const admins = storedData.admins || [];
+      const userMatched = admins.find((a: any) => 
+        (a.username === email.toLowerCase() || a.email === email.toLowerCase()) && a.password === password
+      );
+
+      if (userMatched) {
+        // Log in with matched user
+        login(userMatched.email);
+        return;
+      }
+      
       if (email.includes('@') && password.length >= 6) {
+        // Fallback for previously created users/emails or generic
         login(email);
         return;
       }

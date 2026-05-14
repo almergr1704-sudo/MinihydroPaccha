@@ -39,6 +39,75 @@ export default function Consumo() {
     setFormData({ clientAndSuministro: '', kwh: '' });
   };
 
+  const handleGenerateMassReceipts = (consumptionsList: Consumption[]) => {
+    if (consumptionsList.length === 0) return;
+    const doc = new jsPDF({ format: 'a4' });
+    let yOffset = 10;
+    const maxH = 297;
+    const receiptHeight = 120; // Approx height per receipt
+
+    const formatCurrencyStr = (val: number) => new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(val);
+
+    consumptionsList.forEach((cons, index) => {
+      const client = clients.find(c => c.id === cons.clientId);
+      if (!client) return;
+
+      if (yOffset + receiptHeight > maxH) {
+        doc.addPage();
+        yOffset = 10;
+      }
+
+      const clientName = client.nombre ? client.nombre : `${client.nombres} ${client.apellidos}`;
+
+      // Header
+      doc.setFontSize(16);
+      doc.text('Central Hidroeléctrica PACCHA - Recibo de Consumo', 14, yOffset + 10);
+      
+      doc.setFontSize(9);
+      doc.text(`Fecha Emisión: ${format(new Date(), 'dd MMM yyyy')} | Periodo: ${cons.mes} | Estado: ${cons.estadoPago}`, 14, yOffset + 18);
+
+      // Client Info
+      doc.setFontSize(10);
+      doc.text(`Cliente: ${clientName} (DNI/RUC: ${client.dni})`, 14, yOffset + 26);
+      doc.text(`Dirección: ${client.direccion} ${client.numeroDireccion ? `N° ${client.numeroDireccion}` : ''}`, 14, yOffset + 31);
+      doc.text(`Tipo: ${client.tipo} | Suministro: ${cons.codigoSuministro || client.codigoSuministro}`, 14, yOffset + 36);
+
+      // Table
+      const tarifaAplicada = client.tipo === 'SOCIO' ? 0.20 : 0.30;
+      const kwhFacturado = Math.max(cons.kwh || 0, 6);
+
+      (doc as any).autoTable({
+        startY: yOffset + 40,
+        head: [['Descripción', 'Cantidad (kWh)', 'Precio (S/)', 'Subtotal']],
+        body: [
+          [
+            'Consumo Eléctrico' + (cons.kwh < 6 ? ' (Mín.)' : ''),
+            kwhFacturado.toString(),
+            tarifaAplicada.toFixed(2),
+            formatCurrencyStr(cons.montoCalculado)
+          ]
+        ],
+        theme: 'grid',
+        headStyles: { fillColor: [15, 23, 42] },
+        styles: { fontSize: 8 },
+        margin: { left: 14, right: 14 }
+      });
+
+      const finalY = (doc as any).lastAutoTable.finalY;
+      doc.setFontSize(12);
+      doc.text(`Total a Pagar: ${formatCurrencyStr(cons.montoCalculado)}`, 14, finalY + 10);
+      
+      // Draw a cut line
+      doc.setLineDashPattern([2, 2], 0);
+      doc.line(10, finalY + 20, 200, finalY + 20);
+      doc.setLineDashPattern([], 0); // reset
+
+      yOffset = finalY + 25;
+    });
+
+    doc.save(`Recibos_Masivos_${selectedMes}.pdf`);
+  };
+
   const handlePay = (id: string) => {
     if(window.confirm('¿Confirmar el pago de este recibo?')) {
       payConsumption(id);
@@ -175,7 +244,7 @@ export default function Consumo() {
           </div>
 
           {activeTab === 'LECTURAS' && (
-            <div className="p-4 border-b border-slate-800 bg-slate-800/50 flex items-center justify-between">
+            <div className="p-4 border-b border-slate-800 bg-slate-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center space-x-4">
                  <label className="text-sm font-medium text-slate-300">Periodo de Facturación:</label>
                  <input 
@@ -185,6 +254,15 @@ export default function Consumo() {
                    className="block border-slate-700 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm border bg-[#0B0E14] text-slate-100"
                  />
               </div>
+              <Button 
+                variant="outline" 
+                onClick={() => handleGenerateMassReceipts(filteredConsumptions)}
+                disabled={filteredConsumptions.length === 0}
+                className="flex items-center"
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                Imprimir Recibos Masivos
+              </Button>
             </div>
           )}
 

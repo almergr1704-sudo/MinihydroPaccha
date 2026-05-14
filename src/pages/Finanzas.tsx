@@ -6,6 +6,8 @@ import { formatCurrency } from '../lib/utils';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 import { TransactionType, Transaction } from '../store/types';
 
 export default function Finanzas() {
@@ -56,7 +58,8 @@ export default function Finanzas() {
       categoria: formData.categoria as any,
       monto: Number(formData.monto),
       descripcion: formData.descripcion,
-      destinatario: formData.tipo === 'EGRESO' ? formData.destinatario : undefined
+      destinatario: formData.tipo === 'EGRESO' ? formData.destinatario : undefined,
+      clientId: selectedClientId || undefined
     };
     
     await addTransaction(newTx);
@@ -68,6 +71,45 @@ export default function Finanzas() {
     
     setIsModalOpen(false);
     setFormData({ tipo: 'INGRESO', categoria: 'OTROS', monto: '', descripcion: '', destinatario: '' });
+    setSelectedClientId('');
+    setClientSearch('');
+  };
+
+  const handleGenerateReportPDF = () => {
+    const doc = new jsPDF();
+    doc.text(`Reporte de Transacciones - ${filterType}`, 14, 20);
+    
+    const tableData = filteredTransactions.map(t => [
+      format(parseISO(t.fecha), 'dd/MM/yyyy HH:mm'),
+      t.categoria.replace('_', ' '),
+      t.descripcion,
+      t.tipo === 'INGRESO' ? formatCurrency(t.monto) : '',
+      t.tipo === 'EGRESO' ? formatCurrency(t.monto) : ''
+    ]);
+
+    (doc as any).autoTable({
+      startY: 30,
+      head: [['Fecha', 'Categoría', 'Descripción', 'Ingreso', 'Egreso']],
+      body: tableData,
+    });
+
+    doc.save(`Reporte_Finanzas_${filterType}_${format(new Date(), 'yyyyMMdd')}.pdf`);
+  };
+
+  const handleGenerateReportExcel = () => {
+    const exportData = filteredTransactions.map(t => ({
+      Fecha: format(parseISO(t.fecha), 'dd/MM/yyyy HH:mm'),
+      Tipo: t.tipo,
+      Categoría: t.categoria.replace('_', ' '),
+      Descripción: t.descripcion,
+      Destinatario: t.destinatario || '',
+      Monto: t.monto
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Transacciones");
+    XLSX.writeFile(wb, `Reporte_Finanzas_${filterType}_${format(new Date(), 'yyyyMMdd')}.xlsx`);
   };
 
   const filteredTransactions = transactions
@@ -139,8 +181,8 @@ export default function Finanzas() {
 
       <Card>
         <CardContent className="p-0">
-          <div className="border-b border-slate-800">
-            <nav className="flex -mb-px" aria-label="Tabs">
+          <div className="border-b border-slate-800 flex justify-between items-center pr-4">
+            <nav className="flex -mb-px w-2/3" aria-label="Tabs">
               <button
                 onClick={() => setFilterType('INGRESO')}
                 className={`w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm ${
@@ -162,6 +204,10 @@ export default function Finanzas() {
                 Pagos (Egresos)
               </button>
             </nav>
+            <div className="space-x-2">
+               <Button variant="outline" size="sm" onClick={handleGenerateReportExcel} className="hidden sm:inline-flex">Excel</Button>
+               <Button variant="outline" size="sm" onClick={handleGenerateReportPDF}>PDF</Button>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -268,8 +314,7 @@ export default function Finanzas() {
                         />
                       </div>
                     )}
-                    {formData.categoria === 'CONSUMO' && isModalOpen === 'INGRESO' ? (
-                      <div className="space-y-4">
+                    {isModalOpen === 'INGRESO' && ['CONSUMO', 'MULTA', 'APORTE'].includes(formData.categoria) && (
                         <div>
                           <label className="block text-sm font-medium text-slate-300">Buscar Cliente (Suministro, DNI o Nombre)</label>
                           <div className="relative mt-1">
@@ -302,6 +347,10 @@ export default function Finanzas() {
                             )}
                           </div>
                         </div>
+                    )}
+                    
+                    {formData.categoria === 'CONSUMO' && isModalOpen === 'INGRESO' ? (
+                      <div className="space-y-4">
                         {selectedClientId && (
                           <div className="bg-slate-800/50 p-4 rounded-md border border-slate-700">
                             <h4 className="text-sm font-medium text-slate-200 mb-2">Estado de Cuenta</h4>

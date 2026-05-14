@@ -95,8 +95,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!client) return;
 
     const tarifa = client.tipo === 'SOCIO' ? TARIFA_SOCIO : TARIFA_USUARIO;
-    const kwhFacturado = Math.max(consumption.kwh || 0, 6);
-    const montoCalculado = kwhFacturado * tarifa;
+    let montoCalculado = (consumption.kwh || 0) * tarifa;
+    if (montoCalculado < 6) {
+      montoCalculado = 6;
+    }
 
     const newConsumption: Consumption = {
       ...consumption,
@@ -155,25 +157,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newAsistencia = { ...(meeting.asistencia || {}), [clientId]: status };
     const newMeetings = state.meetings.map(m => m.id === meetingId ? { ...m, asistencia: newAsistencia } : m);
     persistState({ ...state, meetings: newMeetings });
-
-    if (status === 'FALTA_INJUSTIFICADA') {
-      const existingFine = state.transactions.find(t => 
-        t.tipo === 'INGRESO' && 
-        t.categoria === 'MULTA' && 
-        t.clientId === clientId && 
-        t.descripcion.includes(meetingId)
-      );
-      
-      if (!existingFine) {
-        await addTransaction({
-          tipo: 'INGRESO',
-          categoria: 'MULTA',
-          monto: MULTA_FALTA,
-          descripcion: `Multa por falta a reunión (${new Date(meeting.fecha).toLocaleDateString()}) - Ref: ${meetingId}`,
-          clientId: clientId
-        });
-      }
-    }
+    // removed automatic fine logic
   };
 
   return (
