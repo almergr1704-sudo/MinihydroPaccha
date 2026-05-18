@@ -29,103 +29,152 @@ export default function Reportes() {
 
   const pendingDebts = consumptions.filter(c => c.estadoPago === 'PENDIENTE');
 
-  const handleExportPDF = () => {
+  const handleExportPDF = (type: 'INGRESO' | 'EGRESO' | 'CONSOLIDADO') => {
     const doc = new jsPDF();
-    doc.text(`Reporte de Estadística y Transacciones`, 14, 20);
+    
+    if (type === 'CONSOLIDADO') {
+      doc.text(`Reporte Consolidado por Categoría`, 14, 20);
+    } else {
+      doc.text(`Reporte de Transacciones - ${type}`, 14, 20);
+    }
+    
     if (startDate || endDate) {
       doc.setFontSize(10);
       doc.text(`Periodo: ${startDate || 'Inicio'} a ${endDate || 'Hoy'}`, 14, 26);
     }
     
-    // Consolidar por categoría
-    const consolidatedMap: Record<string, { tipo: string, categoria: string, monto: number }> = {};
-    filteredTransactions.forEach(t => {
-      const key = `${t.tipo}-${t.categoria}`;
-      if (!consolidatedMap[key]) {
-        consolidatedMap[key] = { tipo: t.tipo, categoria: t.categoria, monto: 0 };
-      }
-      consolidatedMap[key].monto += t.monto;
-    });
+    let tableData: any[][] = [];
+    let headParams: string[][] = [];
 
-    const tableData = Object.values(consolidatedMap).map(item => [
-      item.tipo,
-      item.categoria,
-      formatCurrency(item.monto)
-    ]);
+    if (type === 'CONSOLIDADO') {
+      const consolidatedMap: Record<string, { categoria: string, ingreso: number, egreso: number }> = {};
+      filteredTransactions.forEach(t => {
+        const key = t.categoria;
+        if (!consolidatedMap[key]) {
+          consolidatedMap[key] = { categoria: t.categoria, ingreso: 0, egreso: 0 };
+        }
+        if (t.tipo === 'INGRESO') consolidatedMap[key].ingreso += t.monto;
+        else consolidatedMap[key].egreso += t.monto;
+      });
+
+      const totalIngresos = Object.values(consolidatedMap).reduce((a, b) => a + b.ingreso, 0);
+      const totalEgresos = Object.values(consolidatedMap).reduce((a, b) => a + b.egreso, 0);
+
+      tableData = Object.values(consolidatedMap).map(item => [
+        item.categoria,
+        formatCurrency(item.ingreso),
+        formatCurrency(item.egreso)
+      ]);
+      tableData.push(['TOTAL GENERAL', formatCurrency(totalIngresos), formatCurrency(totalEgresos)]);
+      headParams = [['Categoría', 'Total Ingresos', 'Total Egresos']];
+    } else {
+      const filteredByType = filteredTransactions.filter(t => t.tipo === type);
+      const txSorted = [...filteredByType].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+
+      tableData = txSorted.map(t => [
+        format(new Date(t.fecha), 'dd/MM/yyyy HH:mm'),
+        t.categoria,
+        t.descripcion,
+        formatCurrency(t.monto)
+      ]);
+
+      const totalMonto = txSorted.reduce((acc, t) => acc + t.monto, 0);
+      tableData.push(['TOTAL GENERAL', '', '', formatCurrency(totalMonto)]);
+      headParams = [['Fecha', 'Categoría', 'Descripción', type === 'INGRESO' ? 'Monto Ingreso' : 'Monto Egreso']];
+    }
 
     autoTable(doc, {
       startY: 35,
-      head: [['Tipo', 'Categoría', 'Suma Total (S/)']],
+      head: headParams,
       body: tableData,
+      didParseCell: function(data: any) {
+        if (data.row.index === tableData.length - 1) {
+          data.cell.styles.fontStyle = 'bold';
+          data.cell.styles.fillColor = [240, 240, 240];
+        }
+      }
     });
 
-    const totalIngresos = filteredTransactions.filter(t => t.tipo === 'INGRESO').reduce((acc, t) => acc + t.monto, 0);
-    const totalEgresos = filteredTransactions.filter(t => t.tipo === 'EGRESO').reduce((acc, t) => acc + t.monto, 0);
-
-    // Also add Morosidad
     const afterTableY = (doc as any).lastAutoTable.finalY + 10 || 50;
-    doc.setFontSize(12);
-    doc.text(`Total Ingresos: ${formatCurrency(totalIngresos)}`, 14, afterTableY);
-    doc.text(`Total Egresos: ${formatCurrency(totalEgresos)}`, 14, afterTableY + 8);
-    doc.text(`Balance: ${formatCurrency(totalIngresos - totalEgresos)}`, 14, afterTableY + 16);
 
-    const finalY = afterTableY + 28;
-    doc.setFontSize(14);
-    doc.text('Resumen de Morosidad', 14, finalY);
-    
-    autoTable(doc, {
-      startY: finalY + 6,
-      head: [['Recibos Vencidos', 'Monto Total en Deuda', 'Índice de Morosidad']],
-      body: [[
-        pendingDebts.length.toString(),
-        formatCurrency(pendingDebts.reduce((sum, d) => sum + d.montoCalculado, 0)),
-        (consumptions.length > 0 ? ((pendingDebts.length / consumptions.length) * 100).toFixed(1) : '0') + '%'
-      ]],
-    });
+    if (type === 'CONSOLIDADO') {
+      const totalIngresos = filteredTransactions.filter(t => t.tipo === 'INGRESO').reduce((acc, t) => acc + t.monto, 0);
+      const totalEgresos = filteredTransactions.filter(t => t.tipo === 'EGRESO').reduce((acc, t) => acc + t.monto, 0);
+      doc.setFontSize(12);
+      doc.text(`Balance Final: ${formatCurrency(totalIngresos - totalEgresos)}`, 14, afterTableY);
 
-    doc.save(`Reporte_General_${format(new Date(), 'yyyyMMdd')}.pdf`);
+      const finalY = afterTableY + 16;
+      doc.setFontSize(14);
+      doc.text('Resumen de Morosidad', 14, finalY);
+      
+      autoTable(doc, {
+        startY: finalY + 6,
+        head: [['Recibos Vencidos', 'Monto Total en Deuda', 'Índice de Morosidad']],
+        body: [[
+          pendingDebts.length.toString(),
+          formatCurrency(pendingDebts.reduce((sum, d) => sum + d.montoCalculado, 0)),
+          (consumptions.length > 0 ? ((pendingDebts.length / consumptions.length) * 100).toFixed(1) : '0') + '%'
+        ]],
+      });
+    }
+
+    doc.save(`Reporte_${type}_${format(new Date(), 'yyyyMMdd')}.pdf`);
   };
 
   const handleExportExcel = () => {
-    // Consolidar por categoría
-    const consolidatedMap: Record<string, { tipo: string, categoria: string, monto: number }> = {};
-    filteredTransactions.forEach(t => {
-      const key = `${t.tipo}-${t.categoria}`;
+    const txSorted = [...filteredTransactions].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+
+    const ingresosData = txSorted.filter(t => t.tipo === 'INGRESO').map(t => ({
+      Fecha: format(new Date(t.fecha), 'dd/MM/yyyy HH:mm'),
+      Categoría: t.categoria,
+      Descripción: t.descripcion,
+      'Ingreso (S/)': t.monto
+    }));
+    const totalIngresosMonto = txSorted.filter(t => t.tipo === 'INGRESO').reduce((acc, t) => acc + t.monto, 0);
+    ingresosData.push({ Fecha: 'TOTAL GENERAL', Categoría: '', Descripción: '', 'Ingreso (S/)': totalIngresosMonto });
+
+    const egresosData = txSorted.filter(t => t.tipo === 'EGRESO').map(t => ({
+      Fecha: format(new Date(t.fecha), 'dd/MM/yyyy HH:mm'),
+      Categoría: t.categoria,
+      Descripción: t.descripcion,
+      'Egreso (S/)': t.monto
+    }));
+    const totalEgresosMonto = txSorted.filter(t => t.tipo === 'EGRESO').reduce((acc, t) => acc + t.monto, 0);
+    egresosData.push({ Fecha: 'TOTAL GENERAL', Categoría: '', Descripción: '', 'Egreso (S/)': totalEgresosMonto });
+
+    const consolidatedMap: Record<string, { categoria: string, ingreso: number, egreso: number }> = {};
+    txSorted.forEach(t => {
+      const key = t.categoria;
       if (!consolidatedMap[key]) {
-        consolidatedMap[key] = { tipo: t.tipo, categoria: t.categoria, monto: 0 };
+        consolidatedMap[key] = { categoria: t.categoria, ingreso: 0, egreso: 0 };
       }
-      consolidatedMap[key].monto += t.monto;
+      if (t.tipo === 'INGRESO') consolidatedMap[key].ingreso += t.monto;
+      else consolidatedMap[key].egreso += t.monto;
     });
 
-    const txData = Object.values(consolidatedMap).map(item => ({
-      Tipo: item.tipo,
+    const consolidadoData: any[] = Object.values(consolidatedMap).map(item => ({
       Categoría: item.categoria,
-      'Suma Total': item.monto
+      'Ingresos (S/)': item.ingreso,
+      'Egresos (S/)': item.egreso
     }));
-
-    const totalIngresos = filteredTransactions.filter(t => t.tipo === 'INGRESO').reduce((acc, t) => acc + t.monto, 0);
-    const totalEgresos = filteredTransactions.filter(t => t.tipo === 'EGRESO').reduce((acc, t) => acc + t.monto, 0);
-
-    const totalesData = [{
-      'Total Ingresos': totalIngresos,
-      'Total Egresos': totalEgresos,
-      'Balance': totalIngresos - totalEgresos
-    }];
+    consolidadoData.push({
+      Categoría: 'TOTAL GENERAL',
+      'Ingresos (S/)': totalIngresosMonto,
+      'Egresos (S/)': totalEgresosMonto
+    });
 
     const morosidadData = [{
+      'Balance Final (S/)': totalIngresosMonto - totalEgresosMonto,
       'Recibos Vencidos': pendingDebts.length,
       'Monto Total en Deuda (S/)': pendingDebts.reduce((sum, d) => sum + d.montoCalculado, 0),
       'Índice de Morosidad (%)': (consumptions.length > 0 ? ((pendingDebts.length / consumptions.length) * 100).toFixed(1) : 0)
     }];
 
     const wb = XLSX.utils.book_new();
-    const wsTx = XLSX.utils.json_to_sheet(txData);
-    const wsTotales = XLSX.utils.json_to_sheet(totalesData);
-    const wsMorosidad = XLSX.utils.json_to_sheet(morosidadData);
-    
-    XLSX.utils.book_append_sheet(wb, wsTx, "Transacciones");
-    XLSX.utils.book_append_sheet(wb, wsTotales, "Totales");
-    XLSX.utils.book_append_sheet(wb, wsMorosidad, "Morosidad");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ingresosData), "Ingresos");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(egresosData), "Egresos");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(consolidadoData), "Consolidado");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(morosidadData), "Resumen");
     XLSX.writeFile(wb, `Reporte_General_${format(new Date(), 'yyyyMMdd')}.xlsx`);
   };
 
@@ -166,14 +215,22 @@ export default function Reportes() {
             Análisis financiero y de recaudación.
           </p>
         </div>
-        <div className="mt-4 sm:mt-0 flex space-x-3">
-          <Button variant="outline" onClick={handleExportPDF}>
+        <div className="mt-4 sm:mt-0 flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => handleExportPDF('INGRESO')}>
             <FileText className="-ml-1 mr-2 h-5 w-5" />
-            Exportar PDF
+            PDF Ingresos
+          </Button>
+          <Button variant="outline" onClick={() => handleExportPDF('EGRESO')}>
+            <FileText className="-ml-1 mr-2 h-5 w-5" />
+            PDF Egresos
+          </Button>
+          <Button variant="outline" onClick={() => handleExportPDF('CONSOLIDADO')}>
+            <FileText className="-ml-1 mr-2 h-5 w-5" />
+            PDF Consolidado
           </Button>
           <Button onClick={handleExportExcel}>
             <Download className="-ml-1 mr-2 h-5 w-5" />
-            Exportar Excel
+            Reporte Excel
           </Button>
         </div>
       </div>

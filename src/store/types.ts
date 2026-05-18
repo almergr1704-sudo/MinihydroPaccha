@@ -9,6 +9,7 @@ export interface Client {
   id: string;
   nombres: string;
   apellidos: string;
+  tipoPersona?: 'PERSONA' | 'EMPRESA';
   dni: string;
   direccion: string;
   numeroDireccion: string;

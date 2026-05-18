@@ -20,6 +20,7 @@ export default function Clientes() {
   const initialFormState: Omit<Client, 'id' | 'fechaRegistro'> = {
     nombres: '',
     apellidos: '',
+    tipoPersona: 'PERSONA',
     dni: '',
     direccion: '',
     numeroDireccion: '',
@@ -43,6 +44,7 @@ export default function Clientes() {
     setFormData({
       nombres: client.nombres || client.nombre?.split(' ')[0] || '',
       apellidos: aps,
+      tipoPersona: client.tipoPersona || 'PERSONA',
       dni: client.dni,
       direccion: client.direccion || '',
       numeroDireccion: client.numeroDireccion || '',
@@ -123,7 +125,9 @@ export default function Clientes() {
             apellidos = row.Apellidos || row.apellidos || row.Apellido || row.apellido || '';
           }
           
-          const dni = (row.DNI || row.dni || row.Documento || '').toString();
+          const dni = (row['DNI/RUC'] || row.DNI || row.dni || row.RUC || row.ruc || row.Documento || '').toString();
+          const tipoPersonaRaw = (row['Tipo Persona'] || row.tipoPersona || row.TipoPersona || '').toString().toUpperCase();
+          const tipoPersona = tipoPersonaRaw === 'EMPRESA' ? 'EMPRESA' : 'PERSONA';
           const tipo = (row.Tipo || row.tipo || 'USUARIO').toString().toUpperCase() === 'SOCIO' ? 'SOCIO' as const : 'USUARIO' as const;
           const suministroStr = (row.Suministro || row.suministro || row.Suministros || '').toString();
           
@@ -132,6 +136,7 @@ export default function Clientes() {
             addClient({
               nombres,
               apellidos,
+              tipoPersona,
               dni,
               tipo,
               estado: 'ACTIVO',
@@ -160,10 +165,11 @@ export default function Clientes() {
 
   const handleDownloadTemplate = () => {
     const ws = XLSX.utils.json_to_sheet([{
-      Nombres: 'Juan',
-      'Apellido Paterno': 'Perez',
-      'Apellido Materno': 'Gomez',
-      DNI: '12345678',
+      'Tipo Persona': 'PERSONA o EMPRESA',
+      Nombres: 'Juan (o Razón Social)',
+      'Apellido Paterno': 'Perez (vacío si es empresa)',
+      'Apellido Materno': 'Gomez (vacío si es empresa)',
+      'DNI/RUC': '12345678',
       Tipo: 'SOCIO o USUARIO',
       Suministro: 'SUM-001, SUM-002',
       Direccion: 'Av. Principal',
@@ -270,8 +276,8 @@ export default function Clientes() {
                           <User className="h-5 w-5 text-slate-500" />
                         </div>
                         <div className="ml-4">
-                          <div className="text-sm font-medium text-slate-100">{client.nombre ? client.nombre : `${client.nombres} ${client.apellidos}`}</div>
-                          <div className="text-sm text-slate-400">{(client.suministros?.length ? client.suministros.join(', ') : client.codigoSuministro)} (DNI: {client.dni})</div>
+                          <div className="text-sm font-medium text-slate-100">{client.nombre ? client.nombre : `${client.nombres} ${client.apellidos}`.trim()}</div>
+                          <div className="text-sm text-slate-400">{(client.suministros?.length ? client.suministros.join(', ') : client.codigoSuministro)} ({client.tipoPersona === 'EMPRESA' ? 'RUC' : 'DNI'}: {client.dni})</div>
                         </div>
                       </div>
                     </td>
@@ -333,24 +339,61 @@ export default function Clientes() {
                         {editingId ? 'Editar Cliente' : 'Registrar Nuevo Cliente'}
                       </h3>
                       <div className="mt-4 space-y-4">
-                        <div className="grid grid-cols-3 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-slate-300">Nombres</label>
-                            <input type="text" required value={formData.nombres} onChange={e => setFormData({...formData, nombres: e.target.value})} className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-slate-300">Apellido Paterno</label>
-                            <input type="text" required value={apellidoPaterno} onChange={e => setApellidoPaterno(e.target.value)} className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-slate-300">Apellido Materno</label>
-                            <input type="text" value={apellidoMaterno} onChange={e => setApellidoMaterno(e.target.value)} className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" />
+                        <div>
+                          <label className="block text-sm font-medium text-slate-300 mb-1">Tipo de Persona</label>
+                          <div className="flex gap-4">
+                            <label className="flex items-center text-slate-300">
+                              <input type="radio" value="PERSONA" checked={formData.tipoPersona === 'PERSONA'} onChange={e => setFormData({...formData, tipoPersona: 'PERSONA'})} className="mr-2 text-blue-500 focus:ring-blue-500 bg-[#0B0E14] border-slate-700" />
+                              Persona Natural
+                            </label>
+                            <label className="flex items-center text-slate-300">
+                              <input type="radio" value="EMPRESA" checked={formData.tipoPersona === 'EMPRESA'} onChange={e => setFormData({...formData, tipoPersona: 'EMPRESA'})} className="mr-2 text-blue-500 focus:ring-blue-500 bg-[#0B0E14] border-slate-700" />
+                              Empresa
+                            </label>
                           </div>
                         </div>
+                        
+                        {formData.tipoPersona === 'PERSONA' ? (
+                          <div className="grid grid-cols-3 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-slate-300">Nombres</label>
+                              <input type="text" required value={formData.nombres} onChange={e => setFormData({...formData, nombres: e.target.value})} className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-slate-300">Apellido Paterno</label>
+                              <input type="text" required value={apellidoPaterno} onChange={e => setApellidoPaterno(e.target.value)} className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-slate-300">Apellido Materno</label>
+                              <input type="text" value={apellidoMaterno} onChange={e => setApellidoMaterno(e.target.value)} className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" />
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <label className="block text-sm font-medium text-slate-300">Razón Social</label>
+                            <input type="text" required value={formData.nombres} onChange={e => setFormData({...formData, nombres: e.target.value})} className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" />
+                          </div>
+                        )}
+
                         <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <label className="block text-sm font-medium text-slate-300">DNI</label>
-                            <input type="text" required value={formData.dni} onChange={e => setFormData({...formData, dni: e.target.value})} className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" />
+                            <label className="block text-sm font-medium text-slate-300">
+                              {formData.tipoPersona === 'PERSONA' ? 'DNI' : 'RUC'}
+                            </label>
+                            <input 
+                              type="text" 
+                              required 
+                              value={formData.dni} 
+                              onChange={e => {
+                                const val = e.target.value.replace(/\D/g, '');
+                                setFormData({...formData, dni: val});
+                              }} 
+                              maxLength={formData.tipoPersona === 'PERSONA' ? 8 : 11}
+                              minLength={formData.tipoPersona === 'PERSONA' ? 8 : 11}
+                              pattern={formData.tipoPersona === 'PERSONA' ? "\\d{8}" : "\\d{11}"}
+                              title={formData.tipoPersona === 'PERSONA' ? "Debe contener 8 dígitos" : "Debe contener 11 dígitos"}
+                              className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" 
+                            />
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-slate-300">Cod. Suministro(s)</label>

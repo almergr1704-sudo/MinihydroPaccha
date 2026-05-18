@@ -3,7 +3,7 @@ import { Shield, ShieldAlert, UserCheck, Plus, X } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Card, CardContent, Badge, Button } from '../components/ui';
 
-import SHA256 from 'crypto-js/sha256';
+import CryptoJS from 'crypto-js';
 
 export default function Usuarios() {
   const { admins, updateAdmin, user } = useAppContext();
@@ -38,7 +38,7 @@ export default function Usuarios() {
          id: Math.random().toString(36).substr(2, 9),
          email: newEmail || `${newUsername}@paccha.local`,
          username: newUsername,
-         password: SHA256(newPassword).toString(),
+         password: CryptoJS.SHA256(newPassword).toString(),
          nombres: newNombres,
          apellidos: newApellidos,
          dni: newDni,

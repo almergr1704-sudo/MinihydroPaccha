@@ -62,7 +62,7 @@ export default function Consumo() {
       monthsOwned,
       previousUnpaid,
       warning: monthsOwned >= 3 
-        ? 'AVISO: SERVICIO PROGRAMADO PARA CORTE POR DEUDA DE 3 MESES O MÁS 😢.\nCosto por reconexión: S/ 20.00' 
+        ? 'AVISO: SERVICIO PROGRAMADO PARA CORTE POR DEUDA DE 3 MESES O MÁS.\nCosto por reconexión: S/ 20.00' 
         : ''
     };
   };
@@ -118,6 +118,14 @@ export default function Consumo() {
 
   const handleGenerateMassReceipts = (consumptionsList: Consumption[]) => {
     if (consumptionsList.length === 0) return;
+
+    // Sort by codigoSuministro
+    const sortedConsumptions = [...consumptionsList].sort((a, b) => {
+      const sumA = a.codigoSuministro || '';
+      const sumB = b.codigoSuministro || '';
+      return sumA.localeCompare(sumB);
+    });
+
     const doc = new jsPDF({ format: 'a4' });
     let yOffset = 10;
     const maxH = 297;
@@ -125,7 +133,7 @@ export default function Consumo() {
 
     const formatCurrencyStr = (val: number) => new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(val);
 
-    consumptionsList.forEach((cons, index) => {
+    sortedConsumptions.forEach((cons, index) => {
       const client = clients.find(c => c.id === cons.clientId);
       if (!client) return;
 
@@ -202,7 +210,7 @@ export default function Consumo() {
       if (debtInfo.warning) {
         doc.setFontSize(10);
         doc.setTextColor(220, 38, 38); // Red
-        const splitText = doc.splitTextToSize(debtInfo.warning, 172); // Adjusted for margins
+        const splitText = doc.splitTextToSize(debtInfo.warning, 160); // Adjusted for margins
         const textH = splitText.length * 5;
         doc.setDrawColor(220, 38, 38);
         doc.rect(14, finalY + 14, 182, textH + 4);
@@ -244,7 +252,7 @@ export default function Consumo() {
     // Client Info
     doc.text('Datos del Cliente:', 14, 60);
     doc.text(`Nombre: ${clientName}`, 14, 65);
-    doc.text(`DNI: ${client.dni}`, 14, 70);
+    doc.text(`${client.tipoPersona === 'EMPRESA' ? 'RUC' : 'DNI'}: ${client.dni}`, 14, 70);
     doc.text(`Dirección: ${client.direccion} ${client.numeroDireccion ? `N° ${client.numeroDireccion}` : ''}`, 14, 75);
     doc.text(`Tipo de Cliente: ${client.tipo}`, 14, 80);
     doc.text(`Suministro: ${cons.codigoSuministro || client.codigoSuministro}`, 14, 85);
@@ -293,7 +301,7 @@ export default function Consumo() {
     if (debtInfo.warning) {
       doc.setFontSize(12);
       doc.setTextColor(220, 38, 38);
-      const splitText = doc.splitTextToSize(debtInfo.warning, 172);
+      const splitText = doc.splitTextToSize(debtInfo.warning, 160);
       const textH = splitText.length * 6;
       doc.setDrawColor(220, 38, 38);
       doc.rect(14, finalY + 16, 182, textH + 4);
@@ -518,7 +526,7 @@ export default function Consumo() {
                           const supplies = c.suministros?.length ? c.suministros : [c.codigoSuministro];
                           return supplies.map(sup => (
                             <option key={`${c.id}|${sup}`} value={`${c.id}|${sup}`}>
-                              {sup} - {c.nombre ? c.nombre : `${c.nombres} ${c.apellidos}`} ({c.tipo}) - DNI: {c.dni}
+                              {sup} - {c.nombre ? c.nombre : `${c.nombres} ${c.apellidos}`.trim()} ({c.tipo}) - {c.tipoPersona === 'EMPRESA' ? 'RUC' : 'DNI'}: {c.dni}
                             </option>
                           ));
                         })}

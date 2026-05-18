@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Zap } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { useNavigate } from 'react-router-dom';
-import SHA256 from 'crypto-js/sha256';
+import CryptoJS from 'crypto-js';
 
 export default function Login() {
   const [error, setError] = useState('');
@@ -36,7 +36,7 @@ export default function Login() {
       const admins = storedData.admins || [];
       const userMatched = admins.find((a: any) => 
         (a.username === email.toLowerCase() || a.email === email.toLowerCase()) && 
-        (a.password === password || a.password === SHA256(password).toString())
+        (a.password === password || a.password === CryptoJS.SHA256(password).toString())
       );
 
       if (userMatched) {

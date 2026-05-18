@@ -48,28 +48,33 @@ export default function Reuniones() {
 
   const activeMeeting = meetings.find(m => m.id === selectedMeeting);
   
-  const filteredClientsList = clients.filter(c => 
-    c.estado === 'ACTIVO' && 
-    (activeMeeting?.invitados === 'TODOS' || (activeMeeting ? activeMeeting.invitados === 'SOCIO' && c.tipo === 'SOCIO' : c.tipo === 'SOCIO'))
-  );
+  const filteredClientsList = clients.filter(c => {
+    if (c.estado !== 'ACTIVO') return false;
+    if (!activeMeeting) return c.tipo === 'SOCIO';
+    if (activeMeeting.invitados === 'TODOS') return true;
+    return c.tipo === 'SOCIO';
+  });
 
   const handleImprimirCitaciones = () => {
     if (!activeMeeting) return;
     const doc = new jsPDF({ format: 'a4' });
     
-    const fDate = format(parseISO(activeMeeting.fecha), "eeee, dd 'de' MMMM 'de' yyyy", { locale: es });
+    const fDateLong = format(parseISO(activeMeeting.fecha), "eeee, dd 'de' MMMM 'de' yyyy", { locale: es });
+    const fDate = format(parseISO(activeMeeting.fecha), "dd/MM/yyyy", { locale: es });
     const fTime = format(parseISO(activeMeeting.fecha), "HH:mm", { locale: es });
+    const tipoReunion = activeMeeting.invitados === 'TODOS' ? 'todos los clientes' : 'socios';
 
     let yOffset = 0;
-    const citationHeight = 74; // 4 per page
+    const itemsPerPage = 4;
+    const citationHeight = Math.floor(297 / itemsPerPage); // ~74
     
     filteredClientsList.forEach((client, index) => {
-      if (index > 0 && index % 4 === 0) {
+      if (index > 0 && index % itemsPerPage === 0) {
         doc.addPage();
         yOffset = 0;
       }
       
-      const posInPage = index % 4;
+      const posInPage = index % itemsPerPage;
       yOffset = posInPage * citationHeight;
 
       // Draw dashed cut lines
@@ -83,26 +88,41 @@ export default function Reuniones() {
 
       const nmb = client.nombre || `${client.nombres} ${client.apellidos}`;
 
-      doc.setFontSize(14);
+      doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
-      doc.text('CITACIÓN A REUNIÓN', 105, yOffset + 12, { align: 'center' });
+      doc.text('CITACIÓN A REUNIÓN', 105, yOffset + 8, { align: 'center' });
       
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
-      doc.text(`Señor(a): ${nmb}`, 14, yOffset + 22);
-      doc.text(`Motivo: ${activeMeeting.motivo}`, 14, yOffset + 29);
-      doc.text(`Fecha: ${fDate} | Hora: ${fTime}`, 14, yOffset + 36);
-      doc.text(`Lugar: ${activeMeeting.lugar || 'No especificado'}`, 14, yOffset + 43);
       
-      doc.setFont('helvetica', 'bold');
-      doc.text(`Temas a tratar:`, 14, yOffset + 50);
-      doc.setFont('helvetica', 'normal');
-      const lines = doc.splitTextToSize(activeMeeting.temas || 'No especificados', 180);
-      doc.text(lines, 14, yOffset + 55);
+      const paragraph = `Se cita a Ud. ${nmb}, a la reunión de ${tipoReunion} de la Mini Central Hidroeléctrica Paccha, que se llevará a cabo el día ${fDateLong} a las ${fTime} en el ${activeMeeting.lugar || 'lugar de costumbre'}, con los siguientes puntos a tratar:`;
+      const docText = doc.splitTextToSize(paragraph, 180);
+      doc.text(docText, 14, yOffset + 16);
       
-      doc.text('Agradecemos su puntual asistencia.', 105, yOffset + 65, { align: 'center' });
-      doc.line(80, yOffset + 70, 130, yOffset + 70);
-      doc.text('La Directiva', 105, yOffset + 73, { align: 'center' });
+      const paragraphBottomY = yOffset + 16 + (docText.length * 5);
+
+      const temasText = activeMeeting.temas || 'No especificados';
+      const parsedTemas = temasText.split('\n').map(t => t.trim()).filter(t => t.length > 0);
+      let temasListToPrint = parsedTemas.map((t, idx) => {
+        const cleaned = t.replace(/^(\d+[\.\)\-]\s*|-\s*|\*\s*)/, '').trim();
+        return `${idx + 1}. ${cleaned}`;
+      });
+      if (temasListToPrint.length === 0) {
+        temasListToPrint = ['1. No especificados'];
+      }
+
+      let currentY = paragraphBottomY;
+      temasListToPrint.forEach(tema => {
+        const lines = doc.splitTextToSize(tema, 170);
+        doc.text(lines, 20, currentY);
+        currentY += lines.length * 5;
+      });
+
+      const finalY = currentY + 3;
+      doc.text('Agradecemos su puntual asistencia.', 14, finalY);
+      
+      doc.line(80, finalY + 8, 130, finalY + 8);
+      doc.text('La Directiva', 105, finalY + 12, { align: 'center' });
     });
 
     doc.save(`Citaciones_${activeMeeting.motivo}.pdf`);

@@ -80,57 +80,120 @@ export default function Finanzas() {
     const doc = new jsPDF();
     doc.text(`Reporte de Transacciones - ${filterType}`, 14, 20);
     
-    const tableData = filteredTransactions.map(t => [
-      format(parseISO(t.fecha), 'dd/MM/yyyy HH:mm'),
-      t.categoria.replace('_', ' '),
-      t.descripcion,
-      t.tipo === 'INGRESO' ? formatCurrency(t.monto) : '',
-      t.tipo === 'EGRESO' ? formatCurrency(t.monto) : ''
-    ]);
+    let tableData: any[][] = [];
+    let headParams: string[][] = [];
+
+    const reportIngresos = filteredTransactions.filter(t => t.tipo === 'INGRESO').reduce((acc, t) => acc + t.monto, 0);
+    const reportEgresos = filteredTransactions.filter(t => t.tipo === 'EGRESO').reduce((acc, t) => acc + t.monto, 0);
+
+    if (filterType === 'TODOS') {
+      tableData = filteredTransactions.map(t => [
+        format(parseISO(t.fecha), 'dd/MM/yyyy HH:mm'),
+        t.categoria.replace('_', ' '),
+        t.descripcion,
+        t.tipo === 'INGRESO' ? formatCurrency(t.monto) : '',
+        t.tipo === 'EGRESO' ? formatCurrency(t.monto) : ''
+      ]);
+      tableData.push(['TOTAL GENERAL', '', '', formatCurrency(reportIngresos), formatCurrency(reportEgresos)]);
+      headParams = [['Fecha', 'Categoría', 'Descripción', 'Ingreso', 'Egreso']];
+    } else {
+      tableData = filteredTransactions.map(t => [
+        format(parseISO(t.fecha), 'dd/MM/yyyy HH:mm'),
+        t.categoria.replace('_', ' '),
+        t.descripcion,
+        formatCurrency(t.monto)
+      ]);
+      const totalAmount = filterType === 'INGRESO' ? reportIngresos : reportEgresos;
+      tableData.push(['TOTAL GENERAL', '', '', formatCurrency(totalAmount)]);
+      headParams = [['Fecha', 'Categoría', 'Descripción', filterType === 'INGRESO' ? 'Monto Ingreso' : 'Monto Egreso']];
+    }
 
     autoTable(doc, {
       startY: 30,
-      head: [['Fecha', 'Categoría', 'Descripción', 'Ingreso', 'Egreso']],
+      head: headParams,
       body: tableData,
+      didParseCell: function(data: any) {
+        if (data.row.index === tableData.length - 1) {
+          data.cell.styles.fontStyle = 'bold';
+          data.cell.styles.fillColor = [240, 240, 240];
+        }
+      }
     });
-
-    const reportIngresos = filteredTransactions.filter(t => t.tipo === 'INGRESO').reduce((acc, t) => acc + t.monto, 0);
-    const reportEgresos = filteredTransactions.filter(t => t.tipo === 'EGRESO').reduce((acc, t) => acc + t.monto, 0);
 
     const finalY = (doc as any).lastAutoTable.finalY + 10 || 40;
     doc.setFontSize(12);
-    doc.text(`Total Ingresos: ${formatCurrency(reportIngresos)}`, 14, finalY);
-    doc.text(`Total Egresos: ${formatCurrency(reportEgresos)}`, 14, finalY + 8);
-    doc.text(`Balance: ${formatCurrency(reportIngresos - reportEgresos)}`, 14, finalY + 16);
 
-    doc.save(`Reporte_Finanzas_${filterType}_${format(new Date(), 'yyyyMMdd')}.pdf`);
+    if (filterType === 'TODOS') {
+      doc.text(`Total Ingresos: ${formatCurrency(reportIngresos)}`, 14, finalY);
+      doc.text(`Total Egresos: ${formatCurrency(reportEgresos)}`, 14, finalY + 8);
+      doc.text(`Balance Final: ${formatCurrency(reportIngresos - reportEgresos)}`, 14, finalY + 16);
+    } else if (filterType === 'INGRESO') {
+      doc.text(`Total Ingresos: ${formatCurrency(reportIngresos)}`, 14, finalY);
+    } else if (filterType === 'EGRESO') {
+      doc.text(`Total Egresos: ${formatCurrency(reportEgresos)}`, 14, finalY);
+    }
+
+    doc.save(`Reporte_Transacciones_${filterType}_${format(new Date(), 'yyyyMMdd')}.pdf`);
   };
 
   const handleGenerateReportExcel = () => {
-    const exportData = filteredTransactions.map(t => ({
-      Fecha: format(parseISO(t.fecha), 'dd/MM/yyyy HH:mm'),
-      Tipo: t.tipo,
-      Categoría: t.categoria.replace('_', ' '),
-      Descripción: t.descripcion,
-      Destinatario: t.destinatario || '',
-      Monto: t.monto
-    }));
-
+    let exportData: any[] = [];
     const reportIngresos = filteredTransactions.filter(t => t.tipo === 'INGRESO').reduce((acc, t) => acc + t.monto, 0);
     const reportEgresos = filteredTransactions.filter(t => t.tipo === 'EGRESO').reduce((acc, t) => acc + t.monto, 0);
 
-    const totalesData = [{
-      'Total Ingresos': reportIngresos,
-      'Total Egresos': reportEgresos,
-      'Balance': reportIngresos - reportEgresos
-    }];
+    if (filterType === 'TODOS') {
+      exportData = filteredTransactions.map(t => ({
+        Fecha: format(parseISO(t.fecha), 'dd/MM/yyyy HH:mm'),
+        Categoría: t.categoria.replace('_', ' '),
+        Descripción: t.descripcion,
+        Destinatario: t.destinatario || '',
+        'Ingreso (S/)': t.tipo === 'INGRESO' ? t.monto : 0,
+        'Egreso (S/)': t.tipo === 'EGRESO' ? t.monto : 0
+      }));
+      exportData.push({
+        Fecha: 'TOTAL GENERAL',
+        Categoría: '',
+        Descripción: '',
+        Destinatario: '',
+        'Ingreso (S/)': reportIngresos,
+        'Egreso (S/)': reportEgresos
+      });
+    } else {
+      exportData = filteredTransactions.map(t => ({
+        Fecha: format(parseISO(t.fecha), 'dd/MM/yyyy HH:mm'),
+        Categoría: t.categoria.replace('_', ' '),
+        Descripción: t.descripcion,
+        Destinatario: t.destinatario || '',
+        [filterType === 'INGRESO' ? 'Monto Ingreso (S/)' : 'Monto Egreso (S/)']: t.monto
+      }));
+      exportData.push({
+        Fecha: 'TOTAL GENERAL',
+        Categoría: '',
+        Descripción: '',
+        Destinatario: '',
+        [filterType === 'INGRESO' ? 'Monto Ingreso (S/)' : 'Monto Egreso (S/)']: filterType === 'INGRESO' ? reportIngresos : reportEgresos
+      });
+    }
+
+    let totalesData: any[] = [];
+    if (filterType === 'TODOS') {
+      totalesData = [{
+        'Total Ingresos': reportIngresos,
+        'Total Egresos': reportEgresos,
+        'Balance Final': reportIngresos - reportEgresos
+      }];
+    } else if (filterType === 'INGRESO') {
+      totalesData = [{ 'Total Ingresos': reportIngresos }];
+    } else if (filterType === 'EGRESO') {
+      totalesData = [{ 'Total Egresos': reportEgresos }];
+    }
 
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wsTotales = XLSX.utils.json_to_sheet(totalesData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Transacciones");
     XLSX.utils.book_append_sheet(wb, wsTotales, "Totales");
-    XLSX.writeFile(wb, `Reporte_Finanzas_${filterType}_${format(new Date(), 'yyyyMMdd')}.xlsx`);
+    XLSX.writeFile(wb, `Reporte_Transacciones_${filterType}_${format(new Date(), 'yyyyMMdd')}.xlsx`);
   };
 
   const filteredTransactions = transactions
@@ -241,37 +304,37 @@ export default function Finanzas() {
 
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-800">
-              <thead className="bg-slate-800/50">
+              <thead className="bg-slate-800/80">
                 <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Fecha</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Categoría</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Descripción</th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Monto</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-200 uppercase tracking-wider">Fecha</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-200 uppercase tracking-wider">Categoría</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-200 uppercase tracking-wider">Descripción</th>
+                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-slate-200 uppercase tracking-wider">Monto</th>
                 </tr>
               </thead>
               <tbody className="bg-[#0B0E14] divide-y divide-slate-800">
                 {filteredTransactions.length > 0 ? filteredTransactions.map((t) => (
-                  <tr key={t.id} className="hover:bg-slate-800/50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">
+                  <tr key={t.id} className="hover:bg-slate-800/60 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-200">
                       {format(parseISO(t.fecha), 'dd MMM yyyy, HH:mm', { locale: es })}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-200">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        t.tipo === 'INGRESO' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'
+                        t.tipo === 'INGRESO' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'
                       }`}>
                         {t.categoria.replace('_', ' ')}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm text-slate-100 max-w-xs truncate">
-                      {t.tipo === 'EGRESO' && t.destinatario && <div className="text-xs text-slate-400 mb-0.5">Para: {t.destinatario}</div>}
+                    <td className="px-6 py-4 text-sm text-white max-w-xs truncate">
+                      {t.tipo === 'EGRESO' && t.destinatario && <div className="text-xs text-slate-300 mb-0.5">Para: {t.destinatario}</div>}
                       {t.descripcion}
                     </td>
                     <td className={`px-6 py-4 whitespace-nowrap text-sm font-semibold text-right ${
-                      t.tipo === 'INGRESO' ? 'text-emerald-500' : 'text-red-500'
+                      t.tipo === 'INGRESO' ? 'text-emerald-400' : 'text-red-400'
                     }`}>
                       {t.tipo === 'INGRESO' ? '+' : '-'}{formatCurrency(t.monto)}
                       {t.tipo === 'EGRESO' && (
-                        <Button variant="ghost" size="sm" onClick={() => handleGenerateEgresoPDF(t)} className="ml-2 px-2 text-slate-400 hover:text-slate-200">
+                        <Button variant="ghost" size="sm" onClick={() => handleGenerateEgresoPDF(t)} className="ml-2 px-2 text-slate-300 hover:text-white">
                           <Download className="h-4 w-4" />
                         </Button>
                       )}
@@ -279,7 +342,7 @@ export default function Finanzas() {
                   </tr>
                 )) : (
                   <tr>
-                    <td colSpan={4} className="px-6 py-10 text-center text-slate-400">
+                    <td colSpan={4} className="px-6 py-10 text-center text-slate-300">
                       No hay transacciones en esta sección.
                     </td>
                   </tr>
@@ -377,8 +440,8 @@ export default function Finanzas() {
                                       setClientSearch(c.nombre ? c.nombre : `${c.nombres} ${c.apellidos}`);
                                     }}
                                   >
-                                    <div className="font-medium">{c.codigoSuministro} - {c.nombre ? c.nombre : `${c.nombres} ${c.apellidos}`}</div>
-                                    <div className="text-xs text-slate-400">DNI: {c.dni}</div>
+                                    <div className="font-medium">{c.codigoSuministro} - {c.nombre ? c.nombre : `${c.nombres} ${c.apellidos}`.trim()}</div>
+                                    <div className="text-xs text-slate-400">{c.tipoPersona === 'EMPRESA' ? 'RUC' : 'DNI'}: {c.dni}</div>
                                   </li>
                                 ))}
                               </ul>

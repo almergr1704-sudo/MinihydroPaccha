@@ -51,8 +51,14 @@ export function AppLayout() {
           </div>
           <div className="flex-1 h-0 pt-5 pb-4 overflow-y-auto">
             <div className="flex-shrink-0 flex items-center px-4">
-              <Activity className="h-8 w-8 text-blue-500 mr-2" />
-              <span className="text-2xl font-bold text-white tracking-tight">Mini<span className="text-blue-500">Hydro</span></span>
+              <img src="/logo.png" alt="Mini Central Hidroeléctrica Paccha" className="h-10 w-auto object-contain" onError={(e) => {
+                e.currentTarget.style.display = 'none';
+                e.currentTarget.nextElementSibling?.classList.remove('hidden');
+              }} />
+              <div className="hidden items-center hidden-fallback">
+                <Activity className="h-8 w-8 text-blue-500 mr-2" />
+                <span className="text-2xl font-bold text-white tracking-tight">Mini<span className="text-blue-500">Hydro</span></span>
+              </div>
             </div>
             <nav className="mt-8 px-2 space-y-1">
               {navigation.map((item) => (
@@ -98,8 +104,14 @@ export function AppLayout() {
           <div className="flex-1 flex flex-col min-h-0 bg-[#0B0E14] border-r border-slate-800">
             <div className="flex-1 flex flex-col pt-5 pb-4 overflow-y-auto">
               <div className="flex items-center flex-shrink-0 px-6 mb-8">
-                <Activity className="h-8 w-8 text-blue-500 mr-2" />
-                <span className="text-2xl font-bold text-white tracking-tight">Mini<span className="text-blue-500">Hydro</span></span>
+                <img src="/logo.png" alt="Mini Central Hidroeléctrica Paccha" className="h-10 w-auto object-contain bg-white/10 rounded-lg p-1" onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                }} />
+                <div className="hidden items-center hidden-fallback">
+                  <Activity className="h-8 w-8 text-blue-500 mr-2" />
+                  <span className="text-2xl font-bold text-white tracking-tight">Mini<span className="text-blue-500">Hydro</span></span>
+                </div>
               </div>
               <nav className="mt-5 flex-1 px-3 space-y-1">
                 {navigation.map((item) => (
@@ -159,8 +171,14 @@ export function AppLayout() {
       <div className="flex flex-col w-0 flex-1 overflow-hidden">
         <div className="lg:hidden pt-1 pb-1 pr-1 pl-1 bg-[#0B0E14] border-b border-slate-800 sm:pl-3 sm:pt-3 sm:pb-3 flex justify-between items-center shadow-sm z-10">
           <div className="flex items-center px-4">
-             <Activity className="h-6 w-6 text-blue-500 mr-2" />
-             <span className="text-xl font-bold text-white">Mini<span className="text-blue-500">Hydro</span></span>
+             <img src="/logo.png" alt="Mini Central Hidroeléctrica Paccha" className="h-8 w-auto object-contain bg-white/10 rounded overflow-hidden p-0.5 mr-2" onError={(e) => {
+                e.currentTarget.style.display = 'none';
+                e.currentTarget.nextElementSibling?.classList.remove('hidden');
+             }} />
+             <div className="hidden items-center hidden-fallback">
+               <Activity className="h-6 w-6 text-blue-500 mr-2" />
+               <span className="text-xl font-bold text-white">Mini<span className="text-blue-500">Hydro</span></span>
+             </div>
           </div>
           <button
             type="button"
