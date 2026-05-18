@@ -35,7 +35,7 @@ export default function Reportes() {
     if (type === 'CONSOLIDADO') {
       doc.text(`Reporte Consolidado por Categoría`, 14, 20);
     } else {
-      doc.text(`Reporte de Transacciones - ${type}`, 14, 20);
+      doc.text(`Reporte Consolidado de ${type === 'INGRESO' ? 'Ingresos' : 'Egresos'} por Categoría`, 14, 20);
     }
     
     if (startDate || endDate) {
@@ -68,19 +68,24 @@ export default function Reportes() {
       tableData.push(['TOTAL GENERAL', formatCurrency(totalIngresos), formatCurrency(totalEgresos)]);
       headParams = [['Categoría', 'Total Ingresos', 'Total Egresos']];
     } else {
+      const consolidatedMap: Record<string, { categoria: string, total: number }> = {};
       const filteredByType = filteredTransactions.filter(t => t.tipo === type);
-      const txSorted = [...filteredByType].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+      filteredByType.forEach(t => {
+        const key = t.categoria;
+        if (!consolidatedMap[key]) {
+          consolidatedMap[key] = { categoria: t.categoria.replace('_', ' '), total: 0 };
+        }
+        consolidatedMap[key].total += t.monto;
+      });
 
-      tableData = txSorted.map(t => [
-        format(new Date(t.fecha), 'dd/MM/yyyy HH:mm'),
-        t.categoria,
-        t.descripcion,
-        formatCurrency(t.monto)
+      tableData = Object.values(consolidatedMap).map(item => [
+        item.categoria,
+        formatCurrency(item.total)
       ]);
 
-      const totalMonto = txSorted.reduce((acc, t) => acc + t.monto, 0);
-      tableData.push(['TOTAL GENERAL', '', '', formatCurrency(totalMonto)]);
-      headParams = [['Fecha', 'Categoría', 'Descripción', type === 'INGRESO' ? 'Monto Ingreso' : 'Monto Egreso']];
+      const totalMonto = Object.values(consolidatedMap).reduce((acc, item) => acc + item.total, 0);
+      tableData.push(['TOTAL GENERAL', formatCurrency(totalMonto)]);
+      headParams = [['Categoría', type === 'INGRESO' ? 'Total Ingresos' : 'Total Egresos']];
     }
 
     autoTable(doc, {
@@ -116,6 +121,11 @@ export default function Reportes() {
           (consumptions.length > 0 ? ((pendingDebts.length / consumptions.length) * 100).toFixed(1) : '0') + '%'
         ]],
       });
+    } else {
+      const totalLabel = type === 'INGRESO' ? 'Ingresos' : 'Egresos';
+      const totalValue = filteredTransactions.filter(t => t.tipo === type).reduce((acc, t) => acc + t.monto, 0);
+      doc.setFontSize(12);
+      doc.text(`Total ${totalLabel}: ${formatCurrency(totalValue)}`, 14, afterTableY);
     }
 
     doc.save(`Reporte_${type}_${format(new Date(), 'yyyyMMdd')}.pdf`);
@@ -230,7 +240,7 @@ export default function Reportes() {
           </Button>
           <Button onClick={handleExportExcel}>
             <Download className="-ml-1 mr-2 h-5 w-5" />
-            Reporte Excel
+            Excel Consolidado
           </Button>
         </div>
       </div>

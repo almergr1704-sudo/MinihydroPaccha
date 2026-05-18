@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, ArrowUpRight, ArrowDownRight, Filter, Download } from 'lucide-react';
+import { Plus, ArrowUpRight, ArrowDownRight, Filter, Download, FileText } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Button, Card, CardContent, Badge, CardHeader, CardTitle } from '../components/ui';
 import { formatCurrency } from '../lib/utils';
@@ -76,40 +76,37 @@ export default function Finanzas() {
     setClientSearch('');
   };
 
-  const handleGenerateReportPDF = () => {
+  const handleGenerateReportPDFDetailed = (type: 'INGRESO' | 'EGRESO') => {
     const doc = new jsPDF();
-    doc.text(`Reporte de Transacciones - ${filterType}`, 14, 20);
+    doc.text(`Reporte Detallado de Transacciones - ${type}`, 14, 20);
+    
+    if (selectedMes) {
+      doc.setFontSize(10);
+      doc.text(`Mes: ${selectedMes}`, 14, 26);
+    }
     
     let tableData: any[][] = [];
     let headParams: string[][] = [];
 
-    const reportIngresos = filteredTransactions.filter(t => t.tipo === 'INGRESO').reduce((acc, t) => acc + t.monto, 0);
-    const reportEgresos = filteredTransactions.filter(t => t.tipo === 'EGRESO').reduce((acc, t) => acc + t.monto, 0);
+    // Filter by type, and selected month if any
+    const txForReport = transactions
+      .filter(t => t.tipo === type)
+      .filter(t => selectedMes ? t.fecha.startsWith(selectedMes) : true)
+      .sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
 
-    if (filterType === 'TODOS') {
-      tableData = filteredTransactions.map(t => [
-        format(parseISO(t.fecha), 'dd/MM/yyyy HH:mm'),
-        t.categoria.replace('_', ' '),
-        t.descripcion,
-        t.tipo === 'INGRESO' ? formatCurrency(t.monto) : '',
-        t.tipo === 'EGRESO' ? formatCurrency(t.monto) : ''
-      ]);
-      tableData.push(['TOTAL GENERAL', '', '', formatCurrency(reportIngresos), formatCurrency(reportEgresos)]);
-      headParams = [['Fecha', 'Categoría', 'Descripción', 'Ingreso', 'Egreso']];
-    } else {
-      tableData = filteredTransactions.map(t => [
-        format(parseISO(t.fecha), 'dd/MM/yyyy HH:mm'),
-        t.categoria.replace('_', ' '),
-        t.descripcion,
-        formatCurrency(t.monto)
-      ]);
-      const totalAmount = filterType === 'INGRESO' ? reportIngresos : reportEgresos;
-      tableData.push(['TOTAL GENERAL', '', '', formatCurrency(totalAmount)]);
-      headParams = [['Fecha', 'Categoría', 'Descripción', filterType === 'INGRESO' ? 'Monto Ingreso' : 'Monto Egreso']];
-    }
+    const totalAmount = txForReport.reduce((acc, t) => acc + t.monto, 0);
+
+    tableData = txForReport.map(t => [
+      format(parseISO(t.fecha), 'dd/MM/yyyy HH:mm'),
+      t.categoria.replace('_', ' '),
+      t.descripcion,
+      formatCurrency(t.monto)
+    ]);
+    tableData.push(['TOTAL GENERAL', '', '', formatCurrency(totalAmount)]);
+    headParams = [['Fecha', 'Categoría', 'Descripción', type === 'INGRESO' ? 'Monto Ingreso' : 'Monto Egreso']];
 
     autoTable(doc, {
-      startY: 30,
+      startY: selectedMes ? 35 : 30,
       head: headParams,
       body: tableData,
       didParseCell: function(data: any) {
@@ -122,18 +119,9 @@ export default function Finanzas() {
 
     const finalY = (doc as any).lastAutoTable.finalY + 10 || 40;
     doc.setFontSize(12);
+    doc.text(`Total ${type === 'INGRESO' ? 'Ingresos' : 'Egresos'}: ${formatCurrency(totalAmount)}`, 14, finalY);
 
-    if (filterType === 'TODOS') {
-      doc.text(`Total Ingresos: ${formatCurrency(reportIngresos)}`, 14, finalY);
-      doc.text(`Total Egresos: ${formatCurrency(reportEgresos)}`, 14, finalY + 8);
-      doc.text(`Balance Final: ${formatCurrency(reportIngresos - reportEgresos)}`, 14, finalY + 16);
-    } else if (filterType === 'INGRESO') {
-      doc.text(`Total Ingresos: ${formatCurrency(reportIngresos)}`, 14, finalY);
-    } else if (filterType === 'EGRESO') {
-      doc.text(`Total Egresos: ${formatCurrency(reportEgresos)}`, 14, finalY);
-    }
-
-    doc.save(`Reporte_Transacciones_${filterType}_${format(new Date(), 'yyyyMMdd')}.pdf`);
+    doc.save(`Reporte_Detallado_${type}_${selectedMes || 'Historico'}_${format(new Date(), 'yyyyMMdd')}.pdf`);
   };
 
   const handleGenerateReportExcel = () => {
@@ -290,15 +278,25 @@ export default function Finanzas() {
                 Pagos (Egresos)
               </button>
             </nav>
-            <div className="flex items-center space-x-2 py-3 px-4 sm:p-0">
+            <div className="flex flex-wrap items-center space-x-2 py-3 px-4 sm:p-0">
                <input 
                  type="month" 
                  value={selectedMes}
                  onChange={(e) => setSelectedMes(e.target.value)}
                  className="block border-slate-700 rounded-md shadow-sm py-1.5 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm border bg-[#0B0E14] text-slate-100"
                />
-               <Button variant="outline" size="sm" onClick={handleGenerateReportExcel} className="hidden sm:inline-flex">Excel</Button>
-               <Button variant="outline" size="sm" onClick={handleGenerateReportPDF}>PDF</Button>
+               <Button variant="outline" size="sm" onClick={() => handleGenerateReportPDFDetailed('INGRESO')}>
+                 <FileText className="-ml-1 mr-2 h-4 w-4" />
+                 PDF Ingresos
+               </Button>
+               <Button variant="outline" size="sm" onClick={() => handleGenerateReportPDFDetailed('EGRESO')}>
+                 <FileText className="-ml-1 mr-2 h-4 w-4" />
+                 PDF Egresos
+               </Button>
+               <Button variant="outline" size="sm" onClick={handleGenerateReportExcel} className="hidden lg:inline-flex">
+                 <Download className="-ml-1 mr-2 h-4 w-4" />
+                 Excel
+               </Button>
             </div>
           </div>
 
