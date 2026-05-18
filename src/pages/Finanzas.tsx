@@ -13,7 +13,8 @@ import { TransactionType, Transaction } from '../store/types';
 export default function Finanzas() {
   const { transactions, addTransaction, clients, consumptions, payConsumption, fines, payFine } = useAppContext();
   const [isModalOpen, setIsModalOpen] = useState<false | 'INGRESO' | 'EGRESO'>(false);
-  const [filterType, setFilterType] = useState<TransactionType>('INGRESO');
+  const [filterType, setFilterType] = useState<TransactionType | 'TODOS'>('INGRESO');
+  const [selectedMes, setSelectedMes] = useState(''); // Empty means All time
   const [clientSearch, setClientSearch] = useState('');
   const [selectedClientId, setSelectedClientId] = useState('');
   
@@ -47,11 +48,11 @@ export default function Finanzas() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isModalOpen === 'INGRESO' && ['CONSUMO', 'MULTA'].includes(formData.categoria)) {
-      // In this mode, handled individually by pay consumption/fine buttons
       return;
     }
     
     if (!formData.monto) return;
+    if (!window.confirm('¿Está seguro de registrar esta transacción?')) return;
     
     const newTx = {
       tipo: formData.tipo,
@@ -93,6 +94,15 @@ export default function Finanzas() {
       body: tableData,
     });
 
+    const reportIngresos = filteredTransactions.filter(t => t.tipo === 'INGRESO').reduce((acc, t) => acc + t.monto, 0);
+    const reportEgresos = filteredTransactions.filter(t => t.tipo === 'EGRESO').reduce((acc, t) => acc + t.monto, 0);
+
+    const finalY = (doc as any).lastAutoTable.finalY + 10 || 40;
+    doc.setFontSize(12);
+    doc.text(`Total Ingresos: ${formatCurrency(reportIngresos)}`, 14, finalY);
+    doc.text(`Total Egresos: ${formatCurrency(reportEgresos)}`, 14, finalY + 8);
+    doc.text(`Balance: ${formatCurrency(reportIngresos - reportEgresos)}`, 14, finalY + 16);
+
     doc.save(`Reporte_Finanzas_${filterType}_${format(new Date(), 'yyyyMMdd')}.pdf`);
   };
 
@@ -106,19 +116,31 @@ export default function Finanzas() {
       Monto: t.monto
     }));
 
+    const reportIngresos = filteredTransactions.filter(t => t.tipo === 'INGRESO').reduce((acc, t) => acc + t.monto, 0);
+    const reportEgresos = filteredTransactions.filter(t => t.tipo === 'EGRESO').reduce((acc, t) => acc + t.monto, 0);
+
+    const totalesData = [{
+      'Total Ingresos': reportIngresos,
+      'Total Egresos': reportEgresos,
+      'Balance': reportIngresos - reportEgresos
+    }];
+
     const ws = XLSX.utils.json_to_sheet(exportData);
+    const wsTotales = XLSX.utils.json_to_sheet(totalesData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Transacciones");
+    XLSX.utils.book_append_sheet(wb, wsTotales, "Totales");
     XLSX.writeFile(wb, `Reporte_Finanzas_${filterType}_${format(new Date(), 'yyyyMMdd')}.xlsx`);
   };
 
   const filteredTransactions = transactions
     .filter(t => filterType === 'TODOS' || t.tipo === filterType)
+    .filter(t => selectedMes ? t.fecha.startsWith(selectedMes) : true)
     .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
 
   // Quick stats
-  const totalIngresos = transactions.filter(t => t.tipo === 'INGRESO').reduce((acc, t) => acc + t.monto, 0);
-  const totalEgresos = transactions.filter(t => t.tipo === 'EGRESO').reduce((acc, t) => acc + t.monto, 0);
+  const totalIngresos = (selectedMes ? transactions.filter(t => t.fecha.startsWith(selectedMes)) : transactions).filter(t => t.tipo === 'INGRESO').reduce((acc, t) => acc + t.monto, 0);
+  const totalEgresos = (selectedMes ? transactions.filter(t => t.fecha.startsWith(selectedMes)) : transactions).filter(t => t.tipo === 'EGRESO').reduce((acc, t) => acc + t.monto, 0);
   const balance = totalIngresos - totalEgresos;
 
   const searchedClients = clients.filter(c => {
@@ -182,8 +204,8 @@ export default function Finanzas() {
 
       <Card>
         <CardContent className="p-0">
-          <div className="border-b border-slate-800 flex justify-between items-center pr-4">
-            <nav className="flex -mb-px w-2/3" aria-label="Tabs">
+          <div className="border-b border-slate-800 flex flex-col sm:flex-row justify-between items-center sm:pr-4">
+            <nav className="flex -mb-px w-full sm:w-2/3" aria-label="Tabs">
               <button
                 onClick={() => setFilterType('INGRESO')}
                 className={`w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm ${
@@ -205,7 +227,13 @@ export default function Finanzas() {
                 Pagos (Egresos)
               </button>
             </nav>
-            <div className="space-x-2">
+            <div className="flex items-center space-x-2 py-3 px-4 sm:p-0">
+               <input 
+                 type="month" 
+                 value={selectedMes}
+                 onChange={(e) => setSelectedMes(e.target.value)}
+                 className="block border-slate-700 rounded-md shadow-sm py-1.5 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm border bg-[#0B0E14] text-slate-100"
+               />
                <Button variant="outline" size="sm" onClick={handleGenerateReportExcel} className="hidden sm:inline-flex">Excel</Button>
                <Button variant="outline" size="sm" onClick={handleGenerateReportPDF}>PDF</Button>
             </div>
@@ -281,7 +309,15 @@ export default function Finanzas() {
                       <select 
                         required 
                         value={formData.categoria} 
-                        onChange={e => setFormData({...formData, categoria: e.target.value})} 
+                        onChange={e => {
+                          const val = e.target.value;
+                          setFormData({
+                            ...formData, 
+                            categoria: val,
+                            monto: val === 'RECONEXION' ? '20' : formData.monto,
+                            descripcion: val === 'RECONEXION' ? 'Cobro por reconexión de servicio' : formData.descripcion
+                          });
+                        }} 
                         className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100"
                       >
                         {formData.tipo === 'INGRESO' ? (
@@ -289,6 +325,7 @@ export default function Finanzas() {
                             <option value="CONSUMO">Cobro por Consumo de Energía</option>
                             <option value="APORTE">Aporte de Socio</option>
                             <option value="MULTA">Pago de Multa</option>
+                            <option value="RECONEXION">Cobro por Reconexión de Servicio (S/ 20.00)</option>
                             <option value="OTROS">Otros Ingresos</option>
                           </>
                         ) : (
@@ -315,7 +352,7 @@ export default function Finanzas() {
                         />
                       </div>
                     )}
-                    {isModalOpen === 'INGRESO' && ['CONSUMO', 'MULTA', 'APORTE'].includes(formData.categoria) && (
+                    {isModalOpen === 'INGRESO' && ['CONSUMO', 'MULTA', 'APORTE', 'RECONEXION'].includes(formData.categoria) && (
                         <div>
                           <label className="block text-sm font-medium text-slate-300">Buscar Cliente (Suministro, DNI o Nombre)</label>
                           <div className="relative mt-1">
@@ -366,7 +403,9 @@ export default function Finanzas() {
                                       <div className="flex items-center space-x-3">
                                         <span className="text-slate-200 font-medium">{formatCurrency(c.montoCalculado)}</span>
                                         <Button size="sm" type="button" onClick={() => {
-                                          payConsumption(c.id);
+                                          if (window.confirm('¿Está seguro de cobrar este recibo por consumo?')) {
+                                            payConsumption(c.id);
+                                          }
                                         }}>Cobrar</Button>
                                       </div>
                                     </li>
@@ -387,7 +426,9 @@ export default function Finanzas() {
                                       <div className="flex items-center space-x-3 flex-shrink-0">
                                         <span className="text-slate-200 font-medium">{formatCurrency(f.monto)}</span>
                                         <Button size="sm" type="button" onClick={() => {
-                                          payFine(f.id);
+                                          if (window.confirm('¿Está seguro de cobrar esta multa?')) {
+                                            payFine(f.id);
+                                          }
                                         }}>Cobrar</Button>
                                       </div>
                                     </li>

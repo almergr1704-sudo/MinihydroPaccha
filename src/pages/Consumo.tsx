@@ -28,6 +28,14 @@ export default function Consumo() {
     
     const [clientId, codigoSuministro] = formData.clientAndSuministro.split('|');
 
+    const exists = consumptions.some(c => c.codigoSuministro === codigoSuministro && c.mes === selectedMes);
+    if (exists) {
+      alert(`Ya existe una lectura para el suministro ${codigoSuministro} en el mes ${selectedMes}.`);
+      return;
+    }
+
+    if (!window.confirm(`¿Está seguro de guardar la lectura para el periodo ${selectedMes}?`)) return;
+
     addConsumption({
       clientId,
       codigoSuministro,
@@ -38,6 +46,25 @@ export default function Consumo() {
     
     setIsModalOpen(false);
     setFormData({ clientAndSuministro: '', kwh: '' });
+  };
+
+    const getDebtInfo = (clientId: string, codigoSuministro: string, currentMes: string) => {
+    const previousUnpaid = consumptions.filter(c => 
+      c.clientId === clientId && 
+      c.codigoSuministro === codigoSuministro && 
+      c.estadoPago === 'PENDIENTE' &&
+      c.mes < currentMes
+    );
+    const totalDeuda = previousUnpaid.reduce((acc, c) => acc + c.montoCalculado, 0);
+    const monthsOwned = previousUnpaid.length;
+    return {
+      totalDeuda,
+      monthsOwned,
+      previousUnpaid,
+      warning: monthsOwned >= 3 
+        ? 'AVISO: SERVICIO PROGRAMADO PARA CORTE POR DEUDA DE 3 MESES O MÁS 😢.\nCosto por reconexión: S/ 20.00' 
+        : ''
+    };
   };
 
   const handleExportConsumosExcel = (consumptionsList: Consumption[]) => {
@@ -94,7 +121,7 @@ export default function Consumo() {
     const doc = new jsPDF({ format: 'a4' });
     let yOffset = 10;
     const maxH = 297;
-    const receiptHeight = 120; // Approx height per receipt
+    const receiptHeight = 95; // 3 receipts per page
 
     const formatCurrencyStr = (val: number) => new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(val);
 
@@ -125,34 +152,71 @@ export default function Consumo() {
       // Table
       const tarifaAplicada = client.tipo === 'SOCIO' ? 0.20 : 0.30;
       const kwhFacturado = Math.max(cons.kwh || 0, 6);
+      const debtInfo = getDebtInfo(client.id, cons.codigoSuministro || '', cons.mes);
+
+      const tableBody: any[][] = [
+        [
+          'Consumo Eléctrico' + (cons.kwh < 6 ? ' (Mín.)' : ''),
+          kwhFacturado.toString(),
+          tarifaAplicada.toFixed(2),
+          formatCurrencyStr(cons.montoCalculado)
+        ]
+      ];
+
+      if (debtInfo.previousUnpaid && debtInfo.previousUnpaid.length > 0) {
+        const remainingUnpaid = debtInfo.previousUnpaid.slice(0, 3); // display up to 3 to avoid overflow
+        remainingUnpaid.forEach(unpaid => {
+          tableBody.push([
+            `Deuda anterior: ${unpaid.mes}`,
+            '-',
+            '-',
+            formatCurrencyStr(unpaid.montoCalculado)
+          ]);
+        });
+        if (debtInfo.previousUnpaid.length > 3) {
+           tableBody.push([
+            `...y ${debtInfo.previousUnpaid.length - 3} mes(es) más`,
+            '-',
+            '-',
+            ''
+          ]);
+        }
+      }
+
+      const totalAPagar = cons.montoCalculado + debtInfo.totalDeuda;
 
       autoTable(doc, {
         startY: yOffset + 40,
         head: [['Descripción', 'Cantidad (kWh)', 'Precio (S/)', 'Subtotal']],
-        body: [
-          [
-            'Consumo Eléctrico' + (cons.kwh < 6 ? ' (Mín.)' : ''),
-            kwhFacturado.toString(),
-            tarifaAplicada.toFixed(2),
-            formatCurrencyStr(cons.montoCalculado)
-          ]
-        ],
+        body: tableBody,
         theme: 'grid',
         headStyles: { fillColor: [15, 23, 42] },
         styles: { fontSize: 8 },
         margin: { left: 14, right: 14 }
       });
 
-      const finalY = (doc as any).lastAutoTable.finalY;
+      const finalY = (doc as any).lastAutoTable.finalY || yOffset + 50;
       doc.setFontSize(12);
-      doc.text(`Total a Pagar: ${formatCurrencyStr(cons.montoCalculado)}`, 14, finalY + 10);
+      doc.text(`Total a Pagar: ${formatCurrencyStr(totalAPagar)}`, 196, finalY + 10, { align: 'right' });
+
+      if (debtInfo.warning) {
+        doc.setFontSize(10);
+        doc.setTextColor(220, 38, 38); // Red
+        const splitText = doc.splitTextToSize(debtInfo.warning, 172); // Adjusted for margins
+        const textH = splitText.length * 5;
+        doc.setDrawColor(220, 38, 38);
+        doc.rect(14, finalY + 14, 182, textH + 4);
+        doc.text(splitText, 16, finalY + 18);
+        doc.setTextColor(0, 0, 0); // Reset
+        doc.setDrawColor(0, 0, 0); // Reset
+      }
       
       // Draw a cut line
       doc.setLineDashPattern([2, 2], 0);
-      doc.line(10, finalY + 20, 200, finalY + 20);
+      doc.line(10, yOffset + receiptHeight - 1, 200, yOffset + receiptHeight - 1);
       doc.setLineDashPattern([], 0); // reset
 
-      yOffset = finalY + 25;
+      yOffset = yOffset + receiptHeight;
     });
 
     doc.save(`Recibos_Masivos_${selectedMes}.pdf`);
@@ -188,27 +252,55 @@ export default function Consumo() {
     // Table
     const tarifaAplicada = client.tipo === 'SOCIO' ? 0.20 : 0.30;
     const kwhFacturado = Math.max(cons.kwh || 0, 6);
+    const debtInfo = getDebtInfo(client.id, cons.codigoSuministro || '', cons.mes);
 
     const formatCurrencyStr = (val: number) => new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(val);
+
+    const tableBody: any[][] = [
+      [
+        'Consumo Eléctrico' + (cons.kwh < 6 ? ' (Mínimo aplicado)' : ''),
+        kwhFacturado.toString(),
+        tarifaAplicada.toFixed(2),
+        formatCurrencyStr(cons.montoCalculado)
+      ]
+    ];
+
+    if (debtInfo.previousUnpaid && debtInfo.previousUnpaid.length > 0) {
+      debtInfo.previousUnpaid.forEach(unpaid => {
+        tableBody.push([
+          `Deuda anterior: ${unpaid.mes}`,
+          '-',
+          '-',
+          formatCurrencyStr(unpaid.montoCalculado)
+        ]);
+      });
+    }
+
+    const totalAPagar = cons.montoCalculado + debtInfo.totalDeuda;
 
     autoTable(doc, {
       startY: 95,
       head: [['Descripción', 'Cantidad (kWh)', 'Precio Unitario (S/)', 'Subtotal']],
-      body: [
-        [
-          'Consumo Eléctrico' + (cons.kwh < 6 ? ' (Mínimo aplicado)' : ''),
-          kwhFacturado.toString(),
-          tarifaAplicada.toFixed(2),
-          formatCurrencyStr(cons.montoCalculado)
-        ]
-      ],
+      body: tableBody,
       theme: 'grid',
       headStyles: { fillColor: [15, 23, 42] }
     });
 
     const finalY = (doc as any).lastAutoTable.finalY || 120;
     doc.setFontSize(14);
-    doc.text(`Total a Pagar: ${formatCurrencyStr(cons.montoCalculado)}`, 14, finalY + 10);
+    doc.text(`Total a Pagar: ${formatCurrencyStr(totalAPagar)}`, 196, finalY + 10, { align: 'right' });
+
+    if (debtInfo.warning) {
+      doc.setFontSize(12);
+      doc.setTextColor(220, 38, 38);
+      const splitText = doc.splitTextToSize(debtInfo.warning, 172);
+      const textH = splitText.length * 6;
+      doc.setDrawColor(220, 38, 38);
+      doc.rect(14, finalY + 16, 182, textH + 4);
+      doc.text(splitText, 16, finalY + 22);
+      doc.setTextColor(0, 0, 0);
+      doc.setDrawColor(0, 0, 0);
+    }
 
     doc.save(`Recibo_${client.codigoSuministro}_${cons.mes}.pdf`);
   };

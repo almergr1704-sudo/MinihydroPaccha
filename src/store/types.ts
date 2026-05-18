@@ -1,6 +1,6 @@
 export type ClientType = 'SOCIO' | 'USUARIO';
 export type TransactionType = 'INGRESO' | 'EGRESO';
-export type IncomeCategory = 'CONSUMO' | 'APORTE' | 'MULTA' | 'OTROS';
+export type IncomeCategory = 'CONSUMO' | 'APORTE' | 'MULTA' | 'RECONEXION' | 'OTROS';
 export type ExpenseCategory = 'MANTENIMIENTO' | 'MATERIALES' | 'SUELDOS' | 'EQUIPOS' | 'ADMINISTRATIVOS' | 'OTROS';
 export type AttendanceStatus = 'ASISTIO' | 'FALTA_JUSTIFICADA' | 'FALTA_INJUSTIFICADA';
 export type PaymentStatus = 'PENDIENTE' | 'PAGADO';
@@ -18,6 +18,7 @@ export interface Client {
   codigoSuministro?: string;
   suministros?: string[];
   tipo: ClientType;
+  faseSuministro?: 'MONOFASICO' | 'TRIFASICO';
   estado: 'ACTIVO' | 'INACTIVO';
   fechaRegistro: string;
   nombre?: string; // Legacy fallback
@@ -50,6 +51,10 @@ export interface Meeting {
   fecha: string;
   motivo: string;
   asistencia: Record<string, AttendanceStatus>; // clientId -> status
+  lugar?: string;
+  temas?: string;
+  invitados?: 'SOCIO' | 'TODOS';
+  finalizada?: boolean;
 }
 
 export interface Fine {

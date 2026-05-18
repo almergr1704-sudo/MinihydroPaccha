@@ -71,7 +71,13 @@ export function AppLayout() {
                   {item.name}
                 </NavLink>
               ))}
-              <div className="mt-8 px-2 border-t border-slate-800 pt-4">
+              <div className="mt-8 px-2 border-t border-slate-800 pt-4 flex flex-col space-y-2">
+                <button
+                  onClick={() => window.open('/codigo-fuente.zip', '_blank')}
+                  className="w-full text-left text-white bg-blue-600 hover:bg-blue-700 group flex items-center px-4 py-2 text-base font-medium transition-colors rounded-lg mb-2"
+                >
+                  Descargar Código (ZIP)
+                </button>
                 <button
                   onClick={handleLogout}
                   className="w-full text-left text-slate-300 hover:bg-slate-800 hover:text-white group flex items-center px-2 py-2 text-base font-medium transition-colors rounded-lg"
@@ -129,13 +135,21 @@ export function AppLayout() {
                   </div>
                 </div>
               </div>
-              <button 
-                onClick={handleLogout}
-                className="w-full flex items-center justify-center py-2 px-4 border border-slate-700 rounded-md shadow-sm text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
-               >
-                 <LogOut className="mr-2 h-4 w-4" />
-                 Cerrar Sesión
-               </button>
+              <div className="flex flex-col space-y-2">
+                <button 
+                  onClick={() => window.open('/codigo-fuente.zip', '_blank')}
+                  className="w-full flex items-center justify-center py-2 px-4 shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
+                >
+                  Descargar Código (ZIP)
+                </button>
+                <button 
+                  onClick={handleLogout}
+                  className="w-full flex items-center justify-center py-2 px-4 border border-slate-700 rounded-md shadow-sm text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+                 >
+                   <LogOut className="mr-2 h-4 w-4" />
+                   Cerrar Sesión
+                 </button>
+               </div>
             </div>
           </div>
         </div>

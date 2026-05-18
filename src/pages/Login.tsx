@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Zap } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { useNavigate } from 'react-router-dom';
+import SHA256 from 'crypto-js/sha256';
 
 export default function Login() {
   const [error, setError] = useState('');
@@ -34,18 +35,13 @@ export default function Login() {
       const storedData = JSON.parse(localStorage.getItem('erp_data') || '{"admins":[]}');
       const admins = storedData.admins || [];
       const userMatched = admins.find((a: any) => 
-        (a.username === email.toLowerCase() || a.email === email.toLowerCase()) && a.password === password
+        (a.username === email.toLowerCase() || a.email === email.toLowerCase()) && 
+        (a.password === password || a.password === SHA256(password).toString())
       );
 
       if (userMatched) {
         // Log in with matched user
         login(userMatched.email);
-        return;
-      }
-      
-      if (email.includes('@') && password.length >= 6) {
-        // Fallback for previously created users/emails or generic
-        login(email);
         return;
       }
 

@@ -70,6 +70,8 @@ export default function Clientes() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!window.confirm('¿Está seguro de guardar este registro?')) return;
+
     const suministrosArray = suministrosStr.split(',').map(s => s.trim()).filter(s => s);
     const clientData = {
       ...formData,
@@ -278,9 +280,16 @@ export default function Clientes() {
                       <div className="text-sm text-slate-400">{client.direccion} {client.numeroDireccion ? `N° ${client.numeroDireccion}` : ''} {client.referenciaDireccion ? `(${client.referenciaDireccion})` : ''}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <Badge variant={client.tipo === 'SOCIO' ? 'success' : 'info'}>
-                        {client.tipo}
-                      </Badge>
+                      <div className="flex flex-col gap-1">
+                        <Badge variant={client.tipo === 'SOCIO' ? 'success' : 'info'}>
+                          {client.tipo}
+                        </Badge>
+                        {client.faseSuministro && (
+                          <Badge variant="info" className="text-slate-400 border-slate-700">
+                            {client.faseSuministro}
+                          </Badge>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <Badge variant={client.estado === 'ACTIVO' ? 'success' : 'danger'}>
@@ -373,6 +382,13 @@ export default function Clientes() {
                             <select value={formData.tipo} onChange={e => setFormData({...formData, tipo: e.target.value as any})} className="mt-1 block w-full bg-[#0B0E14] border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                               <option value="USUARIO">USUARIO (S/ 0.30/kWh)</option>
                               <option value="SOCIO">SOCIO (S/ 0.20/kWh)</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-300">Tipo de Servicio</label>
+                            <select value={formData.faseSuministro || 'MONOFASICO'} onChange={e => setFormData({...formData, faseSuministro: e.target.value as any})} className="mt-1 block w-full bg-[#0B0E14] border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-slate-100">
+                              <option value="MONOFASICO">Monofásico</option>
+                              <option value="TRIFASICO">Trifásico</option>
                             </select>
                           </div>
                           <div>

@@ -12,6 +12,7 @@ interface AppContextType extends AppState {
   payFine: (fineId: string) => Promise<void>;
   addTransaction: (transaction: Omit<Transaction, 'id' | 'fecha'>) => Promise<void>;
   addMeeting: (meeting: Omit<Meeting, 'id'>) => Promise<void>;
+  updateMeeting: (id: string, meeting: Partial<Meeting>) => Promise<void>;
   recordAttendance: (meetingId: string, clientId: string, status: Meeting['asistencia'][string]) => Promise<void>;
   updateAdmin: (id: string, updates: Partial<any>) => Promise<void>;
   login: (email: string) => void;
@@ -188,6 +189,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     persistState({ ...state, meetings: [...state.meetings, newMeeting] });
   };
 
+  const updateMeeting = async (id: string, meetingInfo: Partial<Meeting>) => {
+    persistState({
+      ...state,
+      meetings: state.meetings.map(m => m.id === id ? { ...m, ...meetingInfo } : m)
+    });
+  };
+
   const recordAttendance = async (meetingId: string, clientId: string, status: Meeting['asistencia'][string]) => {
     const meeting = state.meetings.find(m => m.id === meetingId);
     if (!meeting) return;
@@ -231,6 +239,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       payFine,
       addTransaction,
       addMeeting,
+      updateMeeting,
       recordAttendance,
       updateAdmin,
       login,

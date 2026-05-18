@@ -1,22 +1,31 @@
 import React, { useState } from 'react';
-import { Plus, Users, Calendar, AlertCircle } from 'lucide-react';
+import { Plus, Users, Calendar, AlertCircle, FileText, CheckCircle } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Button, Card, CardContent, Badge, CardHeader, CardTitle } from '../components/ui';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { jsPDF } from 'jspdf';
 
 export default function Reuniones() {
-  const { clients, meetings, addMeeting, recordAttendance } = useAppContext();
+  const { clients, meetings, addMeeting, updateMeeting, recordAttendance } = useAppContext();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedMeeting, setSelectedMeeting] = useState<string | null>(null);
   const [attendanceFilter, setAttendanceFilter] = useState<'SOCIO' | 'TODOS'>('SOCIO');
   
   const socios = clients.filter(c => c.tipo === 'SOCIO' && c.estado === 'ACTIVO');
-  const filteredClientsList = clients.filter(c => c.estado === 'ACTIVO' && (attendanceFilter === 'TODOS' || c.tipo === 'SOCIO'));
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    fecha: string;
+    motivo: string;
+    lugar: string;
+    temas: string;
+    invitados: 'SOCIO' | 'TODOS';
+  }>({
     fecha: new Date().toISOString().slice(0, 16),
-    motivo: ''
+    motivo: '',
+    lugar: '',
+    temas: '',
+    invitados: 'SOCIO'
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -26,14 +35,78 @@ export default function Reuniones() {
     addMeeting({
       fecha: new Date(formData.fecha).toISOString(),
       motivo: formData.motivo,
-      asistencia: {} // Initialize with empty attendance
+      asistencia: {}, // Initialize with empty attendance
+      lugar: formData.lugar,
+      temas: formData.temas,
+      invitados: formData.invitados,
+      finalizada: false
     });
     
     setIsModalOpen(false);
-    setFormData({ fecha: new Date().toISOString().slice(0, 16), motivo: '' });
+    setFormData({ fecha: new Date().toISOString().slice(0, 16), motivo: '', lugar: '', temas: '', invitados: 'SOCIO' });
   };
 
   const activeMeeting = meetings.find(m => m.id === selectedMeeting);
+  
+  const filteredClientsList = clients.filter(c => 
+    c.estado === 'ACTIVO' && 
+    (activeMeeting?.invitados === 'TODOS' || (activeMeeting ? activeMeeting.invitados === 'SOCIO' && c.tipo === 'SOCIO' : c.tipo === 'SOCIO'))
+  );
+
+  const handleImprimirCitaciones = () => {
+    if (!activeMeeting) return;
+    const doc = new jsPDF({ format: 'a4' });
+    
+    const fDate = format(parseISO(activeMeeting.fecha), "eeee, dd 'de' MMMM 'de' yyyy", { locale: es });
+    const fTime = format(parseISO(activeMeeting.fecha), "HH:mm", { locale: es });
+
+    let yOffset = 0;
+    const citationHeight = 74; // 4 per page
+    
+    filteredClientsList.forEach((client, index) => {
+      if (index > 0 && index % 4 === 0) {
+        doc.addPage();
+        yOffset = 0;
+      }
+      
+      const posInPage = index % 4;
+      yOffset = posInPage * citationHeight;
+
+      // Draw dashed cut lines
+      if (posInPage > 0) {
+        doc.setDrawColor(200);
+        doc.setLineDashPattern([2, 2], 0);
+        doc.line(10, yOffset, 200, yOffset);
+        doc.setLineDashPattern([], 0);
+        doc.setDrawColor(0);
+      }
+
+      const nmb = client.nombre || `${client.nombres} ${client.apellidos}`;
+
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('CITACIÓN A REUNIÓN', 105, yOffset + 12, { align: 'center' });
+      
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Señor(a): ${nmb}`, 14, yOffset + 22);
+      doc.text(`Motivo: ${activeMeeting.motivo}`, 14, yOffset + 29);
+      doc.text(`Fecha: ${fDate} | Hora: ${fTime}`, 14, yOffset + 36);
+      doc.text(`Lugar: ${activeMeeting.lugar || 'No especificado'}`, 14, yOffset + 43);
+      
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Temas a tratar:`, 14, yOffset + 50);
+      doc.setFont('helvetica', 'normal');
+      const lines = doc.splitTextToSize(activeMeeting.temas || 'No especificados', 180);
+      doc.text(lines, 14, yOffset + 55);
+      
+      doc.text('Agradecemos su puntual asistencia.', 105, yOffset + 65, { align: 'center' });
+      doc.line(80, yOffset + 70, 130, yOffset + 70);
+      doc.text('La Directiva', 105, yOffset + 73, { align: 'center' });
+    });
+
+    doc.save(`Citaciones_${activeMeeting.motivo}.pdf`);
+  };
 
   return (
     <div className="space-y-6">
@@ -98,22 +171,17 @@ export default function Reuniones() {
                     </div>
                     
                     <div className="flex space-x-2">
-                       <button
-                         onClick={() => setAttendanceFilter('SOCIO')}
-                         className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                           attendanceFilter === 'SOCIO' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                         }`}
-                       >
-                         Solo Socios
-                       </button>
-                       <button
-                         onClick={() => setAttendanceFilter('TODOS')}
-                         className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                           attendanceFilter === 'TODOS' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                         }`}
-                       >
-                         Todos los Clientes
-                       </button>
+                       {activeMeeting.finalizada ? (
+                         <Badge variant="success" className="px-3 py-1 text-sm"><CheckCircle className="w-4 h-4 mr-2"/> Reunión Finalizada</Badge>
+                       ) : (
+                         <Button onClick={() => window.confirm('¿Desea finalizar la reunión? Una vez finalizada no podrá modificar la asistencia.') && updateMeeting(activeMeeting.id, { finalizada: true })} variant="danger">
+                           Finalizar Reunión
+                         </Button>
+                       )}
+                       <Button variant="outline" onClick={handleImprimirCitaciones}>
+                         <FileText className="w-4 h-4 mr-2"/>
+                         Citaciones
+                       </Button>
                     </div>
                  </div>
               </CardHeader>
@@ -150,30 +218,44 @@ export default function Reuniones() {
                              </td>
                              <td className="px-6 py-4 whitespace-nowrap">
                                <div className="flex space-x-2">
-                                  <button
-                                    onClick={() => recordAttendance(activeMeeting.id, socio.id, 'ASISTIO')}
-                                    className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
-                                      status === 'ASISTIO' ? 'bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/50' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                                    }`}
-                                  >
-                                    Asistió
-                                  </button>
-                                  <button
-                                    onClick={() => recordAttendance(activeMeeting.id, socio.id, 'FALTA_JUSTIFICADA')}
-                                    className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
-                                      status === 'FALTA_JUSTIFICADA' ? 'bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/50' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                                    }`}
-                                  >
-                                    Falta Justificada
-                                  </button>
-                                  <button
-                                    onClick={() => recordAttendance(activeMeeting.id, socio.id, 'FALTA_INJUSTIFICADA')}
-                                    className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
-                                      status === 'FALTA_INJUSTIFICADA' ? 'bg-red-500/20 text-red-400 ring-1 ring-red-500/50' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                                    }`}
-                                  >
-                                    Injustificada (Multa)
-                                  </button>
+                                  {activeMeeting.finalizada ? (
+                                    <span className={`px-3 py-1 text-xs font-medium rounded-full ${
+                                      status === 'ASISTIO' ? 'bg-emerald-500/20 text-emerald-400' :
+                                      status === 'FALTA_JUSTIFICADA' ? 'bg-amber-500/20 text-amber-400' :
+                                      status === 'FALTA_INJUSTIFICADA' ? 'bg-red-500/20 text-red-400' : 'bg-slate-800 text-slate-400'
+                                    }`}>
+                                      {status === 'ASISTIO' ? 'Asistió' :
+                                       status === 'FALTA_JUSTIFICADA' ? 'Falta Justificada' :
+                                       status === 'FALTA_INJUSTIFICADA' ? 'Falta Injustificada' : 'Sin Marcar'}
+                                    </span>
+                                  ) : (
+                                    <>
+                                      <button
+                                        onClick={() => recordAttendance(activeMeeting.id, socio.id, 'ASISTIO')}
+                                        className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
+                                          status === 'ASISTIO' ? 'bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/50' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                                        }`}
+                                      >
+                                        Asistió
+                                      </button>
+                                      <button
+                                        onClick={() => recordAttendance(activeMeeting.id, socio.id, 'FALTA_JUSTIFICADA')}
+                                        className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
+                                          status === 'FALTA_JUSTIFICADA' ? 'bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/50' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                                        }`}
+                                      >
+                                        Falta Justificada
+                                      </button>
+                                      <button
+                                        onClick={() => recordAttendance(activeMeeting.id, socio.id, 'FALTA_INJUSTIFICADA')}
+                                        className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
+                                          status === 'FALTA_INJUSTIFICADA' ? 'bg-red-500/20 text-red-400 ring-1 ring-red-500/50' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                                        }`}
+                                      >
+                                        Injustificada (Multa)
+                                      </button>
+                                    </>
+                                  )}
                                </div>
                              </td>
                            </tr>
@@ -227,6 +309,39 @@ export default function Reuniones() {
                         onChange={e => setFormData({...formData, motivo: e.target.value})} 
                         className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100 placeholder-slate-500" 
                       />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300">Lugar</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Ej. Local Comunal"
+                        value={formData.lugar} 
+                        onChange={e => setFormData({...formData, lugar: e.target.value})} 
+                        className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100 placeholder-slate-500" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300">Temas a tratar</label>
+                      <textarea
+                        required
+                        rows={3}
+                        placeholder="Ej. 1. Balance anual&#10;2. Elecciones"
+                        value={formData.temas} 
+                        onChange={e => setFormData({...formData, temas: e.target.value})} 
+                        className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100 placeholder-slate-500" 
+                      ></textarea>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300">Invitados</label>
+                      <select
+                        value={formData.invitados} 
+                        onChange={e => setFormData({...formData, invitados: e.target.value as 'SOCIO' | 'TODOS'})} 
+                        className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" 
+                      >
+                        <option value="SOCIO">Solo Socios</option>
+                        <option value="TODOS">Todos los Clientes</option>
+                      </select>
                     </div>
                   </div>
                 </div>

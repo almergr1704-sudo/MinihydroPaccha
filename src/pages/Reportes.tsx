@@ -4,6 +4,10 @@ import { useAppContext } from '../store/AppContext';
 import { Card, CardContent, CardHeader, CardTitle, Button } from '../components/ui';
 import { formatCurrency } from '../lib/utils';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
+import { format } from 'date-fns';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
@@ -22,6 +26,108 @@ export default function Reportes() {
       return true;
     });
   }, [transactions, startDate, endDate]);
+
+  const pendingDebts = consumptions.filter(c => c.estadoPago === 'PENDIENTE');
+
+  const handleExportPDF = () => {
+    const doc = new jsPDF();
+    doc.text(`Reporte de Estadística y Transacciones`, 14, 20);
+    if (startDate || endDate) {
+      doc.setFontSize(10);
+      doc.text(`Periodo: ${startDate || 'Inicio'} a ${endDate || 'Hoy'}`, 14, 26);
+    }
+    
+    // Consolidar por categoría
+    const consolidatedMap: Record<string, { tipo: string, categoria: string, monto: number }> = {};
+    filteredTransactions.forEach(t => {
+      const key = `${t.tipo}-${t.categoria}`;
+      if (!consolidatedMap[key]) {
+        consolidatedMap[key] = { tipo: t.tipo, categoria: t.categoria, monto: 0 };
+      }
+      consolidatedMap[key].monto += t.monto;
+    });
+
+    const tableData = Object.values(consolidatedMap).map(item => [
+      item.tipo,
+      item.categoria,
+      formatCurrency(item.monto)
+    ]);
+
+    autoTable(doc, {
+      startY: 35,
+      head: [['Tipo', 'Categoría', 'Suma Total (S/)']],
+      body: tableData,
+    });
+
+    const totalIngresos = filteredTransactions.filter(t => t.tipo === 'INGRESO').reduce((acc, t) => acc + t.monto, 0);
+    const totalEgresos = filteredTransactions.filter(t => t.tipo === 'EGRESO').reduce((acc, t) => acc + t.monto, 0);
+
+    // Also add Morosidad
+    const afterTableY = (doc as any).lastAutoTable.finalY + 10 || 50;
+    doc.setFontSize(12);
+    doc.text(`Total Ingresos: ${formatCurrency(totalIngresos)}`, 14, afterTableY);
+    doc.text(`Total Egresos: ${formatCurrency(totalEgresos)}`, 14, afterTableY + 8);
+    doc.text(`Balance: ${formatCurrency(totalIngresos - totalEgresos)}`, 14, afterTableY + 16);
+
+    const finalY = afterTableY + 28;
+    doc.setFontSize(14);
+    doc.text('Resumen de Morosidad', 14, finalY);
+    
+    autoTable(doc, {
+      startY: finalY + 6,
+      head: [['Recibos Vencidos', 'Monto Total en Deuda', 'Índice de Morosidad']],
+      body: [[
+        pendingDebts.length.toString(),
+        formatCurrency(pendingDebts.reduce((sum, d) => sum + d.montoCalculado, 0)),
+        (consumptions.length > 0 ? ((pendingDebts.length / consumptions.length) * 100).toFixed(1) : '0') + '%'
+      ]],
+    });
+
+    doc.save(`Reporte_General_${format(new Date(), 'yyyyMMdd')}.pdf`);
+  };
+
+  const handleExportExcel = () => {
+    // Consolidar por categoría
+    const consolidatedMap: Record<string, { tipo: string, categoria: string, monto: number }> = {};
+    filteredTransactions.forEach(t => {
+      const key = `${t.tipo}-${t.categoria}`;
+      if (!consolidatedMap[key]) {
+        consolidatedMap[key] = { tipo: t.tipo, categoria: t.categoria, monto: 0 };
+      }
+      consolidatedMap[key].monto += t.monto;
+    });
+
+    const txData = Object.values(consolidatedMap).map(item => ({
+      Tipo: item.tipo,
+      Categoría: item.categoria,
+      'Suma Total': item.monto
+    }));
+
+    const totalIngresos = filteredTransactions.filter(t => t.tipo === 'INGRESO').reduce((acc, t) => acc + t.monto, 0);
+    const totalEgresos = filteredTransactions.filter(t => t.tipo === 'EGRESO').reduce((acc, t) => acc + t.monto, 0);
+
+    const totalesData = [{
+      'Total Ingresos': totalIngresos,
+      'Total Egresos': totalEgresos,
+      'Balance': totalIngresos - totalEgresos
+    }];
+
+    const morosidadData = [{
+      'Recibos Vencidos': pendingDebts.length,
+      'Monto Total en Deuda (S/)': pendingDebts.reduce((sum, d) => sum + d.montoCalculado, 0),
+      'Índice de Morosidad (%)': (consumptions.length > 0 ? ((pendingDebts.length / consumptions.length) * 100).toFixed(1) : 0)
+    }];
+
+    const wb = XLSX.utils.book_new();
+    const wsTx = XLSX.utils.json_to_sheet(txData);
+    const wsTotales = XLSX.utils.json_to_sheet(totalesData);
+    const wsMorosidad = XLSX.utils.json_to_sheet(morosidadData);
+    
+    XLSX.utils.book_append_sheet(wb, wsTx, "Transacciones");
+    XLSX.utils.book_append_sheet(wb, wsTotales, "Totales");
+    XLSX.utils.book_append_sheet(wb, wsMorosidad, "Morosidad");
+    XLSX.writeFile(wb, `Reporte_General_${format(new Date(), 'yyyyMMdd')}.xlsx`);
+  };
 
   // Ingresos por categoría
   const ingresosPorCategoria = filteredTransactions
@@ -49,8 +155,6 @@ export default function Reportes() {
     value: egresosPorCategoria[key]
   }));
 
-  const pendingDebts = consumptions.filter(c => c.estadoPago === 'PENDIENTE');
-
   return (
     <div className="space-y-6">
       <div className="sm:flex sm:items-center sm:justify-between">
@@ -63,11 +167,11 @@ export default function Reportes() {
           </p>
         </div>
         <div className="mt-4 sm:mt-0 flex space-x-3">
-          <Button variant="outline">
+          <Button variant="outline" onClick={handleExportPDF}>
             <FileText className="-ml-1 mr-2 h-5 w-5" />
             Exportar PDF
           </Button>
-          <Button>
+          <Button onClick={handleExportExcel}>
             <Download className="-ml-1 mr-2 h-5 w-5" />
             Exportar Excel
           </Button>
@@ -111,6 +215,65 @@ export default function Reportes() {
           )}
         </CardContent>
       </Card>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Resumen Financiero</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="bg-emerald-500/10 p-4 rounded-xl border border-emerald-500/20">
+                <p className="text-sm font-medium text-emerald-400">Total Ingresos</p>
+                <p className="text-2xl font-bold text-emerald-300 mt-1">
+                  {formatCurrency(filteredTransactions.filter(t => t.tipo === 'INGRESO').reduce((a, b) => a + b.monto, 0))}
+                </p>
+              </div>
+              <div className="bg-red-500/10 p-4 rounded-xl border border-red-500/20">
+                <p className="text-sm font-medium text-red-400">Total Egresos</p>
+                <p className="text-2xl font-bold text-red-300 mt-1">
+                  {formatCurrency(filteredTransactions.filter(t => t.tipo === 'EGRESO').reduce((a, b) => a + b.monto, 0))}
+                </p>
+              </div>
+              <div className="bg-blue-500/10 p-4 rounded-xl border border-blue-500/20">
+                <p className="text-sm font-medium text-blue-400">Balance</p>
+                <p className="text-2xl font-bold text-blue-300 mt-1">
+                  {formatCurrency(
+                    filteredTransactions.filter(t => t.tipo === 'INGRESO').reduce((a, b) => a + b.monto, 0) -
+                    filteredTransactions.filter(t => t.tipo === 'EGRESO').reduce((a, b) => a + b.monto, 0)
+                  )}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Resumen de Morosidad</CardTitle>
+          </CardHeader>
+          <CardContent>
+               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                   <div className="bg-red-500/10 p-4 rounded-xl border border-red-500/20">
+                       <p className="text-sm font-medium text-red-400">Recibos Vencidos</p>
+                       <p className="text-2xl font-bold text-red-300 mt-1">{pendingDebts.length}</p>
+                   </div>
+                   <div className="bg-red-500/10 p-4 rounded-xl border border-red-500/20">
+                       <p className="text-sm font-medium text-red-400">Monto Total en Deuda</p>
+                       <p className="text-2xl font-bold text-red-300 mt-1">
+                           {formatCurrency(pendingDebts.reduce((sum, d) => sum + d.montoCalculado, 0))}
+                       </p>
+                   </div>
+                   <div className="bg-slate-500/10 p-4 rounded-xl border border-slate-500/20">
+                       <p className="text-sm font-medium text-slate-400">Índice</p>
+                       <p className="text-2xl font-bold text-slate-300 mt-1">
+                           {consumptions.length > 0 ? ((pendingDebts.length / consumptions.length) * 100).toFixed(1) : 0}%
+                       </p>
+                   </div>
+               </div>
+          </CardContent>
+        </Card>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
@@ -191,32 +354,6 @@ export default function Reportes() {
           </CardContent>
         </Card>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Resumen de Morosidad</CardTitle>
-        </CardHeader>
-        <CardContent>
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                 <div className="bg-red-500/10 p-4 rounded-xl border border-red-500/20">
-                     <p className="text-sm font-medium text-red-400">Recibos Vencidos</p>
-                     <p className="text-2xl font-bold text-red-300 mt-1">{pendingDebts.length}</p>
-                 </div>
-                 <div className="bg-red-500/10 p-4 rounded-xl border border-red-500/20">
-                     <p className="text-sm font-medium text-red-400">Monto Total en Deuda</p>
-                     <p className="text-2xl font-bold text-red-300 mt-1">
-                         {formatCurrency(pendingDebts.reduce((sum, d) => sum + d.montoCalculado, 0))}
-                     </p>
-                 </div>
-                 <div className="bg-blue-500/10 p-4 rounded-xl border border-blue-500/20">
-                     <p className="text-sm font-medium text-blue-400">Índice de Morosidad</p>
-                     <p className="text-2xl font-bold text-blue-300 mt-1">
-                         {consumptions.length > 0 ? ((pendingDebts.length / consumptions.length) * 100).toFixed(1) : 0}%
-                     </p>
-                 </div>
-             </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
