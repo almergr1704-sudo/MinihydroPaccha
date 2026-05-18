@@ -6,7 +6,7 @@ import { Client, ClientType } from '../store/types';
 import * as XLSX from 'xlsx';
 
 export default function Clientes() {
-  const { clients, addClient, updateClient } = useAppContext();
+  const { clients, addClient, updateClient, settings } = useAppContext();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<ClientType | 'TODOS'>('TODOS');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -423,8 +423,8 @@ export default function Clientes() {
                           <div>
                             <label className="block text-sm font-medium text-slate-300">Tipo de Cliente</label>
                             <select value={formData.tipo} onChange={e => setFormData({...formData, tipo: e.target.value as any})} className="mt-1 block w-full bg-[#0B0E14] border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                              <option value="USUARIO">USUARIO (S/ 0.30/kWh)</option>
-                              <option value="SOCIO">SOCIO (S/ 0.20/kWh)</option>
+                              <option value="USUARIO">USUARIO (S/ {settings?.costoUsuario?.toFixed(2) || '0.30'}/kWh)</option>
+                              <option value="SOCIO">SOCIO (S/ {settings?.costoSocio?.toFixed(2) || '0.20'}/kWh)</option>
                             </select>
                           </div>
                           <div>

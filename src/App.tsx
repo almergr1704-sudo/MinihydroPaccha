@@ -10,6 +10,7 @@ import Finanzas from './pages/Finanzas';
 import Reuniones from './pages/Reuniones';
 import Reportes from './pages/Reportes';
 import Usuarios from './pages/Usuarios';
+import Configuracion from './pages/Configuracion';
 import Login from './pages/Login';
 
 const AuthGuard = ({ children }: { children: React.ReactNode }) => {
@@ -48,6 +49,7 @@ export default function App() {
             <Route path="reuniones" element={<RoleGuard allowedRoles={['ADMIN', 'SUPERVISOR']}><Reuniones /></RoleGuard>} />
             <Route path="reportes" element={<RoleGuard allowedRoles={['ADMIN', 'SUPERVISOR']}><Reportes /></RoleGuard>} />
             <Route path="usuarios" element={<RoleGuard allowedRoles={['ADMIN', 'SUPERVISOR']}><Usuarios /></RoleGuard>} />
+            <Route path="config" element={<RoleGuard allowedRoles={['ADMIN', 'SUPERVISOR']}><Configuracion /></RoleGuard>} />
             <Route path="*" element={
               <div className="flex flex-col items-center justify-center h-full">
                 <h2 className="text-2xl font-bold text-slate-100">Módulo no encontrado</h2>

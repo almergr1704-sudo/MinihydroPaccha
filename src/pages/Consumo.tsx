@@ -11,9 +11,13 @@ import * as XLSX from 'xlsx';
 import { Consumption } from '../store/types';
 
 export default function Consumo() {
-  const { clients, consumptions, addConsumption } = useAppContext();
+  const { clients, consumptions, addConsumption, settings } = useAppContext();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedMes, setSelectedMes] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
+  const [selectedMes, setSelectedMes] = useState(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 1);
+    return d.toISOString().slice(0, 7);
+  });
   
   const [clientSearch, setClientSearch] = useState('');
 
@@ -27,6 +31,11 @@ export default function Consumo() {
     if (!formData.clientAndSuministro || !formData.kwh) return;
     
     const [clientId, codigoSuministro] = formData.clientAndSuministro.split('|');
+
+    if (selectedMes >= new Date().toISOString().slice(0, 7)) {
+      alert('El periodo de lectura debe ser un mes anterior al actual.');
+      return;
+    }
 
     const exists = consumptions.some(c => c.codigoSuministro === codigoSuministro && c.mes === selectedMes);
     if (exists) {
@@ -57,12 +66,13 @@ export default function Consumo() {
     );
     const totalDeuda = previousUnpaid.reduce((acc, c) => acc + c.montoCalculado, 0);
     const monthsOwned = previousUnpaid.length;
+    const settingsCostoReconexion = settings?.costoReconexion || 0;
     return {
       totalDeuda,
       monthsOwned,
       previousUnpaid,
       warning: monthsOwned >= 3 
-        ? 'AVISO: SERVICIO PROGRAMADO PARA CORTE POR DEUDA DE 3 MESES O MÁS.\nCosto por reconexión: S/ 20.00' 
+        ? `AVISO: SERVICIO PROGRAMADO PARA CORTE POR DEUDA DE 3 MESES O MÁS.${settingsCostoReconexion > 0 ? `\nCosto por reconexión: S/ ${settingsCostoReconexion.toFixed(2)}` : ''}` 
         : ''
     };
   };
@@ -158,7 +168,9 @@ export default function Consumo() {
       doc.text(`Tipo: ${client.tipo} | Suministro: ${cons.codigoSuministro || client.codigoSuministro}`, 14, yOffset + 36);
 
       // Table
-      const tarifaAplicada = client.tipo === 'SOCIO' ? 0.20 : 0.30;
+      const tarifaAplicada = client.faseSuministro === 'TRIFASICO' && settings.costoTrifasico > 0 
+        ? settings.costoTrifasico 
+        : client.tipo === 'SOCIO' ? settings.costoSocio : settings.costoUsuario;
       const kwhFacturado = Math.max(cons.kwh || 0, 6);
       const debtInfo = getDebtInfo(client.id, cons.codigoSuministro || '', cons.mes);
 
@@ -182,11 +194,13 @@ export default function Consumo() {
           ]);
         });
         if (debtInfo.previousUnpaid.length > 3) {
+           const hiddenDebts = debtInfo.previousUnpaid.slice(3);
+           const hiddenSum = hiddenDebts.reduce((acc, c) => acc + c.montoCalculado, 0);
            tableBody.push([
             `...y ${debtInfo.previousUnpaid.length - 3} mes(es) más`,
             '-',
             '-',
-            ''
+            formatCurrencyStr(hiddenSum)
           ]);
         }
       }
@@ -258,7 +272,9 @@ export default function Consumo() {
     doc.text(`Suministro: ${cons.codigoSuministro || client.codigoSuministro}`, 14, 85);
 
     // Table
-    const tarifaAplicada = client.tipo === 'SOCIO' ? 0.20 : 0.30;
+    const tarifaAplicada = client.faseSuministro === 'TRIFASICO' && settings.costoTrifasico > 0 
+      ? settings.costoTrifasico 
+      : client.tipo === 'SOCIO' ? settings.costoSocio : settings.costoUsuario;
     const kwhFacturado = Math.max(cons.kwh || 0, 6);
     const debtInfo = getDebtInfo(client.id, cons.codigoSuministro || '', cons.mes);
 
@@ -274,7 +290,8 @@ export default function Consumo() {
     ];
 
     if (debtInfo.previousUnpaid && debtInfo.previousUnpaid.length > 0) {
-      debtInfo.previousUnpaid.forEach(unpaid => {
+      const remainingUnpaid = debtInfo.previousUnpaid.slice(0, 3);
+      remainingUnpaid.forEach(unpaid => {
         tableBody.push([
           `Deuda anterior: ${unpaid.mes}`,
           '-',
@@ -282,6 +299,16 @@ export default function Consumo() {
           formatCurrencyStr(unpaid.montoCalculado)
         ]);
       });
+      if (debtInfo.previousUnpaid.length > 3) {
+        const hiddenDebts = debtInfo.previousUnpaid.slice(3);
+        const hiddenSum = hiddenDebts.reduce((acc, c) => acc + c.montoCalculado, 0);
+        tableBody.push([
+          `...y ${debtInfo.previousUnpaid.length - 3} mes(es) más`,
+          '-',
+          '-',
+          formatCurrencyStr(hiddenSum)
+        ]);
+      }
     }
 
     const totalAPagar = cons.montoCalculado + debtInfo.totalDeuda;
@@ -452,7 +479,10 @@ export default function Consumo() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-bold text-slate-100">{formatCurrency(cons.montoCalculado)}</div>
-                        <div className="text-xs text-slate-400">Tarifa: S/ {client?.tipo === 'SOCIO' ? '0.20' : '0.30'}/kWh</div>
+                        <div className="text-xs text-slate-400">Tarifa: S/ {
+                            client?.faseSuministro === 'TRIFASICO' && settings.costoTrifasico > 0 ? settings.costoTrifasico.toFixed(2) : 
+                            client?.tipo === 'SOCIO' ? settings.costoSocio.toFixed(2) : settings.costoUsuario.toFixed(2)
+                          }/kWh</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <Badge variant={cons.estadoPago === 'PAGADO' ? 'success' : 'warning'}>
@@ -551,7 +581,13 @@ export default function Consumo() {
                       />
                       {formData.clientAndSuministro && formData.kwh && (
                         <p className="mt-2 text-sm text-slate-400 font-medium">
-                          Monto estimado: {formatCurrency(Number(formData.kwh) * (clients.find(c => c.id === formData.clientAndSuministro.split('|')[0])?.tipo === 'SOCIO' ? 0.20 : 0.30))}
+                          Monto estimado: {formatCurrency(Number(formData.kwh) * (
+                            clients.find(c => c.id === formData.clientAndSuministro.split('|')[0])?.faseSuministro === 'TRIFASICO' && settings.costoTrifasico > 0
+                              ? settings.costoTrifasico
+                              : clients.find(c => c.id === formData.clientAndSuministro.split('|')[0])?.tipo === 'SOCIO' 
+                                ? settings.costoSocio 
+                                : settings.costoUsuario
+                          ))}
                         </p>
                       )}
                     </div>

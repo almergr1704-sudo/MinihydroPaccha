@@ -128,6 +128,20 @@ export default function Reuniones() {
     doc.save(`Citaciones_${activeMeeting.motivo}.pdf`);
   };
 
+  const handleFinalizarReunion = () => {
+    if (!activeMeeting) return;
+    const unregistered = filteredClientsList.filter(client => !activeMeeting.asistencia[client.id]);
+    
+    if (unregistered.length > 0) {
+      alert(`No se puede finalizar la reunión. Faltan registrar la asistencia de ${unregistered.length} persona(s).`);
+      return;
+    }
+
+    if (window.confirm('¿Desea finalizar la reunión? Una vez finalizada no podrá modificar la asistencia.')) {
+        updateMeeting(activeMeeting.id, { finalizada: true });
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="sm:flex sm:items-center sm:justify-between">
@@ -194,7 +208,7 @@ export default function Reuniones() {
                        {activeMeeting.finalizada ? (
                          <Badge variant="success" className="px-3 py-1 text-sm"><CheckCircle className="w-4 h-4 mr-2"/> Reunión Finalizada</Badge>
                        ) : (
-                         <Button onClick={() => window.confirm('¿Desea finalizar la reunión? Una vez finalizada no podrá modificar la asistencia.') && updateMeeting(activeMeeting.id, { finalizada: true })} variant="danger">
+                         <Button onClick={handleFinalizarReunion} variant="danger">
                            Finalizar Reunión
                          </Button>
                        )}

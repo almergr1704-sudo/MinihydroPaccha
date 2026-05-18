@@ -13,6 +13,7 @@ interface AppContextType extends AppState {
   addTransaction: (transaction: Omit<Transaction, 'id' | 'fecha'>) => Promise<void>;
   addMeeting: (meeting: Omit<Meeting, 'id'>) => Promise<void>;
   updateMeeting: (id: string, meeting: Partial<Meeting>) => Promise<void>;
+  updateSettings: (settings: any) => Promise<void>;
   recordAttendance: (meetingId: string, clientId: string, status: Meeting['asistencia'][string]) => Promise<void>;
   updateAdmin: (id: string, updates: Partial<any>) => Promise<void>;
   login: (email: string) => void;
@@ -32,6 +33,13 @@ const initialData: AppState = {
   meetings: [],
   admins: [],
   fines: [],
+  settings: {
+    costoSocio: 0.20,
+    costoUsuario: 0.30,
+    costoTrifasico: 0.00,
+    multaReunion: 40,
+    costoReconexion: 0.00
+  }
 };
 
 const getLocalData = (): AppState => {
@@ -51,6 +59,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const data = getLocalData();
     if (!data.fines) {
       data.fines = []; // fallback for legacy data
+    }
+    if (!data.settings) {
+      data.settings = initialData.settings;
     }
     return data;
   });
@@ -112,23 +123,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addConsumption = async (consumption: Omit<Consumption, 'id' | 'montoCalculado' | 'estadoPago'>) => {
-    const client = state.clients.find(c => c.id === consumption.clientId);
-    if (!client) return;
+    // Need to use the current state synchronously here, so we get it from the latest possible
+    setState(currentState => {
+      const client = currentState.clients.find(c => c.id === consumption.clientId);
+      if (!client) return currentState;
 
-    const tarifa = client.tipo === 'SOCIO' ? TARIFA_SOCIO : TARIFA_USUARIO;
-    let montoCalculado = (consumption.kwh || 0) * tarifa;
-    if (montoCalculado < 6) {
-      montoCalculado = 6;
-    }
-
-    const newConsumption: Consumption = {
-      ...consumption,
-      id: generateId(),
-      kwh: consumption.kwh || 0,
-      montoCalculado,
-      estadoPago: 'PENDIENTE',
-    };
-    persistState({ ...state, consumptions: [...state.consumptions, newConsumption] });
+      const settings = currentState.settings || initialData.settings;
+      const tarifa = client.faseSuministro === 'TRIFASICO' && settings.costoTrifasico > 0 
+        ? settings.costoTrifasico 
+        : client.tipo === 'SOCIO' ? settings.costoSocio : settings.costoUsuario;
+        
+      let montoCalculado = (consumption.kwh || 0) * tarifa;
+      // Is there a minimum? The previous code had: if (montoCalculado < 6) { montoCalculado = 6; } Wait, is that 6 soles? Let me check previous logic.
+      if (consumption.kwh > 0 && consumption.kwh < 6) {
+        // En algunos lugares aplica minimo 6 kwh. "kwhFacturado = Math.max(cons.kwh || 0, 6);" en Consumo.tsx
+        montoCalculado = 6 * tarifa;
+      }
+      
+      const newConsumption: Consumption = {
+        ...consumption,
+        id: generateId(),
+        kwh: consumption.kwh || 0,
+        montoCalculado,
+        estadoPago: 'PENDIENTE',
+      };
+      
+      const newState = { ...currentState, consumptions: [...currentState.consumptions, newConsumption] };
+      setLocalData(newState);
+      return newState;
+    });
   };
 
   const payConsumption = async (consumptionId: string) => {
@@ -212,7 +235,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           id: generateId(),
           clientId,
           meetingId,
-          monto: MULTA_FALTA,
+          monto: state.settings?.multaReunion || 40,
           motivo: `Falta a reunión ${new Date(meeting.fecha).toLocaleDateString()}`,
           estadoPago: 'PENDIENTE',
           fecha: new Date().toISOString()
@@ -224,6 +247,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     persistState({ ...state, meetings: newMeetings, fines: newFines });
+  };
+
+  const updateSettings = async (settings: any) => {
+    persistState({
+      ...state,
+      settings: { ...state.settings, ...settings }
+    });
   };
 
   return (
@@ -240,6 +270,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addTransaction,
       addMeeting,
       updateMeeting,
+      updateSettings,
       recordAttendance,
       updateAdmin,
       login,

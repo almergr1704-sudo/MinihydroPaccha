@@ -13,7 +13,8 @@ const baseNavigation = [
   { name: 'Finanzas', href: '/finanzas', icon: DollarSign },
   { name: 'Reuniones', href: '/reuniones', icon: Calendar },
   { name: 'Reportes', href: '/reportes', icon: FileText },
-  { name: 'Usuarios del Sist.', href: '/usuarios', icon: Settings },
+  { name: 'Usuarios', href: '/usuarios', icon: Users },
+  { name: 'Configuración', href: '/config', icon: Settings },
 ];
 
 export function AppLayout() {

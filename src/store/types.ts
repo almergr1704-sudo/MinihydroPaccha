@@ -68,6 +68,14 @@ export interface Fine {
   fecha: string;
 }
 
+export interface AppSettings {
+  costoSocio: number;
+  costoUsuario: number;
+  costoTrifasico: number;
+  multaReunion: number;
+  costoReconexion: number;
+}
+
 export interface AppState {
   clients: Client[];
   consumptions: Consumption[];
@@ -75,4 +83,5 @@ export interface AppState {
   meetings: Meeting[];
   admins: any[];
   fines: Fine[];
+  settings: AppSettings;
 }
