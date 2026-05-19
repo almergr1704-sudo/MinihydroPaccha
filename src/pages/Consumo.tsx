@@ -126,15 +126,37 @@ export default function Consumo() {
     doc.save(`Reporte_Consumos_${selectedMes}.pdf`);
   };
 
-  const handleGenerateMassReceipts = (consumptionsList: Consumption[]) => {
-    if (consumptionsList.length === 0) return;
+  const handleGenerateMassReceipts = () => {
+    const suppliesToInvoice: any[] = [];
+    
+    clients.forEach(client => {
+      if (client.estado !== 'ACTIVO') return;
+      
+      const supplies = client.suministros?.length ? client.suministros : [client.codigoSuministro].filter(Boolean);
+      
+      supplies.forEach((sup) => {
+        if (!sup) return;
+        const currentReading = consumptions.find(c => c.clientId === client.id && c.codigoSuministro === sup && c.mes === selectedMes);
+        const debtInfo = getDebtInfo(client.id, sup, selectedMes);
+        
+        if (currentReading || debtInfo.previousUnpaid.length > 0) {
+          suppliesToInvoice.push({
+            client,
+            codigoSuministro: sup,
+            currentReading,
+            debtInfo
+          });
+        }
+      });
+    });
+
+    if (suppliesToInvoice.length === 0) {
+      alert('No hay recibos para generar.');
+      return;
+    }
 
     // Sort by codigoSuministro
-    const sortedConsumptions = [...consumptionsList].sort((a, b) => {
-      const sumA = a.codigoSuministro || '';
-      const sumB = b.codigoSuministro || '';
-      return sumA.localeCompare(sumB);
-    });
+    suppliesToInvoice.sort((a, b) => a.codigoSuministro.localeCompare(b.codigoSuministro));
 
     const doc = new jsPDF({ format: 'a4' });
     let yOffset = 10;
@@ -143,10 +165,9 @@ export default function Consumo() {
 
     const formatCurrencyStr = (val: number) => new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(val);
 
-    sortedConsumptions.forEach((cons, index) => {
-      const client = clients.find(c => c.id === cons.clientId);
-      if (!client) return;
-
+    suppliesToInvoice.forEach((item, index) => {
+      const { client, codigoSuministro, currentReading, debtInfo } = item;
+      
       if (yOffset + receiptHeight > maxH) {
         doc.addPage();
         yOffset = 10;
@@ -159,33 +180,37 @@ export default function Consumo() {
       doc.text('Central Hidroeléctrica PACCHA - Recibo de Consumo', 14, yOffset + 10);
       
       doc.setFontSize(9);
-      doc.text(`Fecha Emisión: ${format(new Date(), 'dd MMM yyyy')} | Periodo: ${cons.mes} | Estado: ${cons.estadoPago}`, 14, yOffset + 18);
+      const docState = currentReading ? currentReading.estadoPago : 'PENDIENTE';
+      doc.text(`Fecha Emisión: ${format(new Date(), 'dd MMM yyyy')} | Periodo: ${selectedMes} | Estado: ${docState}`, 14, yOffset + 18);
 
       // Client Info
       doc.setFontSize(10);
       doc.text(`Cliente: ${clientName} (DNI/RUC: ${client.dni})`, 14, yOffset + 26);
       doc.text(`Dirección: ${client.direccion} ${client.numeroDireccion ? `N° ${client.numeroDireccion}` : ''}`, 14, yOffset + 31);
-      doc.text(`Tipo: ${client.tipo} | Suministro: ${cons.codigoSuministro || client.codigoSuministro}`, 14, yOffset + 36);
+      doc.text(`Tipo: ${client.tipo} | Suministro: ${codigoSuministro}`, 14, yOffset + 36);
 
       // Table
-      const tarifaAplicada = client.faseSuministro === 'TRIFASICO' && settings.costoTrifasico > 0 
-        ? settings.costoTrifasico 
-        : client.tipo === 'SOCIO' ? settings.costoSocio : settings.costoUsuario;
-      const kwhFacturado = Math.max(cons.kwh || 0, 6);
-      const debtInfo = getDebtInfo(client.id, cons.codigoSuministro || '', cons.mes);
+      const tableBody: any[][] = [];
+      let totalMontoCalculado = 0;
 
-      const tableBody: any[][] = [
-        [
-          'Consumo Eléctrico' + (cons.kwh < 6 ? ' (Mín.)' : ''),
-          kwhFacturado.toString(),
+      if (currentReading) {
+        const tarifaAplicada = client.faseSuministro === 'TRIFASICO' && (settings?.costoTrifasico || 0) > 0 
+          ? (settings?.costoTrifasico || 0) 
+          : client.tipo === 'SOCIO' ? (settings?.costoSocio || 0.2) : (settings?.costoUsuario || 0.3);
+        const kwh = currentReading.kwh || 0;
+        const esMinimo = kwh * tarifaAplicada < 6;
+        tableBody.push([
+          'Consumo Eléctrico' + (esMinimo ? ' (Mín. S/ 6.00)' : ''),
+          kwh.toString(),
           tarifaAplicada.toFixed(2),
-          formatCurrencyStr(cons.montoCalculado)
-        ]
-      ];
+          formatCurrencyStr(currentReading.montoCalculado)
+        ]);
+        totalMontoCalculado += currentReading.montoCalculado;
+      }
 
       if (debtInfo.previousUnpaid && debtInfo.previousUnpaid.length > 0) {
         const remainingUnpaid = debtInfo.previousUnpaid.slice(0, 3); // display up to 3 to avoid overflow
-        remainingUnpaid.forEach(unpaid => {
+        remainingUnpaid.forEach((unpaid: any) => {
           tableBody.push([
             `Deuda anterior: ${unpaid.mes}`,
             '-',
@@ -195,7 +220,7 @@ export default function Consumo() {
         });
         if (debtInfo.previousUnpaid.length > 3) {
            const hiddenDebts = debtInfo.previousUnpaid.slice(3);
-           const hiddenSum = hiddenDebts.reduce((acc, c) => acc + c.montoCalculado, 0);
+           const hiddenSum = hiddenDebts.reduce((acc: any, c: any) => acc + c.montoCalculado, 0);
            tableBody.push([
             `...y ${debtInfo.previousUnpaid.length - 3} mes(es) más`,
             '-',
@@ -205,7 +230,7 @@ export default function Consumo() {
         }
       }
 
-      const totalAPagar = cons.montoCalculado + debtInfo.totalDeuda;
+      const totalAPagar = totalMontoCalculado + debtInfo.totalDeuda;
 
       autoTable(doc, {
         startY: yOffset + 40,
@@ -275,15 +300,16 @@ export default function Consumo() {
     const tarifaAplicada = client.faseSuministro === 'TRIFASICO' && settings.costoTrifasico > 0 
       ? settings.costoTrifasico 
       : client.tipo === 'SOCIO' ? settings.costoSocio : settings.costoUsuario;
-    const kwhFacturado = Math.max(cons.kwh || 0, 6);
+    const kwh = cons.kwh || 0;
+    const esMinimo = kwh * tarifaAplicada < 6;
     const debtInfo = getDebtInfo(client.id, cons.codigoSuministro || '', cons.mes);
 
     const formatCurrencyStr = (val: number) => new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(val);
 
     const tableBody: any[][] = [
       [
-        'Consumo Eléctrico' + (cons.kwh < 6 ? ' (Mínimo aplicado)' : ''),
-        kwhFacturado.toString(),
+        'Consumo Eléctrico' + (esMinimo ? ' (Mín. S/ 6.00)' : ''),
+        kwh.toString(),
         tarifaAplicada.toFixed(2),
         formatCurrencyStr(cons.montoCalculado)
       ]
@@ -439,8 +465,7 @@ export default function Consumo() {
                 </Button>
                 <Button 
                   variant="outline" 
-                  onClick={() => handleGenerateMassReceipts(filteredConsumptions)}
-                  disabled={filteredConsumptions.length === 0}
+                  onClick={() => handleGenerateMassReceipts()}
                   className="flex items-center"
                 >
                   <FileText className="h-4 w-4 mr-2" />
@@ -581,13 +606,13 @@ export default function Consumo() {
                       />
                       {formData.clientAndSuministro && formData.kwh && (
                         <p className="mt-2 text-sm text-slate-400 font-medium">
-                          Monto estimado: {formatCurrency(Number(formData.kwh) * (
-                            clients.find(c => c.id === formData.clientAndSuministro.split('|')[0])?.faseSuministro === 'TRIFASICO' && settings.costoTrifasico > 0
-                              ? settings.costoTrifasico
+                          Monto estimado: {formatCurrency(Math.max((Number(formData.kwh) || 0) * (
+                            clients.find(c => c.id === formData.clientAndSuministro.split('|')[0])?.faseSuministro === 'TRIFASICO' && (settings?.costoTrifasico || 0) > 0
+                              ? (settings?.costoTrifasico || 0)
                               : clients.find(c => c.id === formData.clientAndSuministro.split('|')[0])?.tipo === 'SOCIO' 
-                                ? settings.costoSocio 
-                                : settings.costoUsuario
-                          ))}
+                                ? (settings?.costoSocio || 0.20)
+                                : (settings?.costoUsuario || 0.30)
+                          ), 6))}
                         </p>
                       )}
                     </div>

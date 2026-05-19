@@ -134,10 +134,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         : client.tipo === 'SOCIO' ? settings.costoSocio : settings.costoUsuario;
         
       let montoCalculado = (consumption.kwh || 0) * tarifa;
-      // Is there a minimum? The previous code had: if (montoCalculado < 6) { montoCalculado = 6; } Wait, is that 6 soles? Let me check previous logic.
-      if (consumption.kwh > 0 && consumption.kwh < 6) {
-        // En algunos lugares aplica minimo 6 kwh. "kwhFacturado = Math.max(cons.kwh || 0, 6);" en Consumo.tsx
-        montoCalculado = 6 * tarifa;
+      if (montoCalculado < 6) {
+        montoCalculado = 6;
       }
       
       const newConsumption: Consumption = {

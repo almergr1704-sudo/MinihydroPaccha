@@ -35,7 +35,7 @@ export default function Login() {
       const storedData = JSON.parse(localStorage.getItem('erp_data') || '{"admins":[]}');
       const admins = storedData.admins || [];
       const userMatched = admins.find((a: any) => 
-        (a.username === email.toLowerCase() || a.email === email.toLowerCase()) && 
+        (a.username?.toLowerCase() === email.toLowerCase() || a.email?.toLowerCase() === email.toLowerCase()) && 
         (a.password === password || a.password === CryptoJS.SHA256(password).toString())
       );
 

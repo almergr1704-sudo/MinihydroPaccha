@@ -36,8 +36,8 @@ export default function Usuarios() {
       
       const newAdmin = {
          id: Math.random().toString(36).substr(2, 9),
-         email: newEmail || `${newUsername}@paccha.local`,
-         username: newUsername,
+         email: (newEmail || `${newUsername}@paccha.local`).toLowerCase(),
+         username: newUsername.toLowerCase(),
          password: CryptoJS.SHA256(newPassword).toString(),
          nombres: newNombres,
          apellidos: newApellidos,
