@@ -6,7 +6,7 @@ import { formatCurrency } from '../lib/utils';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 export default function Dashboard() {
-  const { clients, consumptions, transactions } = useAppContext();
+  const { clients, consumptions, transactions, fines } = useAppContext();
 
   // Metrics calculations
   const totalSocios = clients.filter(c => c.tipo === 'SOCIO').length;
@@ -28,7 +28,10 @@ export default function Dashboard() {
     .filter(c => c.mes === currentMonth)
     .reduce((sum, c) => sum + c.kwh, 0);
 
-  const pendingDebts = consumptions.filter(c => c.estadoPago === 'PENDIENTE');
+  const pendingDebtsConsumptions = consumptions.filter(c => c.estadoPago === 'PENDIENTE').map(c => ({...c, type: 'CONSUMO' as const}));
+  const pendingDebtsFines = (fines || []).filter(c => c.estadoPago === 'PENDIENTE').map(f => ({...f, type: 'MULTA' as const, montoCalculado: f.monto, kwh: null, mes: f.fecha.split('-').slice(0,2).join('-')}));
+  
+  const pendingDebts = [...pendingDebtsConsumptions, ...pendingDebtsFines].sort((a,b) => new Date(b.mes).getTime() - new Date(a.mes).getTime());
 
   // Multi-month chart data (mocking a bit or calculating if we have data)
   // Grouping transactions by month
@@ -177,12 +180,12 @@ export default function Dashboard() {
                     return (
                       <li key={debt.id} className="p-4 hover:bg-slate-800/50 flex justify-between items-center">
                         <div>
-                          <p className="text-sm font-medium text-slate-100">{client?.nombre || 'Desconocido'}</p>
-                          <p className="text-xs text-slate-400">Periodo: {debt.mes}</p>
+                          <p className="text-sm font-medium text-slate-100">{client?.nombres ? `${client.nombres} ${client.apellidos}` : client?.nombre || 'Desconocido'}</p>
+                          <p className="text-xs text-slate-400">Periodo/Fecha: {debt.mes}</p>
                         </div>
                         <div className="text-right">
                           <p className="text-sm font-bold text-red-400">{formatCurrency(debt.montoCalculado)}</p>
-                          <p className="text-xs text-slate-400">{debt.kwh} kWh ({client?.tipo})</p>
+                          <p className="text-xs text-slate-400">{debt.type === 'CONSUMO' ? `${debt.kwh} kWh` : debt.motivo} ({client?.tipo})</p>
                         </div>
                       </li>
                     )

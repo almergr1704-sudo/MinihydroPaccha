@@ -12,7 +12,7 @@ import { format } from 'date-fns';
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
 export default function Reportes() {
-  const { clients, transactions, consumptions } = useAppContext();
+  const { clients, transactions, consumptions, fines } = useAppContext();
 
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -28,6 +28,12 @@ export default function Reportes() {
   }, [transactions, startDate, endDate]);
 
   const pendingDebts = consumptions.filter(c => c.estadoPago === 'PENDIENTE');
+  const pendingFines = (fines || []).filter(f => f.estadoPago === 'PENDIENTE');
+
+  const totalRecibosVencidos = pendingDebts.length + pendingFines.length;
+  const montoTotalDeuda = pendingDebts.reduce((sum, d) => sum + d.montoCalculado, 0) + pendingFines.reduce((sum, f) => sum + f.monto, 0);
+  const totalDeudasRegistradas = consumptions.length + (fines ? fines.length : 0);
+  const indiceMorosidad = totalDeudasRegistradas > 0 ? ((totalRecibosVencidos / totalDeudasRegistradas) * 100).toFixed(1) : 0;
 
   const handleExportPDF = (type: 'INGRESO' | 'EGRESO' | 'CONSOLIDADO') => {
     const doc = new jsPDF();
@@ -116,9 +122,9 @@ export default function Reportes() {
         startY: finalY + 6,
         head: [['Recibos Vencidos', 'Monto Total en Deuda', 'Índice de Morosidad']],
         body: [[
-          pendingDebts.length.toString(),
-          formatCurrency(pendingDebts.reduce((sum, d) => sum + d.montoCalculado, 0)),
-          (consumptions.length > 0 ? ((pendingDebts.length / consumptions.length) * 100).toFixed(1) : '0') + '%'
+          totalRecibosVencidos.toString(),
+          formatCurrency(montoTotalDeuda),
+          indiceMorosidad + '%'
         ]],
       });
     } else {
@@ -175,9 +181,9 @@ export default function Reportes() {
 
     const morosidadData = [{
       'Balance Final (S/)': totalIngresosMonto - totalEgresosMonto,
-      'Recibos Vencidos': pendingDebts.length,
-      'Monto Total en Deuda (S/)': pendingDebts.reduce((sum, d) => sum + d.montoCalculado, 0),
-      'Índice de Morosidad (%)': (consumptions.length > 0 ? ((pendingDebts.length / consumptions.length) * 100).toFixed(1) : 0)
+      'Recibos Vencidos (Toda la deuda)': totalRecibosVencidos,
+      'Monto Total en Deuda (S/)': montoTotalDeuda,
+      'Índice de Morosidad (%)': indiceMorosidad
     }];
 
     const wb = XLSX.utils.book_new();
@@ -323,18 +329,18 @@ export default function Reportes() {
                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                    <div className="bg-red-500/10 p-4 rounded-xl border border-red-500/20">
                        <p className="text-sm font-medium text-red-400">Recibos Vencidos</p>
-                       <p className="text-2xl font-bold text-red-300 mt-1">{pendingDebts.length}</p>
+                       <p className="text-2xl font-bold text-red-300 mt-1">{totalRecibosVencidos}</p>
                    </div>
                    <div className="bg-red-500/10 p-4 rounded-xl border border-red-500/20">
                        <p className="text-sm font-medium text-red-400">Monto Total en Deuda</p>
                        <p className="text-2xl font-bold text-red-300 mt-1">
-                           {formatCurrency(pendingDebts.reduce((sum, d) => sum + d.montoCalculado, 0))}
+                           {formatCurrency(montoTotalDeuda)}
                        </p>
                    </div>
                    <div className="bg-slate-500/10 p-4 rounded-xl border border-slate-500/20">
                        <p className="text-sm font-medium text-slate-400">Índice</p>
                        <p className="text-2xl font-bold text-slate-300 mt-1">
-                           {consumptions.length > 0 ? ((pendingDebts.length / consumptions.length) * 100).toFixed(1) : 0}%
+                           {indiceMorosidad}%
                        </p>
                    </div>
                </div>
