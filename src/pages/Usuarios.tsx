@@ -53,6 +53,8 @@ export default function Usuarios() {
       currentData.admins = updatedAdmins;
       localStorage.setItem('erp_data', JSON.stringify(currentData));
       
+      alert(`Usuario creado correctamente.\n\nPor favor, ingresa con:\nUsuario: ${newUsername}\nRol: ${newRole}`);
+      
       // Need a full reload to reflect changes in this simple hack
       window.location.reload();
     } catch (err: any) {

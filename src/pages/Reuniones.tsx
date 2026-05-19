@@ -68,7 +68,11 @@ export default function Reuniones() {
     const itemsPerPage = 4;
     const citationHeight = Math.floor(297 / itemsPerPage); // ~74
     
-    filteredClientsList.forEach((client, index) => {
+    const sortedClients = [...filteredClientsList].sort((a, b) => 
+      (a.codigoSuministro || '').localeCompare(b.codigoSuministro || '')
+    );
+    
+    sortedClients.forEach((client, index) => {
       if (index > 0 && index % itemsPerPage === 0) {
         doc.addPage();
         yOffset = 0;

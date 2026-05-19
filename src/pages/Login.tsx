@@ -40,8 +40,8 @@ export default function Login() {
       );
 
       if (userMatched) {
-        // Log in with matched user
-        login(userMatched.email);
+        // Log in with matched user using email or username
+        login(userMatched.email || userMatched.username);
         return;
       }
 
