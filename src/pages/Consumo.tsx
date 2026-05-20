@@ -198,9 +198,10 @@ export default function Consumo() {
           ? (settings?.costoTrifasico || 0) 
           : client.tipo === 'SOCIO' ? (settings?.costoSocio || 0.2) : (settings?.costoUsuario || 0.3);
         const kwh = currentReading.kwh || 0;
-        const esMinimo = kwh * tarifaAplicada < 6;
+        const minimoAplica = settings?.consumoMinimo !== undefined ? settings.consumoMinimo : 6;
+        const esMinimo = kwh * tarifaAplicada < minimoAplica;
         tableBody.push([
-          'Consumo Eléctrico' + (esMinimo ? ' (Mín. S/ 6.00)' : ''),
+          'Consumo Eléctrico' + (esMinimo ? ` (Mín. S/ ${minimoAplica.toFixed(2)})` : ''),
           kwh.toString(),
           tarifaAplicada.toFixed(2),
           formatCurrencyStr(currentReading.montoCalculado)
@@ -301,14 +302,15 @@ export default function Consumo() {
       ? settings.costoTrifasico 
       : client.tipo === 'SOCIO' ? settings.costoSocio : settings.costoUsuario;
     const kwh = cons.kwh || 0;
-    const esMinimo = kwh * tarifaAplicada < 6;
+    const minimoAplica = settings?.consumoMinimo !== undefined ? settings.consumoMinimo : 6;
+    const esMinimo = kwh * tarifaAplicada < minimoAplica;
     const debtInfo = getDebtInfo(client.id, cons.codigoSuministro || '', cons.mes);
 
     const formatCurrencyStr = (val: number) => new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(val);
 
     const tableBody: any[][] = [
       [
-        'Consumo Eléctrico' + (esMinimo ? ' (Mín. S/ 6.00)' : ''),
+        'Consumo Eléctrico' + (esMinimo ? ` (Mín. S/ ${minimoAplica.toFixed(2)})` : ''),
         kwh.toString(),
         tarifaAplicada.toFixed(2),
         formatCurrencyStr(cons.montoCalculado)
@@ -612,7 +614,7 @@ export default function Consumo() {
                               : clients.find(c => c.id === formData.clientAndSuministro.split('|')[0])?.tipo === 'SOCIO' 
                                 ? (settings?.costoSocio || 0.20)
                                 : (settings?.costoUsuario || 0.30)
-                          ), 6))}
+                          ), settings?.consumoMinimo !== undefined ? settings.consumoMinimo : 6))}
                         </p>
                       )}
                     </div>

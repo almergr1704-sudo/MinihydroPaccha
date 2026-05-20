@@ -10,7 +10,8 @@ export default function Configuracion() {
     costoUsuario: 0.30,
     costoTrifasico: 0.00,
     multaReunion: 40,
-    costoReconexion: 0.00
+    costoReconexion: 0.00,
+    consumoMinimo: 6.00
   });
 
   useEffect(() => {
@@ -107,6 +108,23 @@ export default function Configuracion() {
                       />
                     </div>
                     <p className="mt-1 text-xs text-slate-500">Deje en 0 para no aplicar tarifa especial.</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300">Consumo Mínimo (Monto a pagar)</label>
+                    <div className="mt-1 relative rounded-md shadow-sm">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <span className="text-slate-500 sm:text-sm">S/</span>
+                      </div>
+                      <input 
+                        type="number" 
+                        name="consumoMinimo"
+                        step="0.01"
+                        min="0"
+                        value={formData.consumoMinimo} 
+                        onChange={handleChange} 
+                        className="block w-full pl-8 bg-[#0B0E14] border border-slate-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-slate-100" 
+                      />
+                    </div>
                   </div>
                 </div>
               </div>

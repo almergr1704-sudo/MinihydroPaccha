@@ -74,6 +74,7 @@ export interface AppSettings {
   costoTrifasico: number;
   multaReunion: number;
   costoReconexion: number;
+  consumoMinimo: number;
 }
 
 export interface AppState {

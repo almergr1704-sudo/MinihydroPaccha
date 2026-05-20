@@ -38,7 +38,8 @@ const initialData: AppState = {
     costoUsuario: 0.30,
     costoTrifasico: 0.00,
     multaReunion: 40,
-    costoReconexion: 0.00
+    costoReconexion: 0.00,
+    consumoMinimo: 6.00
   }
 };
 
@@ -133,9 +134,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ? settings.costoTrifasico 
         : client.tipo === 'SOCIO' ? settings.costoSocio : settings.costoUsuario;
         
+      const minimoAplica = settings.consumoMinimo !== undefined ? settings.consumoMinimo : 6;
       let montoCalculado = (consumption.kwh || 0) * tarifa;
-      if (montoCalculado < 6) {
-        montoCalculado = 6;
+      if (montoCalculado < minimoAplica) {
+        montoCalculado = minimoAplica;
       }
       
       const newConsumption: Consumption = {
