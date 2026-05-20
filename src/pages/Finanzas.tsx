@@ -16,6 +16,7 @@ export default function Finanzas() {
   const [filterType, setFilterType] = useState<TransactionType | 'TODOS'>('INGRESO');
   const [selectedMes, setSelectedMes] = useState(''); // Empty means All time
   const [clientSearch, setClientSearch] = useState('');
+  const [showOnlyAptForCut, setShowOnlyAptForCut] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState('');
   
   const [formData, setFormData] = useState({
@@ -45,6 +46,14 @@ export default function Finanzas() {
     doc.save(`Egreso_${t.categoria}_${format(new Date(), 'yyyyMMdd')}.pdf`);
   };
 
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setShowOnlyAptForCut(false);
+    setFormData({ tipo: 'INGRESO', categoria: 'OTROS', monto: '', descripcion: '', destinatario: '' });
+    setSelectedClientId('');
+    setClientSearch('');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isModalOpen === 'INGRESO' && ['CONSUMO', 'MULTA'].includes(formData.categoria)) {
@@ -70,10 +79,7 @@ export default function Finanzas() {
       handleGenerateEgresoPDF({ ...newTx, id: 'temp', fecha: new Date().toISOString() });
     }
     
-    setIsModalOpen(false);
-    setFormData({ tipo: 'INGRESO', categoria: 'OTROS', monto: '', descripcion: '', destinatario: '' });
-    setSelectedClientId('');
-    setClientSearch('');
+    closeModal();
   };
 
   const handleGenerateReportPDFDetailed = (type: 'INGRESO' | 'EGRESO') => {
@@ -195,13 +201,21 @@ export default function Finanzas() {
   const balance = totalIngresos - totalEgresos;
 
   const searchedClients = clients.filter(c => {
+    const isActivoOrCortado = c.estado === 'ACTIVO' || c.estado === 'CORTADO';
+    if (!isActivoOrCortado) return false;
+
+    if (showOnlyAptForCut) {
+        const pendingDebtsCount = consumptions.filter(cons => cons.clientId === c.id && cons.estadoPago === 'PENDIENTE').length;
+        if (!(pendingDebtsCount >= 3 && c.estado !== 'CORTADO')) return false;
+    }
+
     if (!clientSearch) return true;
     const searchLower = clientSearch.toLowerCase();
     const fullName = c.nombre ? c.nombre.toLowerCase() : `${c.nombres || ''} ${c.apellidos || ''}`.toLowerCase();
     return c.codigoSuministro.toLowerCase().includes(searchLower) ||
            c.dni.includes(searchLower) ||
            fullName.includes(searchLower);
-  }).filter(c => c.estado === 'ACTIVO' || c.estado === 'CORTADO');
+  });
 
   const pendingConsumptions = consumptions.filter(c => c.clientId === selectedClientId && c.estadoPago === 'PENDIENTE');
   const pendingFines = (fines || []).filter(c => c.clientId === selectedClientId && c.estadoPago === 'PENDIENTE');
@@ -211,20 +225,6 @@ export default function Finanzas() {
   const reconexionFee = settings?.costoReconexion || 0;
   
   const totalDeuda = pendingConsumptions.reduce((acc, c) => acc + c.montoCalculado, 0) + pendingFines.reduce((acc, f) => acc + f.monto, 0) + (isCortado ? reconexionFee : 0);
-
-  const aptForCutClients = clients.filter(c => 
-      c.estado !== 'CORTADO' && 
-      consumptions.filter(cons => cons.clientId === c.id && cons.estadoPago === 'PENDIENTE').length >= 3
-  ).map(client => {
-      const pendingConsump = consumptions.filter(cons => cons.clientId === client.id && cons.estadoPago === 'PENDIENTE');
-      const clientPendingFines = (fines || []).filter(c => c.clientId === client.id && c.estadoPago === 'PENDIENTE');
-      const totalDebt = pendingConsump.reduce((acc, c) => acc + c.montoCalculado, 0) + clientPendingFines.reduce((acc, f) => acc + f.monto, 0);
-      return {
-          ...client,
-          pendingDebtsCount: pendingConsump.length + clientPendingFines.length,
-          totalDebt
-      }
-  }).sort((a, b) => b.totalDebt - a.totalDebt);
 
   return (
     <div className="space-y-6">
@@ -237,7 +237,18 @@ export default function Finanzas() {
             Registro y seguimiento de ingresos y egresos de la central.
           </p>
         </div>
-        <div className="mt-4 sm:mt-0 space-x-3">
+        <div className="mt-4 sm:mt-0 space-x-3 flex items-center">
+          <Button 
+            onClick={() => { 
+                setShowOnlyAptForCut(true); 
+                setFormData({...formData, tipo: 'INGRESO', categoria: 'CONSUMO'}); 
+                setIsModalOpen('INGRESO'); 
+            }} 
+            className="bg-transparent border border-red-500/50 text-red-500 hover:bg-red-900/20"
+          >
+            <FileWarning className="-ml-1 mr-2 h-4 w-4" />
+            Aptos para corte
+          </Button>
           <Button onClick={() => { setFormData({...formData, tipo: 'INGRESO', categoria: 'OTROS'}); setIsModalOpen('INGRESO'); }} className="bg-emerald-600 hover:bg-emerald-500 text-white border-0">
             <Plus className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
             Nuevo Cobro
@@ -271,49 +282,6 @@ export default function Finanzas() {
           </CardContent>
         </Card>
       </div>
-
-      {aptForCutClients.length > 0 && (
-        <Card className="border-red-900/50 bg-red-500/10">
-          <CardHeader>
-            <CardTitle className="text-red-500 flex items-center gap-2">
-              <FileWarning className="w-5 h-5" />
-              Clientes Aptos para Corte ({aptForCutClients.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-red-900/30">
-                <thead>
-                  <tr>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-red-500/70 uppercase">Cliente</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-red-500/70 uppercase">Deudas</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-red-500/70 uppercase">Monto Total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-red-900/30">
-                  {aptForCutClients.map(client => (
-                    <tr key={client.id}>
-                      <td className="px-4 py-2 whitespace-nowrap text-sm text-slate-300">
-                        {client.nombre ? client.nombre : `${client.nombres} ${client.apellidos}`.trim()}
-                        <div className="text-xs text-slate-500">{client.codigoSuministro}</div>
-                      </td>
-                      <td className="px-4 py-2 whitespace-nowrap text-sm text-red-400 font-medium">
-                        {client.pendingDebtsCount} pendientes
-                      </td>
-                      <td className="px-4 py-2 whitespace-nowrap text-sm font-bold text-red-500">
-                        {formatCurrency(client.totalDebt)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <p className="mt-2 text-sm text-red-400/80">
-              Estos clientes tienen 3 o más recibos pendientes de pago. Puede marcarlos como "En corte" desde la sección de Clientes.
-            </p>
-          </CardContent>
-        </Card>
-      )}
 
       <Card>
         <CardContent className="p-0">
@@ -418,7 +386,7 @@ export default function Finanzas() {
       {isModalOpen && (
         <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
           <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 bg-slate-900 bg-opacity-75 transition-opacity" onClick={() => setIsModalOpen(false)}></div>
+            <div className="fixed inset-0 bg-slate-900 bg-opacity-75 transition-opacity" onClick={closeModal}></div>
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
             <div className="relative z-10 inline-block align-bottom bg-[#0B0E14] rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full">
               <form onSubmit={handleSubmit}>
@@ -478,34 +446,45 @@ export default function Finanzas() {
                     {isModalOpen === 'INGRESO' && ['CONSUMO', 'MULTA', 'APORTE', 'RECONEXION'].includes(formData.categoria) && (
                         <div>
                           <label className="block text-sm font-medium text-slate-300">Buscar Cliente (Suministro, DNI o Nombre)</label>
-                          <div className="relative mt-1">
-                            <input 
-                              type="text" 
-                              placeholder="Ingrese términos de búsqueda..."
-                              value={clientSearch}
-                              onChange={(e) => {
-                                setClientSearch(e.target.value);
-                                setSelectedClientId('');
-                              }}
-                              className="block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100"
-                            />
-                            {clientSearch && !selectedClientId && searchedClients.length > 0 && (
-                              <ul className="absolute z-10 mt-1 w-full bg-slate-800 border border-slate-700 rounded-md shadow-lg max-h-48 overflow-auto">
-                                {searchedClients.map(c => (
-                                  <li 
-                                    key={c.id} 
-                                    className="px-3 py-2 text-sm text-slate-200 hover:bg-blue-600 cursor-pointer"
-                                    onClick={() => {
-                                      setSelectedClientId(c.id);
-                                      setClientSearch(c.nombre ? c.nombre : `${c.nombres} ${c.apellidos}`);
-                                    }}
-                                  >
-                                    <div className="font-medium">{c.codigoSuministro} - {c.nombre ? c.nombre : `${c.nombres} ${c.apellidos}`.trim()}</div>
-                                    <div className="text-xs text-slate-400">{c.tipoPersona === 'EMPRESA' ? 'RUC' : 'DNI'}: {c.dni}</div>
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
+                          <div className="relative mt-1 flex gap-2">
+                            <div className="relative w-full">
+                              <input 
+                                type="text" 
+                                placeholder="Ingrese términos de búsqueda..."
+                                value={clientSearch}
+                                onChange={(e) => {
+                                  setClientSearch(e.target.value);
+                                  setSelectedClientId('');
+                                }}
+                                className="block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100"
+                              />
+                              {(clientSearch || showOnlyAptForCut) && !selectedClientId && searchedClients.length > 0 && (
+                                <ul className="absolute z-10 mt-1 w-full bg-slate-800 border border-slate-700 rounded-md shadow-lg max-h-48 overflow-auto">
+                                  {searchedClients.map(c => (
+                                    <li 
+                                      key={c.id} 
+                                      className="px-3 py-2 text-sm text-slate-200 hover:bg-blue-600 cursor-pointer"
+                                      onClick={() => {
+                                        setSelectedClientId(c.id);
+                                        setClientSearch(c.nombre ? c.nombre : `${c.nombres} ${c.apellidos}`);
+                                      }}
+                                    >
+                                      <div className="font-medium">{c.codigoSuministro} - {c.nombre ? c.nombre : `${c.nombres} ${c.apellidos}`.trim()}</div>
+                                      <div className="text-xs text-slate-400">{c.tipoPersona === 'EMPRESA' ? 'RUC' : 'DNI'}: {c.dni}</div>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setShowOnlyAptForCut(!showOnlyAptForCut)}
+                              className={`flex px-3 py-2 text-sm font-medium rounded-md border items-center gap-2 transition-colors flex-shrink-0 ${showOnlyAptForCut ? 'bg-red-900/50 text-red-500 border-red-500/50' : 'bg-[#0B0E14] text-slate-400 border-slate-700 hover:text-slate-200'}`}
+                              title="Filtrar clientes con riesgo de corte"
+                            >
+                              <FileWarning className="h-4 w-4" />
+                              <span className="hidden sm:inline">Aptos para corte</span>
+                            </button>
                           </div>
                         </div>
                     )}
@@ -572,6 +551,10 @@ export default function Finanzas() {
                                   <div className="flex items-center space-x-3 flex-shrink-0">
                                     <span className="text-slate-200 font-medium">{formatCurrency(reconexionFee)}</span>
                                     <Button size="sm" type="button" onClick={async () => {
+                                      if (pendingConsumptions.length > 2) {
+                                        alert('No se puede reconectar el servicio. El cliente tiene deuda de 3 o más recibos pendientes. Debe regularizar la deuda de consumo primero.');
+                                        return;
+                                      }
                                       if (window.confirm(`¿Está seguro de cobrar S/ ${reconexionFee.toFixed(2)} por reconexión y reactivar el servicio?`)) {
                                         await addTransaction({
                                           tipo: 'INGRESO',
@@ -582,8 +565,7 @@ export default function Finanzas() {
                                         });
                                         await updateClient(selectedClientId, { estado: 'ACTIVO' });
                                         alert('Cobro realizado y servicio reactivado exitosamente.');
-                                        setSelectedClientId('');
-                                        setIsModalOpen(false);
+                                        closeModal();
                                       }
                                     }}>Cobrar y Reactivar</Button>
                                   </div>
@@ -630,7 +612,7 @@ export default function Finanzas() {
                   {!['CONSUMO', 'MULTA'].includes(formData.categoria) && (
                     <Button type="submit" className="w-full sm:ml-3 sm:w-auto">Guardar Transacción</Button>
                   )}
-                  <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)} className="mt-3 w-full sm:mt-0 sm:w-auto">Cerrar</Button>
+                  <Button type="button" variant="outline" onClick={closeModal} className="mt-3 w-full sm:mt-0 sm:w-auto">Cerrar</Button>
                 </div>
               </form>
             </div>

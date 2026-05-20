@@ -9,7 +9,6 @@ export default function Clientes() {
   const { clients, addClient, updateClient, settings, consumptions, fines, addTransaction } = useAppContext();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<ClientType | 'TODOS' | 'CORTADO'>('TODOS');
-  const [showOnlyAptForCut, setShowOnlyAptForCut] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -70,14 +69,8 @@ export default function Clientes() {
                           
     const matchesType = filterType === 'TODOS' || 
                         (filterType === 'CORTADO' ? c.estado === 'CORTADO' : c.tipo === filterType);
-    
-    let matchesAptForCut = true;
-    if (showOnlyAptForCut) {
-        const pendingDebtsCount = consumptions.filter(cons => cons.clientId === c.id && cons.estadoPago === 'PENDIENTE').length;
-        matchesAptForCut = pendingDebtsCount >= 3 && c.estado !== 'CORTADO';
-    }
 
-    return matchesSearch && matchesType && matchesAptForCut;
+    return matchesSearch && matchesType;
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -271,14 +264,6 @@ export default function Clientes() {
               />
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => setShowOnlyAptForCut(!showOnlyAptForCut)}
-                className={`flex px-3 py-2 text-sm font-medium rounded-md border items-center gap-2 transition-colors ${showOnlyAptForCut ? 'bg-red-900/50 text-red-400 border-red-500/50' : 'bg-transparent text-slate-400 border-slate-700 hover:text-slate-200'}`}
-                title="Filtrar clientes con riesgo de corte"
-              >
-                <FileWarning className="h-4 w-4" />
-                Aptos para corte
-              </button>
               <div className="flex items-center space-x-2">
                 <Filter className="h-5 w-5 text-slate-500 hidden sm:block" />
                 <select
