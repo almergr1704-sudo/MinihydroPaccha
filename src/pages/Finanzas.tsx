@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, ArrowUpRight, ArrowDownRight, Filter, Download, FileText } from 'lucide-react';
+import { Plus, ArrowUpRight, ArrowDownRight, Filter, Download, FileText, FileWarning } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Button, Card, CardContent, Badge, CardHeader, CardTitle } from '../components/ui';
 import { formatCurrency } from '../lib/utils';
@@ -207,6 +207,20 @@ export default function Finanzas() {
   const pendingFines = (fines || []).filter(c => c.clientId === selectedClientId && c.estadoPago === 'PENDIENTE');
   const totalDeuda = pendingConsumptions.reduce((acc, c) => acc + c.montoCalculado, 0) + pendingFines.reduce((acc, f) => acc + f.monto, 0);
 
+  const aptForCutClients = clients.filter(c => 
+      c.estado !== 'CORTADO' && 
+      consumptions.filter(cons => cons.clientId === c.id && cons.estadoPago === 'PENDIENTE').length >= 3
+  ).map(client => {
+      const pendingConsump = consumptions.filter(cons => cons.clientId === client.id && cons.estadoPago === 'PENDIENTE');
+      const clientPendingFines = (fines || []).filter(c => c.clientId === client.id && c.estadoPago === 'PENDIENTE');
+      const totalDebt = pendingConsump.reduce((acc, c) => acc + c.montoCalculado, 0) + clientPendingFines.reduce((acc, f) => acc + f.monto, 0);
+      return {
+          ...client,
+          pendingDebtsCount: pendingConsump.length + clientPendingFines.length,
+          totalDebt
+      }
+  }).sort((a, b) => b.totalDebt - a.totalDebt);
+
   return (
     <div className="space-y-6">
       <div className="sm:flex sm:items-center sm:justify-between">
@@ -252,6 +266,49 @@ export default function Finanzas() {
           </CardContent>
         </Card>
       </div>
+
+      {aptForCutClients.length > 0 && (
+        <Card className="border-red-900/50 bg-red-500/10">
+          <CardHeader>
+            <CardTitle className="text-red-500 flex items-center gap-2">
+              <FileWarning className="w-5 h-5" />
+              Clientes Aptos para Corte ({aptForCutClients.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-red-900/30">
+                <thead>
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-red-500/70 uppercase">Cliente</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-red-500/70 uppercase">Deudas</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-red-500/70 uppercase">Monto Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-red-900/30">
+                  {aptForCutClients.map(client => (
+                    <tr key={client.id}>
+                      <td className="px-4 py-2 whitespace-nowrap text-sm text-slate-300">
+                        {client.nombre ? client.nombre : `${client.nombres} ${client.apellidos}`.trim()}
+                        <div className="text-xs text-slate-500">{client.codigoSuministro}</div>
+                      </td>
+                      <td className="px-4 py-2 whitespace-nowrap text-sm text-red-400 font-medium">
+                        {client.pendingDebtsCount} pendientes
+                      </td>
+                      <td className="px-4 py-2 whitespace-nowrap text-sm font-bold text-red-500">
+                        {formatCurrency(client.totalDebt)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-2 text-sm text-red-400/80">
+              Estos clientes tienen 3 o más recibos pendientes de pago. Puede marcarlos como "En corte" desde la sección de Clientes.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="p-0">

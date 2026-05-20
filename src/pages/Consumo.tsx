@@ -139,7 +139,8 @@ export default function Consumo() {
         const currentReading = consumptions.find(c => c.clientId === client.id && c.codigoSuministro === sup && c.mes === selectedMes);
         const debtInfo = getDebtInfo(client.id, sup, selectedMes);
         
-        if (currentReading || debtInfo.previousUnpaid.length > 0) {
+        const hasPendingCurrent = currentReading && currentReading.estadoPago === 'PENDIENTE';
+        if (hasPendingCurrent || debtInfo.previousUnpaid.length > 0) {
           suppliesToInvoice.push({
             client,
             codigoSuministro: sup,
@@ -193,7 +194,7 @@ export default function Consumo() {
       const tableBody: any[][] = [];
       let totalMontoCalculado = 0;
 
-      if (currentReading) {
+      if (currentReading && currentReading.estadoPago === 'PENDIENTE') {
         const tarifaAplicada = client.faseSuministro === 'TRIFASICO' && (settings?.costoTrifasico || 0) > 0 
           ? (settings?.costoTrifasico || 0) 
           : client.tipo === 'SOCIO' ? (settings?.costoSocio || 0.2) : (settings?.costoUsuario || 0.3);

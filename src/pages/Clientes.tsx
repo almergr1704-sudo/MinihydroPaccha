@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Plus, Search, User, Filter, Upload, Download } from 'lucide-react';
+import { Plus, Search, User, Filter, Upload, Download, FileWarning } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Button, Card, CardContent, Badge } from '../components/ui';
 import { Client, ClientType } from '../store/types';
@@ -9,6 +9,7 @@ export default function Clientes() {
   const { clients, addClient, updateClient, settings, consumptions } = useAppContext();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<ClientType | 'TODOS'>('TODOS');
+  const [showOnlyAptForCut, setShowOnlyAptForCut] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -66,8 +67,16 @@ export default function Clientes() {
     const matchesSearch = fullName.includes(searchTerm.toLowerCase()) || 
                           c.dni.includes(searchTerm) || 
                           allSuministros.includes(searchTerm.toLowerCase());
+                          
     const matchesType = filterType === 'TODOS' || c.tipo === filterType;
-    return matchesSearch && matchesType;
+    
+    let matchesAptForCut = true;
+    if (showOnlyAptForCut) {
+        const pendingDebtsCount = consumptions.filter(cons => cons.clientId === c.id && cons.estadoPago === 'PENDIENTE').length;
+        matchesAptForCut = pendingDebtsCount >= 3 && c.estado !== 'CORTADO';
+    }
+
+    return matchesSearch && matchesType && matchesAptForCut;
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -243,17 +252,27 @@ export default function Clientes() {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <div className="flex items-center space-x-2">
-              <Filter className="h-5 w-5 text-slate-500" />
-              <select
-                value={filterType}
-                onChange={(e) => setFilterType(e.target.value as any)}
-                className="block w-full pl-3 pr-10 py-2 text-base border-slate-700 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md border"
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setShowOnlyAptForCut(!showOnlyAptForCut)}
+                className={`flex px-3 py-2 text-sm font-medium rounded-md border items-center gap-2 transition-colors ${showOnlyAptForCut ? 'bg-red-900/50 text-red-400 border-red-500/50' : 'bg-transparent text-slate-400 border-slate-700 hover:text-slate-200'}`}
+                title="Filtrar clientes con riesgo de corte"
               >
-                <option value="TODOS">Todos</option>
-                <option value="SOCIO">Solo Socios</option>
-                <option value="USUARIO">Solo Usuarios</option>
-              </select>
+                <FileWarning className="h-4 w-4" />
+                Aptos para corte
+              </button>
+              <div className="flex items-center space-x-2">
+                <Filter className="h-5 w-5 text-slate-500 hidden sm:block" />
+                <select
+                  value={filterType}
+                  onChange={(e) => setFilterType(e.target.value as any)}
+                  className="block w-full pl-3 pr-10 py-2 text-base border-slate-700 bg-transparent text-slate-100 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md border [&>option]:bg-slate-900"
+                >
+                  <option value="TODOS">Todos</option>
+                  <option value="SOCIO">Solo Socios</option>
+                  <option value="USUARIO">Solo Usuarios</option>
+                </select>
+              </div>
             </div>
           </div>
 
