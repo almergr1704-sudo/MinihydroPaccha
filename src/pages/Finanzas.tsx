@@ -11,7 +11,7 @@ import * as XLSX from 'xlsx';
 import { TransactionType, Transaction } from '../store/types';
 
 export default function Finanzas() {
-  const { transactions, addTransaction, clients, consumptions, payConsumption, fines, payFine } = useAppContext();
+  const { transactions, addTransaction, clients, consumptions, payConsumption, fines, payFine, settings, updateClient } = useAppContext();
   const [isModalOpen, setIsModalOpen] = useState<false | 'INGRESO' | 'EGRESO'>(false);
   const [filterType, setFilterType] = useState<TransactionType | 'TODOS'>('INGRESO');
   const [selectedMes, setSelectedMes] = useState(''); // Empty means All time
@@ -205,7 +205,12 @@ export default function Finanzas() {
 
   const pendingConsumptions = consumptions.filter(c => c.clientId === selectedClientId && c.estadoPago === 'PENDIENTE');
   const pendingFines = (fines || []).filter(c => c.clientId === selectedClientId && c.estadoPago === 'PENDIENTE');
-  const totalDeuda = pendingConsumptions.reduce((acc, c) => acc + c.montoCalculado, 0) + pendingFines.reduce((acc, f) => acc + f.monto, 0);
+  
+  const selectedClientObj = clients.find(c => c.id === selectedClientId);
+  const isCortado = selectedClientObj?.estado === 'CORTADO';
+  const reconexionFee = settings?.costoReconexion || 0;
+  
+  const totalDeuda = pendingConsumptions.reduce((acc, c) => acc + c.montoCalculado, 0) + pendingFines.reduce((acc, f) => acc + f.monto, 0) + (isCortado ? reconexionFee : 0);
 
   const aptForCutClients = clients.filter(c => 
       c.estado !== 'CORTADO' && 
@@ -556,6 +561,35 @@ export default function Finanzas() {
                                 <p className="text-sm text-slate-400 mb-2">No tiene multas pendientes registradas.</p>
                               )}
                             </div>
+                            
+                            {isCortado && (
+                              <div className="mb-4 pt-4 border-t border-slate-700">
+                                <h5 className="text-xs font-semibold text-slate-400 uppercase mb-2">Por Reconexión de Servicio</h5>
+                                <div className="flex justify-between items-center text-sm gap-4">
+                                  <span className="text-slate-300 flex-1 truncate">
+                                    Cargo por reactivación del servicio cortado
+                                  </span>
+                                  <div className="flex items-center space-x-3 flex-shrink-0">
+                                    <span className="text-slate-200 font-medium">{formatCurrency(reconexionFee)}</span>
+                                    <Button size="sm" type="button" onClick={async () => {
+                                      if (window.confirm(`¿Está seguro de cobrar S/ ${reconexionFee.toFixed(2)} por reconexión y reactivar el servicio?`)) {
+                                        await addTransaction({
+                                          tipo: 'INGRESO',
+                                          categoria: 'RECONEXION',
+                                          monto: reconexionFee,
+                                          descripcion: 'Cobro y pago por reconexión de servicio',
+                                          clientId: selectedClientId
+                                        });
+                                        await updateClient(selectedClientId, { estado: 'ACTIVO' });
+                                        alert('Cobro realizado y servicio reactivado exitosamente.');
+                                        setSelectedClientId('');
+                                        setIsModalOpen(false);
+                                      }
+                                    }}>Cobrar y Reactivar</Button>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
 
                             <div className="pt-2 border-t border-slate-700 flex justify-between">
                               <span className="font-semibold text-slate-300">Deuda Total:</span>

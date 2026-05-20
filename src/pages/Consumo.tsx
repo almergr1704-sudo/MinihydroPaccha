@@ -57,7 +57,7 @@ export default function Consumo() {
     setFormData({ clientAndSuministro: '', kwh: '' });
   };
 
-    const getDebtInfo = (clientId: string, codigoSuministro: string, currentMes: string) => {
+    const getDebtInfo = (clientId: string, codigoSuministro: string, currentMes: string, hasPendingCurrent: boolean = false) => {
     const previousUnpaid = consumptions.filter(c => 
       c.clientId === clientId && 
       c.codigoSuministro === codigoSuministro && 
@@ -65,14 +65,14 @@ export default function Consumo() {
       c.mes < currentMes
     );
     const totalDeuda = previousUnpaid.reduce((acc, c) => acc + c.montoCalculado, 0);
-    const monthsOwned = previousUnpaid.length;
+    const monthsOwned = previousUnpaid.length + (hasPendingCurrent ? 1 : 0);
     const settingsCostoReconexion = settings?.costoReconexion || 0;
     return {
       totalDeuda,
       monthsOwned,
       previousUnpaid,
       warning: monthsOwned >= 3 
-        ? `AVISO: SERVICIO PROGRAMADO PARA CORTE POR DEUDA DE 3 MESES O MÁS.${settingsCostoReconexion > 0 ? `\nCosto por reconexión: S/ ${settingsCostoReconexion.toFixed(2)}` : ''}` 
+        ? `AVISO DE CORTE: EL SERVICIO SE ENCUENTRA APTO PARA CORTE POR DEUDA DE 3 MESES O MÁS.${settingsCostoReconexion > 0 ? `\nCosto por reconexión: S/ ${settingsCostoReconexion.toFixed(2)}` : ''}` 
         : ''
     };
   };
@@ -137,9 +137,9 @@ export default function Consumo() {
       supplies.forEach((sup) => {
         if (!sup) return;
         const currentReading = consumptions.find(c => c.clientId === client.id && c.codigoSuministro === sup && c.mes === selectedMes);
-        const debtInfo = getDebtInfo(client.id, sup, selectedMes);
+        const hasPendingCurrent = currentReading ? currentReading.estadoPago === 'PENDIENTE' : false;
+        const debtInfo = getDebtInfo(client.id, sup, selectedMes, hasPendingCurrent);
         
-        const hasPendingCurrent = currentReading && currentReading.estadoPago === 'PENDIENTE';
         if (hasPendingCurrent || debtInfo.previousUnpaid.length > 0) {
           suppliesToInvoice.push({
             client,
@@ -162,7 +162,7 @@ export default function Consumo() {
     const doc = new jsPDF({ format: 'a4' });
     let yOffset = 10;
     const maxH = 297;
-    const receiptHeight = 95; // 3 receipts per page
+    const receiptHeight = 145; // 2 receipts per page
 
     const formatCurrencyStr = (val: number) => new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(val);
 
@@ -178,17 +178,64 @@ export default function Consumo() {
 
       // Header
       doc.setFontSize(16);
-      doc.text('Central Hidroeléctrica PACCHA - Recibo de Consumo', 14, yOffset + 10);
+      doc.text('Mini Central Hidroeléctrica PACCHA', 14, yOffset + 10);
+      doc.setFontSize(12);
+      doc.text('Recibo de Consumo', 14, yOffset + 16);
       
       doc.setFontSize(9);
       const docState = currentReading ? currentReading.estadoPago : 'PENDIENTE';
-      doc.text(`Fecha Emisión: ${format(new Date(), 'dd MMM yyyy')} | Periodo: ${selectedMes} | Estado: ${docState}`, 14, yOffset + 18);
+      doc.text(`Fecha Emisión: ${format(new Date(), 'dd MMM yyyy')} | Periodo: ${selectedMes} | Estado: ${docState}`, 14, yOffset + 24);
 
       // Client Info
       doc.setFontSize(10);
-      doc.text(`Cliente: ${clientName} (DNI/RUC: ${client.dni})`, 14, yOffset + 26);
-      doc.text(`Dirección: ${client.direccion} ${client.numeroDireccion ? `N° ${client.numeroDireccion}` : ''}`, 14, yOffset + 31);
-      doc.text(`Tipo: ${client.tipo} | Suministro: ${codigoSuministro}`, 14, yOffset + 36);
+      doc.text(`Cliente: ${clientName} (DNI/RUC: ${client.dni})`, 14, yOffset + 32);
+      doc.text(`Dirección: ${client.direccion} ${client.numeroDireccion ? `N° ${client.numeroDireccion}` : ''}`, 14, yOffset + 37);
+      doc.text(`Tipo: ${client.tipo} | Suministro: ${codigoSuministro}`, 14, yOffset + 42);
+
+      // Consumos
+      const currentKwh = currentReading ? currentReading.kwh || 0 : 0;
+      const sortedCons = consumptions
+        .filter(c => c.clientId === client.id && c.codigoSuministro === codigoSuministro && c.mes < selectedMes)
+        .sort((a,b) => b.mes.localeCompare(a.mes));
+      const prevKwh = sortedCons.length > 0 ? sortedCons[0].kwh || 0 : 0;
+      doc.text(`Consumo Actual: ${currentKwh} kWh  |  Consumo Anterior: ${prevKwh} kWh`, 14, yOffset + 49);
+
+      // Draw Chart
+      const historyCons = consumptions
+        .filter(c => c.clientId === client.id && c.codigoSuministro === codigoSuministro && c.mes <= selectedMes)
+        .sort((a,b) => b.mes.localeCompare(a.mes))
+        .slice(0, 6)
+        .reverse();
+      
+      const chartX = 135;
+      const chartY = yOffset + 28;
+      const chartW = 60;
+      const chartH = 22;
+      
+      doc.setFontSize(8);
+      doc.text('Historial (últimos 6 meses)', chartX, chartY - 2);
+      doc.setDrawColor(200);
+      doc.line(chartX, chartY + chartH, chartX + chartW, chartY + chartH); // x-axis
+      
+      if (historyCons.length > 0) {
+        const maxK = Math.max(...historyCons.map(c => c.kwh || 0), 10);
+        const barW = 6;
+        const spacing = (chartW - (historyCons.length * barW)) / (historyCons.length + 1);
+        
+        historyCons.forEach((hc, i) => {
+          const x = chartX + spacing + i * (barW + spacing);
+          const barH = ((hc.kwh || 0) / maxK) * chartH;
+          const y = chartY + chartH - barH;
+          
+          doc.setFillColor(15, 23, 42); // slate-900
+          doc.rect(x, y, barW, barH, 'F');
+          
+          doc.setFontSize(6);
+          doc.text((hc.kwh || 0).toString(), x + barW/2, y - 1, { align: 'center' });
+          const mShort = hc.mes ? new Date(`${hc.mes}-02`).toLocaleDateString('es', {month:'short'}).substring(0,3) : '';
+          doc.text(mShort, x + barW/2, chartY + chartH + 3, { align: 'center' });
+        });
+      }
 
       // Table
       const tableBody: any[][] = [];
@@ -235,7 +282,7 @@ export default function Consumo() {
       const totalAPagar = totalMontoCalculado + debtInfo.totalDeuda;
 
       autoTable(doc, {
-        startY: yOffset + 40,
+        startY: yOffset + 54,
         head: [['Descripción', 'Cantidad (kWh)', 'Precio (S/)', 'Subtotal']],
         body: tableBody,
         theme: 'grid',
@@ -281,7 +328,7 @@ export default function Consumo() {
     
     // Header
     doc.setFontSize(20);
-    doc.text('Central Hidroeléctrica', 14, 22);
+    doc.text('Mini Central Hidroeléctrica PACCHA', 14, 22);
     doc.setFontSize(12);
     doc.text('Recibo de Consumo Eléctrico', 14, 30);
     
@@ -296,7 +343,54 @@ export default function Consumo() {
     doc.text(`${client.tipoPersona === 'EMPRESA' ? 'RUC' : 'DNI'}: ${client.dni}`, 14, 70);
     doc.text(`Dirección: ${client.direccion} ${client.numeroDireccion ? `N° ${client.numeroDireccion}` : ''}`, 14, 75);
     doc.text(`Tipo de Cliente: ${client.tipo}`, 14, 80);
-    doc.text(`Suministro: ${cons.codigoSuministro || client.codigoSuministro}`, 14, 85);
+    const codSuministro = cons.codigoSuministro || client.codigoSuministro;
+    doc.text(`Suministro: ${codSuministro}`, 14, 85);
+
+    // Consumos
+    const sortedCons = consumptions
+      .filter(c => c.clientId === client.id && c.codigoSuministro === codSuministro && c.mes < cons.mes)
+      .sort((a,b) => b.mes.localeCompare(a.mes));
+    const prevKwh = sortedCons.length > 0 ? sortedCons[0].kwh || 0 : 0;
+    doc.text(`Consumo Actual: ${cons.kwh || 0} kWh  |  Consumo Anterior: ${prevKwh} kWh`, 14, 95);
+
+    // Draw Chart
+    const historyCons = consumptions
+      .filter(c => c.clientId === client.id && c.codigoSuministro === codSuministro && c.mes <= cons.mes)
+      .sort((a,b) => b.mes.localeCompare(a.mes))
+      .slice(0, 6)
+      .reverse();
+    
+    const chartX = 135;
+    const chartY = 32;
+    const chartW = 60;
+    const chartH = 22;
+    
+    doc.setFontSize(8);
+    doc.text('Historial (últimos 6 meses)', chartX, chartY - 2);
+    doc.setDrawColor(200);
+    doc.line(chartX, chartY + chartH, chartX + chartW, chartY + chartH); // x-axis
+    
+    if (historyCons.length > 0) {
+      const maxK = Math.max(...historyCons.map(c => c.kwh || 0), 10);
+      const barW = 6;
+      const spacing = (chartW - (historyCons.length * barW)) / (historyCons.length + 1);
+      
+      historyCons.forEach((hc, i) => {
+        const x = chartX + spacing + i * (barW + spacing);
+        const barH = ((hc.kwh || 0) / maxK) * chartH;
+        const y = chartY + chartH - barH;
+        
+        doc.setFillColor(15, 23, 42); // slate-900
+        doc.rect(x, y, barW, barH, 'F');
+        
+        doc.setFontSize(6);
+        doc.text((hc.kwh || 0).toString(), x + barW/2, y - 1, { align: 'center' });
+        const mShort = hc.mes ? new Date(`${hc.mes}-02`).toLocaleDateString('es', {month:'short'}).substring(0,3) : '';
+        doc.text(mShort, x + barW/2, chartY + chartH + 3, { align: 'center' });
+      });
+    }
+
+    doc.setFontSize(10);
 
     // Table
     const tarifaAplicada = client.faseSuministro === 'TRIFASICO' && settings.costoTrifasico > 0 
@@ -305,7 +399,7 @@ export default function Consumo() {
     const kwh = cons.kwh || 0;
     const minimoAplica = settings?.consumoMinimo !== undefined ? settings.consumoMinimo : 6;
     const esMinimo = kwh * tarifaAplicada < minimoAplica;
-    const debtInfo = getDebtInfo(client.id, cons.codigoSuministro || '', cons.mes);
+    const debtInfo = getDebtInfo(client.id, codSuministro || '', cons.mes, cons.estadoPago === 'PENDIENTE');
 
     const formatCurrencyStr = (val: number) => new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(val);
 
@@ -343,7 +437,7 @@ export default function Consumo() {
     const totalAPagar = cons.montoCalculado + debtInfo.totalDeuda;
 
     autoTable(doc, {
-      startY: 95,
+      startY: 105,
       head: [['Descripción', 'Cantidad (kWh)', 'Precio Unitario (S/)', 'Subtotal']],
       body: tableBody,
       theme: 'grid',

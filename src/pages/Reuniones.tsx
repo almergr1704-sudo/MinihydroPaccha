@@ -53,7 +53,9 @@ export default function Reuniones() {
     if (!activeMeeting) return c.tipo === 'SOCIO';
     if (activeMeeting.invitados === 'TODOS') return true;
     return c.tipo === 'SOCIO';
-  });
+  }).sort((a, b) => 
+    (a.codigoSuministro || '').localeCompare(b.codigoSuministro || '', undefined, { numeric: true, sensitivity: 'base' })
+  );
 
   const handleImprimirCitaciones = () => {
     if (!activeMeeting) return;
