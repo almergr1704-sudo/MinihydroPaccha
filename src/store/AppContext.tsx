@@ -9,6 +9,7 @@ interface AppContextType extends AppState {
   updateClient: (id: string, client: Partial<Client>) => Promise<void>;
   addConsumption: (consumption: Omit<Consumption, 'id' | 'montoCalculado' | 'estadoPago'>) => Promise<void>;
   payConsumption: (consumptionId: string) => Promise<void>;
+  addFine: (fine: Omit<Fine, 'id' | 'estadoPago' | 'fecha'>) => Promise<void>;
   payFine: (fineId: string) => Promise<void>;
   addTransaction: (transaction: Omit<Transaction, 'id' | 'fecha'>) => Promise<void>;
   addMeeting: (meeting: Omit<Meeting, 'id'>) => Promise<void>;
@@ -172,6 +173,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  const addFine = async (fine: Omit<Fine, 'id' | 'estadoPago' | 'fecha'>) => {
+    const newFine: Fine = {
+      ...fine,
+      id: generateId(),
+      estadoPago: 'PENDIENTE',
+      fecha: new Date().toISOString()
+    };
+    setState(prev => {
+      const newState = { ...prev, fines: [...(prev.fines || []), newFine] };
+      setLocalData(newState);
+      return newState;
+    });
+  };
+
   const payFine = async (fineId: string) => {
     const fine = state.fines?.find(f => f.id === fineId);
     if (!fine) return;
@@ -266,6 +281,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updateClient,
       addConsumption,
       payConsumption,
+      addFine,
       payFine,
       addTransaction,
       addMeeting,

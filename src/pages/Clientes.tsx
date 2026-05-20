@@ -6,9 +6,9 @@ import { Client, ClientType } from '../store/types';
 import * as XLSX from 'xlsx';
 
 export default function Clientes() {
-  const { clients, addClient, updateClient, settings, consumptions } = useAppContext();
+  const { clients, addClient, updateClient, settings, consumptions, fines, addTransaction } = useAppContext();
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState<ClientType | 'TODOS'>('TODOS');
+  const [filterType, setFilterType] = useState<ClientType | 'TODOS' | 'CORTADO'>('TODOS');
   const [showOnlyAptForCut, setShowOnlyAptForCut] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -68,7 +68,8 @@ export default function Clientes() {
                           c.dni.includes(searchTerm) || 
                           allSuministros.includes(searchTerm.toLowerCase());
                           
-    const matchesType = filterType === 'TODOS' || c.tipo === filterType;
+    const matchesType = filterType === 'TODOS' || 
+                        (filterType === 'CORTADO' ? c.estado === 'CORTADO' : c.tipo === filterType);
     
     let matchesAptForCut = true;
     if (showOnlyAptForCut) {
@@ -79,17 +80,34 @@ export default function Clientes() {
     return matchesSearch && matchesType && matchesAptForCut;
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!window.confirm('¿Está seguro de guardar este registro?')) return;
 
     if (editingId && formData.estado === 'ACTIVO') {
-      const pendingDebtsCount = consumptions.filter(c => c.clientId === editingId && c.estadoPago === 'PENDIENTE').length;
-      if (pendingDebtsCount > 0) {
-        const client = clients.find(c => c.id === editingId);
-        if (client && client.estado === 'CORTADO') {
-          alert('El cliente no puede ser reactivado porque tiene deudas pendientes.');
+      const client = clients.find(c => c.id === editingId);
+      if (client && client.estado === 'CORTADO') {
+        const pendingDebtsCount = consumptions.filter(c => c.clientId === editingId && c.estadoPago === 'PENDIENTE').length;
+        const pendingFinesCount = (fines || []).filter(f => f.clientId === editingId && f.estadoPago === 'PENDIENTE').length;
+        
+        if (pendingDebtsCount > 0 || pendingFinesCount > 0) {
+          alert('El cliente no puede ser reactivado porque tiene recibos de consumo o multas pendientes.');
           return;
+        }
+
+        if (settings?.costoReconexion > 0) {
+          const confirmReconexion = window.confirm(`Para reactivar el servicio se requiere el pago de reconexión (S/ ${settings.costoReconexion.toFixed(2)}).\n\n¿El cliente ya realizó este pago?\nAl aceptar, se registrará el ingreso automáticamente y el estado cambiará a ACTIVO.`);
+          if (!confirmReconexion) {
+            return;
+          }
+
+          await addTransaction({
+            tipo: 'INGRESO',
+            categoria: 'RECONEXION',
+            monto: settings.costoReconexion,
+            descripcion: 'Cobro y pago por reconexión de servicio',
+            clientId: editingId
+          });
         }
       }
     }
@@ -103,9 +121,9 @@ export default function Clientes() {
     };
 
     if (editingId) {
-      updateClient(editingId, clientData);
+      await updateClient(editingId, clientData);
     } else {
-      addClient(clientData);
+      await addClient(clientData);
     }
     closeModal();
   };
@@ -271,6 +289,7 @@ export default function Clientes() {
                   <option value="TODOS">Todos</option>
                   <option value="SOCIO">Solo Socios</option>
                   <option value="USUARIO">Solo Usuarios</option>
+                  <option value="CORTADO">Solo En Corte</option>
                 </select>
               </div>
             </div>

@@ -61,7 +61,7 @@ export interface Meeting {
 export interface Fine {
   id: string;
   clientId: string;
-  meetingId: string;
+  meetingId?: string;
   monto: number;
   motivo: string;
   estadoPago: PaymentStatus;
