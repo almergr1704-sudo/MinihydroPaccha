@@ -130,7 +130,7 @@ export default function Consumo() {
     const suppliesToInvoice: any[] = [];
     
     clients.forEach(client => {
-      if (client.estado !== 'ACTIVO') return;
+      if (client.estado !== 'ACTIVO' && client.estado !== 'CORTADO') return;
       
       const supplies = client.suministros?.length ? client.suministros : [client.codigoSuministro].filter(Boolean);
       
@@ -384,7 +384,7 @@ export default function Consumo() {
     return c.codigoSuministro.toLowerCase().includes(searchLower) ||
            c.dni.includes(searchLower) ||
            fullName.includes(searchLower);
-  }).filter(c => c.estado === 'ACTIVO');
+  }).filter(c => c.estado === 'ACTIVO' || c.estado === 'CORTADO');
 
   const selectedClient = formData.clientAndSuministro ? clients.find(c => c.id === formData.clientAndSuministro.split('|')[0]) : undefined;
   const selectedClientConsumptions = selectedClient 

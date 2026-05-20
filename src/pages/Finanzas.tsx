@@ -201,7 +201,7 @@ export default function Finanzas() {
     return c.codigoSuministro.toLowerCase().includes(searchLower) ||
            c.dni.includes(searchLower) ||
            fullName.includes(searchLower);
-  }).filter(c => c.estado === 'ACTIVO');
+  }).filter(c => c.estado === 'ACTIVO' || c.estado === 'CORTADO');
 
   const pendingConsumptions = consumptions.filter(c => c.clientId === selectedClientId && c.estadoPago === 'PENDIENTE');
   const pendingFines = (fines || []).filter(c => c.clientId === selectedClientId && c.estadoPago === 'PENDIENTE');
