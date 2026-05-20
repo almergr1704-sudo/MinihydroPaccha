@@ -33,6 +33,11 @@ export default function Dashboard() {
   
   const pendingDebts = [...pendingDebtsConsumptions, ...pendingDebtsFines].sort((a,b) => new Date(b.mes).getTime() - new Date(a.mes).getTime());
 
+  const aptForCutClientsCount = clients.filter(c => 
+    c.estado !== 'CORTADO' && 
+    consumptions.filter(cons => cons.clientId === c.id && cons.estadoPago === 'PENDIENTE').length >= 3
+  ).length;
+
   // Multi-month chart data (mocking a bit or calculating if we have data)
   // Grouping transactions by month
   const chartData = useMemo(() => {
@@ -70,6 +75,18 @@ export default function Dashboard() {
           </p>
         </div>
       </div>
+
+      {aptForCutClientsCount > 0 && (
+        <div className="bg-red-500/10 border-l-4 border-red-500 p-4 rounded-md flex items-start gap-4">
+          <FileWarning className="h-6 w-6 text-red-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <h3 className="text-sm font-semibold text-red-400">Atención Requerida</h3>
+            <p className="text-sm text-red-300 mt-1">
+              Hay {aptForCutClientsCount} {aptForCutClientsCount === 1 ? 'cliente' : 'clientes'} con 3 o más deudas pendientes. Sus servicios están aptos para corte. Revise la sección de Clientes para marcarlos en corte.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
         <Card>

@@ -6,7 +6,7 @@ import { Client, ClientType } from '../store/types';
 import * as XLSX from 'xlsx';
 
 export default function Clientes() {
-  const { clients, addClient, updateClient, settings } = useAppContext();
+  const { clients, addClient, updateClient, settings, consumptions } = useAppContext();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<ClientType | 'TODOS'>('TODOS');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -73,6 +73,17 @@ export default function Clientes() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!window.confirm('¿Está seguro de guardar este registro?')) return;
+
+    if (editingId && formData.estado === 'ACTIVO') {
+      const pendingDebtsCount = consumptions.filter(c => c.clientId === editingId && c.estadoPago === 'PENDIENTE').length;
+      if (pendingDebtsCount > 0) {
+        const client = clients.find(c => c.id === editingId);
+        if (client && client.estado === 'CORTADO') {
+          alert('El cliente no puede ser reactivado porque tiene deudas pendientes.');
+          return;
+        }
+      }
+    }
 
     const suministrosArray = suministrosStr.split(',').map(s => s.trim()).filter(s => s);
     const clientData = {
@@ -268,7 +279,11 @@ export default function Clientes() {
                 </tr>
               </thead>
               <tbody className="bg-[#0B0E14] divide-y divide-slate-800">
-                {filteredClients.length > 0 ? filteredClients.map((client) => (
+                {filteredClients.length > 0 ? filteredClients.map((client) => {
+                  const pendingDebtsCount = consumptions.filter(c => c.clientId === client.id && c.estadoPago === 'PENDIENTE').length;
+                  const aptForCut = pendingDebtsCount >= 3 && client.estado !== 'CORTADO';
+
+                  return (
                   <tr key={client.id} className="hover:bg-slate-800/50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
@@ -276,7 +291,14 @@ export default function Clientes() {
                           <User className="h-5 w-5 text-slate-500" />
                         </div>
                         <div className="ml-4">
-                          <div className="text-sm font-medium text-slate-100">{client.nombre ? client.nombre : `${client.nombres} ${client.apellidos}`.trim()}</div>
+                          <div className="text-sm font-medium text-slate-100 flex items-center gap-2">
+                             {client.nombre ? client.nombre : `${client.nombres} ${client.apellidos}`.trim()}
+                             {aptForCut && (
+                                <span title="Apto para corte: 3 o más deudas pendientes" className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-900/50 text-red-400 border border-red-500/20">
+                                  APTO PARA CORTE ({pendingDebtsCount} deudas)
+                                </span>
+                             )}
+                          </div>
                           <div className="text-sm text-slate-400">{(client.suministros?.length ? client.suministros.join(', ') : client.codigoSuministro)} ({client.tipoPersona === 'EMPRESA' ? 'RUC' : 'DNI'}: {client.dni})</div>
                         </div>
                       </div>
@@ -286,7 +308,7 @@ export default function Clientes() {
                       <div className="text-sm text-slate-400">{client.direccion} {client.numeroDireccion ? `N° ${client.numeroDireccion}` : ''} {client.referenciaDireccion ? `(${client.referenciaDireccion})` : ''}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex flex-col gap-1">
+                      <div className="flex flex-col gap-1 items-start">
                         <Badge variant={client.tipo === 'SOCIO' ? 'success' : 'info'}>
                           {client.tipo}
                         </Badge>
@@ -298,11 +320,39 @@ export default function Clientes() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <Badge variant={client.estado === 'ACTIVO' ? 'success' : 'danger'}>
+                      <Badge variant={client.estado === 'ACTIVO' ? 'success' : client.estado === 'CORTADO' ? 'danger' : 'warning'}>
                         {client.estado}
                       </Badge>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                       {aptForCut && (
+                          <button 
+                            onClick={() => {
+                              if(window.confirm('¿Desea marcar el servicio como EN CORTE?')) {
+                                updateClient(client.id, { estado: 'CORTADO' });
+                              }
+                            }}
+                            className="text-red-500 hover:text-red-700 underline underline-offset-2 mr-3 font-semibold"
+                          >
+                            En corte
+                          </button>
+                       )}
+                       {client.estado === 'CORTADO' && (
+                         <button 
+                           onClick={() => {
+                             if(pendingDebtsCount > 0) {
+                               alert('El cliente no puede ser reactivado porque tiene deudas pendientes.');
+                             } else {
+                               if(window.confirm('¿Desea REACTIVAR el servicio del cliente?')) {
+                                 updateClient(client.id, { estado: 'ACTIVO' });
+                               }
+                             }
+                           }}
+                           className={`${pendingDebtsCount > 0 ? "text-slate-500 cursor-not-allowed" : "text-emerald-500 hover:text-emerald-400"} mr-3 font-semibold`}
+                         >
+                           Reactivar
+                         </button>
+                       )}
                       <button 
                         onClick={() => openEditModal(client)}
                         className="text-blue-600 hover:text-blue-900"
@@ -311,7 +361,7 @@ export default function Clientes() {
                       </button>
                     </td>
                   </tr>
-                )) : (
+                )}) : (
                   <tr>
                     <td colSpan={5} className="px-6 py-10 text-center text-slate-400">
                       No se encontraron clientes con esos filtros.
@@ -439,6 +489,7 @@ export default function Clientes() {
                             <select value={formData.estado} onChange={e => setFormData({...formData, estado: e.target.value as any})} className="mt-1 block w-full bg-[#0B0E14] border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-slate-100">
                               <option value="ACTIVO">ACTIVO</option>
                               <option value="INACTIVO">INACTIVO</option>
+                              <option value="CORTADO">CORTADO</option>
                             </select>
                           </div>
                         </div>

@@ -20,7 +20,7 @@ export interface Client {
   suministros?: string[];
   tipo: ClientType;
   faseSuministro?: 'MONOFASICO' | 'TRIFASICO';
-  estado: 'ACTIVO' | 'INACTIVO';
+  estado: 'ACTIVO' | 'INACTIVO' | 'CORTADO';
   fechaRegistro: string;
   nombre?: string; // Legacy fallback
 }
