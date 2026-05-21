@@ -162,7 +162,7 @@ export default function Consumo() {
     const doc = new jsPDF({ format: 'a4' });
     let yOffset = 10;
     const maxH = 297;
-    const receiptHeight = 145; // 2 receipts per page
+    const receiptHeight = 95; // 3 receipts per page
 
     const formatCurrencyStr = (val: number) => new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(val);
 
@@ -178,19 +178,27 @@ export default function Consumo() {
 
       // Header
       doc.setFontSize(16);
-      doc.text('Mini Central Hidroeléctrica PACCHA', 14, yOffset + 10);
+      doc.text('Mini Central Hidroeléctrica PACCHA', 14, yOffset + 6);
       doc.setFontSize(12);
-      doc.text('Recibo de Consumo', 14, yOffset + 16);
+      doc.text('Recibo de Consumo', 14, yOffset + 12);
+      
+      if (debtInfo.warning) {
+        doc.setFontSize(9);
+        doc.setTextColor(220, 38, 38); // Red
+        const settingsCostoReconexion = settings?.costoReconexion || 0;
+        doc.text(`SERVICIO PARA CORTE - Reconexión S/ ${settingsCostoReconexion.toFixed(2)}`, 196, yOffset + 8, { align: 'right' });
+        doc.setTextColor(0, 0, 0); // Reset
+      }
       
       doc.setFontSize(9);
       const docState = currentReading ? currentReading.estadoPago : 'PENDIENTE';
-      doc.text(`Fecha Emisión: ${format(new Date(), 'dd MMM yyyy')} | Periodo: ${selectedMes} | Estado: ${docState}`, 14, yOffset + 24);
+      doc.text(`Fecha Emisión: ${format(new Date(), 'dd MMM yyyy')} | Periodo: ${selectedMes} | Estado: ${docState}`, 14, yOffset + 18);
 
       // Client Info
       doc.setFontSize(10);
-      doc.text(`Cliente: ${clientName} (DNI/RUC: ${client.dni})`, 14, yOffset + 32);
-      doc.text(`Dirección: ${client.direccion} ${client.numeroDireccion ? `N° ${client.numeroDireccion}` : ''}`, 14, yOffset + 37);
-      doc.text(`Tipo: ${client.tipo} | Suministro: ${codigoSuministro}`, 14, yOffset + 42);
+      doc.text(`Cliente: ${clientName} (DNI/RUC: ${client.dni})`, 14, yOffset + 24);
+      doc.text(`Dirección: ${client.direccion} ${client.numeroDireccion ? `N° ${client.numeroDireccion}` : ''}`, 14, yOffset + 29);
+      doc.text(`Tipo: ${client.tipo} | Suministro: ${codigoSuministro}`, 14, yOffset + 34);
 
       // Consumos
       const currentKwh = currentReading ? currentReading.kwh || 0 : 0;
@@ -198,7 +206,7 @@ export default function Consumo() {
         .filter(c => c.clientId === client.id && c.codigoSuministro === codigoSuministro && c.mes < selectedMes)
         .sort((a,b) => b.mes.localeCompare(a.mes));
       const prevKwh = sortedCons.length > 0 ? sortedCons[0].kwh || 0 : 0;
-      doc.text(`Consumo Actual: ${currentKwh} kWh  |  Consumo Anterior: ${prevKwh} kWh`, 14, yOffset + 49);
+      doc.text(`Consumo Actual: ${currentKwh} kWh  |  Consumo Anterior: ${prevKwh} kWh`, 14, yOffset + 40);
 
       // Draw Chart
       const historyCons = consumptions
@@ -208,30 +216,30 @@ export default function Consumo() {
         .reverse();
       
       const chartX = 135;
-      const chartY = yOffset + 28;
+      const chartY = yOffset + 20;
       const chartW = 60;
-      const chartH = 22;
+      const chartH = 20;
       
       doc.setFontSize(8);
-      doc.text('Historial (últimos 6 meses)', chartX, chartY - 2);
+      doc.text('Historial de Pagos (S/)', chartX, chartY - 2);
       doc.setDrawColor(200);
       doc.line(chartX, chartY + chartH, chartX + chartW, chartY + chartH); // x-axis
       
       if (historyCons.length > 0) {
-        const maxK = Math.max(...historyCons.map(c => c.kwh || 0), 10);
+        const maxK = Math.max(...historyCons.map(c => c.montoCalculado || 0), 10);
         const barW = 6;
         const spacing = (chartW - (historyCons.length * barW)) / (historyCons.length + 1);
         
         historyCons.forEach((hc, i) => {
           const x = chartX + spacing + i * (barW + spacing);
-          const barH = ((hc.kwh || 0) / maxK) * chartH;
+          const barH = ((hc.montoCalculado || 0) / maxK) * chartH;
           const y = chartY + chartH - barH;
           
           doc.setFillColor(15, 23, 42); // slate-900
           doc.rect(x, y, barW, barH, 'F');
           
           doc.setFontSize(6);
-          doc.text((hc.kwh || 0).toString(), x + barW/2, y - 1, { align: 'center' });
+          doc.text((hc.montoCalculado || 0).toFixed(0).toString(), x + barW/2, y - 1, { align: 'center' });
           const mShort = hc.mes ? new Date(`${hc.mes}-02`).toLocaleDateString('es', {month:'short'}).substring(0,3) : '';
           doc.text(mShort, x + barW/2, chartY + chartH + 3, { align: 'center' });
         });
@@ -282,30 +290,18 @@ export default function Consumo() {
       const totalAPagar = totalMontoCalculado + debtInfo.totalDeuda;
 
       autoTable(doc, {
-        startY: yOffset + 54,
+        startY: yOffset + 43,
         head: [['Descripción', 'Cantidad (kWh)', 'Precio (S/)', 'Subtotal']],
         body: tableBody,
         theme: 'grid',
         headStyles: { fillColor: [15, 23, 42] },
-        styles: { fontSize: 8 },
+        styles: { fontSize: 8, cellPadding: 1 },
         margin: { left: 14, right: 14 }
       });
 
-      const finalY = (doc as any).lastAutoTable.finalY || yOffset + 50;
+      const finalY = (doc as any).lastAutoTable.finalY || yOffset + 45;
       doc.setFontSize(12);
-      doc.text(`Total a Pagar: ${formatCurrencyStr(totalAPagar)}`, 196, finalY + 10, { align: 'right' });
-
-      if (debtInfo.warning) {
-        doc.setFontSize(10);
-        doc.setTextColor(220, 38, 38); // Red
-        const splitText = doc.splitTextToSize(debtInfo.warning, 160); // Adjusted for margins
-        const textH = splitText.length * 5;
-        doc.setDrawColor(220, 38, 38);
-        doc.rect(14, finalY + 14, 182, textH + 4);
-        doc.text(splitText, 16, finalY + 18);
-        doc.setTextColor(0, 0, 0); // Reset
-        doc.setDrawColor(0, 0, 0); // Reset
-      }
+      doc.text(`Total a Pagar: ${formatCurrencyStr(totalAPagar)}`, 196, finalY + 8, { align: 'right' });
       
       // Draw a cut line
       doc.setLineDashPattern([2, 2], 0);
@@ -332,6 +328,17 @@ export default function Consumo() {
     doc.setFontSize(12);
     doc.text('Recibo de Consumo Eléctrico', 14, 30);
     
+    const codSuministro = cons.codigoSuministro || client.codigoSuministro;
+    const debtInfo = getDebtInfo(client.id, codSuministro || '', cons.mes, cons.estadoPago === 'PENDIENTE');
+
+    if (debtInfo.warning) {
+      doc.setFontSize(10);
+      doc.setTextColor(220, 38, 38); // Red
+      const settingsCostoReconexion = settings?.costoReconexion || 0;
+      doc.text(`SERVICIO PARA CORTE - Reconexión S/ ${settingsCostoReconexion.toFixed(2)}`, 196, 26, { align: 'right' });
+      doc.setTextColor(0, 0, 0); // Reset
+    }
+
     doc.setFontSize(10);
     doc.text(`Fecha de Emisión: ${format(new Date(), 'dd MMM yyyy')}`, 14, 40);
     doc.text(`Periodo Facturado: ${cons.mes}`, 14, 45);
@@ -343,7 +350,6 @@ export default function Consumo() {
     doc.text(`${client.tipoPersona === 'EMPRESA' ? 'RUC' : 'DNI'}: ${client.dni}`, 14, 70);
     doc.text(`Dirección: ${client.direccion} ${client.numeroDireccion ? `N° ${client.numeroDireccion}` : ''}`, 14, 75);
     doc.text(`Tipo de Cliente: ${client.tipo}`, 14, 80);
-    const codSuministro = cons.codigoSuministro || client.codigoSuministro;
     doc.text(`Suministro: ${codSuministro}`, 14, 85);
 
     // Consumos
@@ -366,25 +372,25 @@ export default function Consumo() {
     const chartH = 22;
     
     doc.setFontSize(8);
-    doc.text('Historial (últimos 6 meses)', chartX, chartY - 2);
+    doc.text('Historial de Pagos (S/)', chartX, chartY - 2);
     doc.setDrawColor(200);
     doc.line(chartX, chartY + chartH, chartX + chartW, chartY + chartH); // x-axis
     
     if (historyCons.length > 0) {
-      const maxK = Math.max(...historyCons.map(c => c.kwh || 0), 10);
+      const maxK = Math.max(...historyCons.map(c => c.montoCalculado || 0), 10);
       const barW = 6;
       const spacing = (chartW - (historyCons.length * barW)) / (historyCons.length + 1);
       
       historyCons.forEach((hc, i) => {
         const x = chartX + spacing + i * (barW + spacing);
-        const barH = ((hc.kwh || 0) / maxK) * chartH;
+        const barH = ((hc.montoCalculado || 0) / maxK) * chartH;
         const y = chartY + chartH - barH;
         
         doc.setFillColor(15, 23, 42); // slate-900
         doc.rect(x, y, barW, barH, 'F');
         
         doc.setFontSize(6);
-        doc.text((hc.kwh || 0).toString(), x + barW/2, y - 1, { align: 'center' });
+        doc.text((hc.montoCalculado || 0).toFixed(0).toString(), x + barW/2, y - 1, { align: 'center' });
         const mShort = hc.mes ? new Date(`${hc.mes}-02`).toLocaleDateString('es', {month:'short'}).substring(0,3) : '';
         doc.text(mShort, x + barW/2, chartY + chartH + 3, { align: 'center' });
       });
@@ -399,7 +405,6 @@ export default function Consumo() {
     const kwh = cons.kwh || 0;
     const minimoAplica = settings?.consumoMinimo !== undefined ? settings.consumoMinimo : 6;
     const esMinimo = kwh * tarifaAplicada < minimoAplica;
-    const debtInfo = getDebtInfo(client.id, codSuministro || '', cons.mes, cons.estadoPago === 'PENDIENTE');
 
     const formatCurrencyStr = (val: number) => new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(val);
 
@@ -447,18 +452,6 @@ export default function Consumo() {
     const finalY = (doc as any).lastAutoTable.finalY || 120;
     doc.setFontSize(14);
     doc.text(`Total a Pagar: ${formatCurrencyStr(totalAPagar)}`, 196, finalY + 10, { align: 'right' });
-
-    if (debtInfo.warning) {
-      doc.setFontSize(12);
-      doc.setTextColor(220, 38, 38);
-      const splitText = doc.splitTextToSize(debtInfo.warning, 160);
-      const textH = splitText.length * 6;
-      doc.setDrawColor(220, 38, 38);
-      doc.rect(14, finalY + 16, 182, textH + 4);
-      doc.text(splitText, 16, finalY + 22);
-      doc.setTextColor(0, 0, 0);
-      doc.setDrawColor(0, 0, 0);
-    }
 
     doc.save(`Recibo_${client.codigoSuministro}_${cons.mes}.pdf`);
   };

@@ -220,6 +220,11 @@ export default function Reportes() {
     value: egresosPorCategoria[key]
   }));
 
+  const pieDataConsolidado = [
+    { name: 'Ingresos', value: filteredTransactions.filter(t => t.tipo === 'INGRESO').reduce((acc, t) => acc + t.monto, 0) },
+    { name: 'Egresos', value: filteredTransactions.filter(t => t.tipo === 'EGRESO').reduce((acc, t) => acc + t.monto, 0) }
+  ].filter(d => d.value > 0);
+
   return (
     <div className="space-y-6">
       <div className="sm:flex sm:items-center sm:justify-between">
@@ -289,8 +294,8 @@ export default function Reportes() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Resumen Financiero</CardTitle>
           </CardHeader>
@@ -326,20 +331,20 @@ export default function Reportes() {
             <CardTitle>Resumen de Morosidad</CardTitle>
           </CardHeader>
           <CardContent>
-               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                   <div className="bg-red-500/10 p-4 rounded-xl border border-red-500/20">
+               <div className="grid grid-cols-1 sm:grid-cols-1 gap-4">
+                   <div className="bg-red-500/10 p-3 rounded-xl border border-red-500/20 flex justify-between items-center">
                        <p className="text-sm font-medium text-red-400">Recibos Vencidos</p>
-                       <p className="text-2xl font-bold text-red-300 mt-1">{totalRecibosVencidos}</p>
+                       <p className="text-lg font-bold text-red-300">{totalRecibosVencidos}</p>
                    </div>
-                   <div className="bg-red-500/10 p-4 rounded-xl border border-red-500/20">
-                       <p className="text-sm font-medium text-red-400">Monto Total en Deuda</p>
-                       <p className="text-2xl font-bold text-red-300 mt-1">
+                   <div className="bg-red-500/10 p-3 rounded-xl border border-red-500/20 flex justify-between items-center">
+                       <p className="text-sm font-medium text-red-400">Monto en Deuda</p>
+                       <p className="text-lg font-bold text-red-300">
                            {formatCurrency(montoTotalDeuda)}
                        </p>
                    </div>
-                   <div className="bg-slate-500/10 p-4 rounded-xl border border-slate-500/20">
-                       <p className="text-sm font-medium text-slate-400">Índice</p>
-                       <p className="text-2xl font-bold text-slate-300 mt-1">
+                   <div className="bg-slate-500/10 p-3 rounded-xl border border-slate-500/20 flex justify-between items-center">
+                       <p className="text-sm font-medium text-slate-400">Morosidad</p>
+                       <p className="text-lg font-bold text-slate-300">
                            {indiceMorosidad}%
                        </p>
                    </div>
@@ -348,16 +353,22 @@ export default function Reportes() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Distribución de Ingresos</CardTitle>
+            <CardTitle>Gráfico de Ingresos</CardTitle>
           </CardHeader>
           <CardContent className="flex justify-center">
             {pieDataIngresos.length > 0 ? (
               <div className="h-64 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
+                    <defs>
+                      <filter id="shadow3d" x="-20%" y="-20%" width="140%" height="140%">
+                        <feDropShadow dx="3" dy="8" stdDeviation="4" floodOpacity="0.6" floodColor="#000000" />
+                        <feComponentTransfer><feFuncA type="linear" slope="0.8"/></feComponentTransfer>
+                      </filter>
+                    </defs>
                     <Pie
                       data={pieDataIngresos}
                       cx="50%"
@@ -366,7 +377,8 @@ export default function Reportes() {
                       outerRadius={80}
                       fill="#8884d8"
                       dataKey="value"
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      filter="url(#shadow3d)"
+                      label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
                     >
                       {pieDataIngresos.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -382,7 +394,7 @@ export default function Reportes() {
               </div>
             ) : (
                 <div className="h-64 flex items-center justify-center text-slate-500">
-                    Sin datos de ingresos
+                    Sin datos
                 </div>
             )}
           </CardContent>
@@ -390,13 +402,19 @@ export default function Reportes() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Distribución de Egresos</CardTitle>
+            <CardTitle>Gráfico de Egresos</CardTitle>
           </CardHeader>
           <CardContent className="flex justify-center">
             {pieDataEgresos.length > 0 ? (
                <div className="h-64 w-full">
                  <ResponsiveContainer width="100%" height="100%">
                    <PieChart>
+                     <defs>
+                      <filter id="shadow3d" x="-20%" y="-20%" width="140%" height="140%">
+                        <feDropShadow dx="3" dy="8" stdDeviation="4" floodOpacity="0.6" floodColor="#000000" />
+                        <feComponentTransfer><feFuncA type="linear" slope="0.8"/></feComponentTransfer>
+                      </filter>
+                     </defs>
                      <Pie
                        data={pieDataEgresos}
                        cx="50%"
@@ -405,7 +423,8 @@ export default function Reportes() {
                        outerRadius={80}
                        fill="#8884d8"
                        dataKey="value"
-                       label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                       filter="url(#shadow3d)"
+                       label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
                      >
                        {pieDataEgresos.map((entry, index) => (
                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -421,7 +440,53 @@ export default function Reportes() {
                </div>
             ) : (
                  <div className="h-64 flex items-center justify-center text-slate-500">
-                     Sin datos de egresos
+                     Sin datos
+                 </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Balance General</CardTitle>
+          </CardHeader>
+          <CardContent className="flex justify-center">
+            {pieDataConsolidado.length > 0 ? (
+               <div className="h-64 w-full">
+                 <ResponsiveContainer width="100%" height="100%">
+                   <PieChart>
+                     <defs>
+                      <filter id="shadow3d" x="-20%" y="-20%" width="140%" height="140%">
+                        <feDropShadow dx="3" dy="8" stdDeviation="4" floodOpacity="0.6" floodColor="#000000" />
+                        <feComponentTransfer><feFuncA type="linear" slope="0.8"/></feComponentTransfer>
+                      </filter>
+                     </defs>
+                     <Pie
+                       data={pieDataConsolidado}
+                       cx="50%"
+                       cy="50%"
+                       labelLine={false}
+                       outerRadius={80}
+                       fill="#8884d8"
+                       dataKey="value"
+                       filter="url(#shadow3d)"
+                       label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
+                     >
+                       {pieDataConsolidado.map((entry, index) => (
+                         <Cell key={`cell-${index}`} fill={entry.name === 'Ingresos' ? '#10B981' : '#EF4444'} />
+                       ))}
+                     </Pie>
+                     <Tooltip 
+                       formatter={(value) => formatCurrency(value as number)}
+                       contentStyle={{ borderRadius: '8px', border: '1px solid #334155', backgroundColor: '#0F172A', color: '#E2E8F0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.3)' }}
+                     />
+                     <Legend />
+                   </PieChart>
+                 </ResponsiveContainer>
+               </div>
+            ) : (
+                 <div className="h-64 flex items-center justify-center text-slate-500">
+                     Sin datos
                  </div>
             )}
           </CardContent>
