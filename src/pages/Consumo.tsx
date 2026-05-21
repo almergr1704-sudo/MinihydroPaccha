@@ -192,9 +192,14 @@ export default function Consumo() {
       const numRows = (currentReading && currentReading.estadoPago === 'PENDIENTE' ? 1 : 0) 
                     + Math.min(debtInfo.previousUnpaid.length, 3) 
                     + (debtInfo.previousUnpaid.length > 3 ? 1 : 0);
-      const estimatedHeight = 55 + (numRows * 7) + 20;
+      
+      // Calculate estimated height to decide page breaks: 
+      // Base height up to table: ~39
+      // Table rows height (header + rows): ~10 + (numRows * 7)
+      // Bottom section: ~12
+      const estimatedHeight = 39 + 10 + (numRows * 7) + 12;
 
-      if (yOffset + estimatedHeight > maxH - 10) {
+      if (yOffset + estimatedHeight > maxH - 5) {
         doc.addPage();
         yOffset = 10;
       }
@@ -258,9 +263,9 @@ export default function Consumo() {
         .reverse();
       
       const chartX = 135;
-      const chartY = yOffset + 20;
+      const chartY = yOffset + 18;
       const chartW = 60;
-      const chartH = 20;
+      const chartH = 16;
       
       doc.setFontSize(8);
       doc.text('Historial de Pagos (S/)', chartX, chartY - 2);
@@ -332,7 +337,7 @@ export default function Consumo() {
       const totalAPagar = totalMontoCalculado + debtInfo.totalDeuda;
 
       autoTable(doc, {
-        startY: yOffset + 43,
+        startY: yOffset + 39,
         head: [['Descripción', 'Cantidad (kWh)', 'Precio (S/)', 'Subtotal']],
         body: tableBody,
         theme: 'grid',
@@ -341,18 +346,18 @@ export default function Consumo() {
         margin: { left: 14, right: 14 }
       });
 
-      const finalY = (doc as any).lastAutoTable.finalY || yOffset + 45;
+      const finalY = (doc as any).lastAutoTable.finalY || yOffset + 43;
       doc.setFontSize(16);
-      doc.text(`Total a Pagar: ${formatCurrencyStr(totalAPagar)}`, 196, finalY + 8, { align: 'right' });
+      doc.text(`Total a Pagar: ${formatCurrencyStr(totalAPagar)}`, 196, finalY + 6, { align: 'right' });
       
-      const currentReceiptBottom = finalY + 12;
+      const currentReceiptBottom = finalY + 10;
 
       // Draw a cut line
       doc.setLineDashPattern([2, 2], 0);
       doc.line(10, currentReceiptBottom, 200, currentReceiptBottom);
       doc.setLineDashPattern([], 0); // reset
 
-      yOffset = currentReceiptBottom + 5;
+      yOffset = currentReceiptBottom + 4;
     });
 
     doc.save(`Recibos_Masivos_${selectedMes}.pdf`);
