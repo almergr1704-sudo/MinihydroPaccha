@@ -88,7 +88,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-5">
         <Card>
           <CardContent className="p-5 flex items-center">
             <div className="flex-shrink-0 bg-blue-500/10 rounded-md p-3">
@@ -140,12 +140,28 @@ export default function Dashboard() {
 
         <Card>
           <CardContent className="p-5 flex items-center">
+             <div className={`flex-shrink-0 rounded-md p-3 ${balance >= 0 ? 'bg-blue-500/10' : 'bg-orange-500/10'}`}>
+              <Activity className={`h-6 w-6 ${balance >= 0 ? 'text-blue-500' : 'text-orange-500'}`} />
+            </div>
+            <div className="ml-5 w-0 flex-1">
+              <dl>
+                <dt className="text-sm font-medium text-slate-400 truncate">Diferencia / Saldo</dt>
+                <dd className={`text-lg font-medium ${balance >= 0 ? 'text-blue-400' : 'text-orange-400'}`}>
+                  {formatCurrency(balance)}
+                </dd>
+              </dl>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-5 flex items-center">
             <div className="flex-shrink-0 bg-amber-500/10 rounded-md p-3">
               <Zap className="h-6 w-6 text-amber-500" />
             </div>
             <div className="ml-5 w-0 flex-1">
               <dl>
-                <dt className="text-sm font-medium text-slate-400 truncate">Consumo Energía (Mes)</dt>
+                <dt className="text-sm font-medium text-slate-400 truncate">Consumo Energía</dt>
                 <dd className="text-lg font-medium text-slate-100">
                   {consumoTotalMes} kWh
                 </dd>

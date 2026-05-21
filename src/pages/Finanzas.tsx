@@ -2,13 +2,15 @@ import React, { useState } from 'react';
 import { Plus, ArrowUpRight, ArrowDownRight, Filter, Download, FileText, FileWarning } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Button, Card, CardContent, Badge, CardHeader, CardTitle } from '../components/ui';
-import { formatCurrency } from '../lib/utils';
+import { formatCurrency, render3DPieChartToDataURL } from '../lib/utils';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { TransactionType, Transaction } from '../store/types';
+
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
 export default function Finanzas() {
   const { transactions, addTransaction, clients, consumptions, payConsumption, fines, payFine, settings, updateClient } = useAppContext();
@@ -126,6 +128,30 @@ export default function Finanzas() {
     const finalY = (doc as any).lastAutoTable.finalY + 10 || 40;
     doc.setFontSize(12);
     doc.text(`Total ${type === 'INGRESO' ? 'Ingresos' : 'Egresos'}: ${formatCurrency(totalAmount)}`, 14, finalY);
+
+    // Add 3D Pie Chart
+    const catMap: Record<string, number> = {};
+    txForReport.forEach(t => {
+      catMap[t.categoria.replace('_', ' ')] = (catMap[t.categoria.replace('_', ' ')] || 0) + t.monto;
+    });
+    
+    const chartData = Object.entries(catMap).map(([name, value], i) => ({
+      name,
+      value,
+      color: COLORS[i % COLORS.length]
+    }));
+
+    if (chartData.length > 0) {
+       let finalChartY = finalY + 10;
+       if (finalChartY + 85 > 290) {
+          doc.addPage();
+          finalChartY = 20;
+       }
+       const imgData = render3DPieChartToDataURL(chartData, `Gráfico de ${type === 'INGRESO' ? 'Ingresos' : 'Egresos'}`);
+       if (imgData) {
+          doc.addImage(imgData, 'PNG', 45, finalChartY, 120, 84);
+       }
+    }
 
     doc.save(`Reporte_Detallado_${type}_${selectedMes || 'Historico'}_${format(new Date(), 'yyyyMMdd')}.pdf`);
   };

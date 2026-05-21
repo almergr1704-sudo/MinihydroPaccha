@@ -11,3 +11,97 @@ export function formatCurrency(amount: number): string {
     currency: 'PEN',
   }).format(amount);
 }
+
+export const render3DPieChartToDataURL = (
+  data: { name: string; value: number; color: string }[],
+  title: string
+): string => {
+  const canvas = document.createElement('canvas');
+  canvas.width = 500;
+  canvas.height = 350;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return '';
+  
+  // White background for the PDF
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 16px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(title, canvas.width / 2, 30);
+
+  const cx = canvas.width / 2;
+  const cy = 160;
+  const rx = 160;
+  const ry = 80;
+  const h = 40;
+
+  const total = data.reduce((sum, d) => sum + d.value, 0);
+  if (total === 0) return '';
+
+  const darkenColor = (color: string, amount: number) => {
+    let c = color.substring(1);
+    // Expand 3-digit hex
+    if (c.length === 3) c = c.split('').map(x => x + x).join('');
+    let rgb = parseInt(c, 16);
+    let r = Math.max(0, (rgb >> 16) - amount);
+    let g = Math.max(0, ((rgb >> 8) & 0x00FF) - amount);
+    let b = Math.max(0, (rgb & 0x0000FF) - amount);
+    return '#' + (r << 16 | g << 8 | b).toString(16).padStart(6, '0');
+  };
+
+  // Draw layers from bottom to top
+  for (let y = cy + h; y >= cy; y -= 1) {
+    let currentAngle = 0;
+    data.forEach(slice => {
+      const sliceAngle = (slice.value / total) * Math.PI * 2;
+      const startAngle = currentAngle;
+      const endAngle = currentAngle + sliceAngle;
+      currentAngle = endAngle;
+
+      ctx.beginPath();
+      ctx.moveTo(cx, y);
+      ctx.ellipse(cx, y, rx, ry, 0, startAngle, endAngle);
+      ctx.lineTo(cx, y);
+      
+      if (y > cy) {
+        ctx.fillStyle = darkenColor(slice.color, 40);
+      } else {
+        ctx.fillStyle = slice.color;
+      }
+      ctx.fill();
+      
+      if (y === cy) {
+         ctx.strokeStyle = '#ffffff';
+         ctx.lineWidth = 1.5;
+         ctx.stroke();
+      }
+    });
+  }
+
+  // Draw legends - centered
+  ctx.textAlign = 'left';
+  let totalLegendWidth = 0;
+  const legendItems = data.map(slice => {
+    const pct = ((slice.value / total) * 100).toFixed(1);
+    const text = `${slice.name} (${pct}%)`;
+    ctx.font = '14px sans-serif';
+    const width = 15 + 10 + ctx.measureText(text).width + 20; // box + space + text + padding
+    totalLegendWidth += width;
+    return { text, color: slice.color, width };
+  });
+
+  let legendX = (canvas.width - totalLegendWidth) / 2;
+  let legendY = 300;
+
+  legendItems.forEach(item => {
+      ctx.fillStyle = item.color;
+      ctx.fillRect(legendX, legendY - 12, 15, 15);
+      ctx.fillStyle = '#0f172a';
+      ctx.fillText(item.text, legendX + 25, legendY);
+      legendX += item.width;
+  });
+
+  return canvas.toDataURL('image/png');
+};

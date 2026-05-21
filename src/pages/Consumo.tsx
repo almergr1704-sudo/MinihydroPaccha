@@ -162,7 +162,7 @@ export default function Consumo() {
     const doc = new jsPDF({ format: 'a4' });
     let yOffset = 10;
     const maxH = 297;
-    const receiptHeight = 95; // 3 receipts per page
+    const receiptHeight = 71; // 4 receipts per page
 
     const formatCurrencyStr = (val: number) => new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(val);
 
@@ -185,8 +185,9 @@ export default function Consumo() {
       if (debtInfo.warning) {
         doc.setFontSize(9);
         doc.setTextColor(220, 38, 38); // Red
-        const settingsCostoReconexion = settings?.costoReconexion || 0;
-        doc.text(`SERVICIO PARA CORTE - Reconexión S/ ${settingsCostoReconexion.toFixed(2)}`, 196, yOffset + 8, { align: 'right' });
+        const extReconexion = (settings?.costoReconexion || 0).toFixed(2);
+        doc.text('SERVICIO PARA CORTE', 196, yOffset + 8, { align: 'right' });
+        doc.text(`Reconexión S/ ${extReconexion}`, 196, yOffset + 12, { align: 'right' });
         doc.setTextColor(0, 0, 0); // Reset
       }
       
@@ -334,8 +335,9 @@ export default function Consumo() {
     if (debtInfo.warning) {
       doc.setFontSize(10);
       doc.setTextColor(220, 38, 38); // Red
-      const settingsCostoReconexion = settings?.costoReconexion || 0;
-      doc.text(`SERVICIO PARA CORTE - Reconexión S/ ${settingsCostoReconexion.toFixed(2)}`, 196, 26, { align: 'right' });
+      const extReconexion = (settings?.costoReconexion || 0).toFixed(2);
+      doc.text('SERVICIO PARA CORTE', 196, 26, { align: 'right' });
+      doc.text(`Reconexión S/ ${extReconexion}`, 196, 31, { align: 'right' });
       doc.setTextColor(0, 0, 0); // Reset
     }
 

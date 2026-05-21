@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Download, FileText, TrendingUp, Users, Calendar } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Card, CardContent, CardHeader, CardTitle, Button } from '../components/ui';
-import { formatCurrency } from '../lib/utils';
+import { formatCurrency, render3DPieChartToDataURL } from '../lib/utils';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -132,6 +132,42 @@ export default function Reportes() {
       const totalValue = filteredTransactions.filter(t => t.tipo === type).reduce((acc, t) => acc + t.monto, 0);
       doc.setFontSize(12);
       doc.text(`Total ${totalLabel}: ${formatCurrency(totalValue)}`, 14, afterTableY);
+    }
+
+    // Add 3D Pie Chart
+    let chartData: { name: string, value: number, color: string }[] = [];
+    if (type === 'CONSOLIDADO') {
+      const totalIngresos = filteredTransactions.filter(t => t.tipo === 'INGRESO').reduce((acc, t) => acc + t.monto, 0);
+      const totalEgresos = filteredTransactions.filter(t => t.tipo === 'EGRESO').reduce((acc, t) => acc + t.monto, 0);
+      if (totalIngresos > 0 || totalEgresos > 0) {
+        chartData = [
+          { name: 'Ingresos', value: totalIngresos, color: '#10B981' },
+          { name: 'Egresos', value: totalEgresos, color: '#EF4444' }
+        ];
+      }
+    } else {
+      const filteredByType = filteredTransactions.filter(t => t.tipo === type);
+      const catMap: Record<string, number> = {};
+      filteredByType.forEach(t => {
+        catMap[t.categoria.replace('_', ' ')] = (catMap[t.categoria.replace('_', ' ')] || 0) + t.monto;
+      });
+      chartData = Object.entries(catMap).map(([name, value], i) => ({
+        name,
+        value,
+        color: COLORS[i % COLORS.length]
+      }));
+    }
+
+    if (chartData.length > 0) {
+       let finalChartY = (doc as any).lastAutoTable.finalY + 10;
+       if (finalChartY + 85 > 290) {
+          doc.addPage();
+          finalChartY = 20;
+       }
+       const imgData = render3DPieChartToDataURL(chartData, type === 'CONSOLIDADO' ? 'Balance General' : `Gráfico de ${type === 'INGRESO' ? 'Ingresos' : 'Egresos'}`);
+       if (imgData) {
+          doc.addImage(imgData, 'PNG', 45, finalChartY, 120, 84);
+       }
     }
 
     doc.save(`Reporte_${type}_${format(new Date(), 'yyyyMMdd')}.pdf`);
