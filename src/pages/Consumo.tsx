@@ -190,14 +190,13 @@ export default function Consumo() {
       const { client, codigoSuministro, currentReading, debtInfo } = item;
       
       const numRows = (currentReading && currentReading.estadoPago === 'PENDIENTE' ? 1 : 0) 
-                    + Math.min(debtInfo.previousUnpaid.length, 3) 
-                    + (debtInfo.previousUnpaid.length > 3 ? 1 : 0);
+                    + (debtInfo.previousUnpaid.length > 0 ? 1 : 0);
       
       // Calculate estimated height to decide page breaks: 
       // Base height up to table: ~39
-      // Table rows height (header + rows): ~10 + (numRows * 7)
+      // Table rows height (header + rows): ~10 + (numRows * 6)
       // Bottom section: ~12
-      const estimatedHeight = 39 + 10 + (numRows * 7) + 12;
+      const estimatedHeight = 39 + 10 + (numRows * 6) + 12;
 
       if (yOffset + estimatedHeight > maxH - 5) {
         doc.addPage();
@@ -313,25 +312,13 @@ export default function Consumo() {
       }
 
       if (debtInfo.previousUnpaid && debtInfo.previousUnpaid.length > 0) {
-        const remainingUnpaid = debtInfo.previousUnpaid.slice(0, 3); // display up to 3 to avoid overflow
-        remainingUnpaid.forEach((unpaid: any) => {
-          tableBody.push([
-            `Deuda anterior: ${unpaid.mes}`,
-            '-',
-            '-',
-            formatCurrencyStr(unpaid.montoCalculado)
-          ]);
-        });
-        if (debtInfo.previousUnpaid.length > 3) {
-           const hiddenDebts = debtInfo.previousUnpaid.slice(3);
-           const hiddenSum = hiddenDebts.reduce((acc: any, c: any) => acc + c.montoCalculado, 0);
-           tableBody.push([
-            `...y ${debtInfo.previousUnpaid.length - 3} mes(es) más`,
-            '-',
-            '-',
-            formatCurrencyStr(hiddenSum)
-          ]);
-        }
+        const totalDeudaAnterior = debtInfo.previousUnpaid.reduce((acc: any, unpaid: any) => acc + unpaid.montoCalculado, 0);
+        tableBody.push([
+          'Deuda Anterior',
+          '-',
+          '-',
+          formatCurrencyStr(totalDeudaAnterior)
+        ]);
       }
 
       const totalAPagar = totalMontoCalculado + debtInfo.totalDeuda;
@@ -479,25 +466,13 @@ export default function Consumo() {
     ];
 
     if (debtInfo.previousUnpaid && debtInfo.previousUnpaid.length > 0) {
-      const remainingUnpaid = debtInfo.previousUnpaid.slice(0, 3);
-      remainingUnpaid.forEach(unpaid => {
-        tableBody.push([
-          `Deuda anterior: ${unpaid.mes}`,
-          '-',
-          '-',
-          formatCurrencyStr(unpaid.montoCalculado)
-        ]);
-      });
-      if (debtInfo.previousUnpaid.length > 3) {
-        const hiddenDebts = debtInfo.previousUnpaid.slice(3);
-        const hiddenSum = hiddenDebts.reduce((acc, c) => acc + c.montoCalculado, 0);
-        tableBody.push([
-          `...y ${debtInfo.previousUnpaid.length - 3} mes(es) más`,
-          '-',
-          '-',
-          formatCurrencyStr(hiddenSum)
-        ]);
-      }
+      const totalDeudaAnterior = debtInfo.previousUnpaid.reduce((acc, unpaid) => acc + unpaid.montoCalculado, 0);
+      tableBody.push([
+        'Deuda Anterior',
+        '-',
+        '-',
+        formatCurrencyStr(totalDeudaAnterior)
+      ]);
     }
 
     const totalAPagar = cons.montoCalculado + debtInfo.totalDeuda;
