@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, ArrowUpRight, ArrowDownRight, Filter, Download, FileText, FileWarning } from 'lucide-react';
+import { Plus, ArrowUpRight, ArrowDownRight, Filter, Download, FileText, FileWarning, PowerOff } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Button, Card, CardContent, Badge, CardHeader, CardTitle } from '../components/ui';
 import { formatCurrency, render3DPieChartToDataURL } from '../lib/utils';
@@ -438,11 +438,14 @@ export default function Finanzas() {
                               <div className="text-sm font-medium text-slate-200">{c.codigoSuministro} - {c.nombre ? c.nombre : `${c.nombres} ${c.apellidos}`}</div>
                               <div className="text-xs font-semibold text-red-500 mt-1">{consumptions.filter(cons => cons.clientId === c.id && cons.estadoPago === 'PENDIENTE').length} meses adeudados</div>
                             </div>
-                            <Button size="sm" variant="destructive" type="button" onClick={() => {
+                            <Button size="sm" variant="destructive" className="bg-red-600 hover:bg-red-700 font-semibold" type="button" onClick={() => {
                               if (window.confirm(`¿Está seguro de cambiar el estado de ${c.codigoSuministro} a CORTADO?`)) {
                                 updateClient(c.id, { estado: 'CORTADO' });
                               }
-                            }}>Cortar Servicio</Button>
+                            }}>
+                              <PowerOff className="w-4 h-4 mr-2" />
+                              Cortar Servicio
+                            </Button>
                           </div>
                         ))
                       )}

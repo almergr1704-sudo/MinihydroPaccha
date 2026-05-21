@@ -300,12 +300,27 @@ export default function Consumo() {
         const barW = 6;
         const spacing = (chartW - (historyCons.length * barW)) / (historyCons.length + 1);
         
+        const colors = [
+          [59,130,246], [16,185,129], [245,158,11], [239,68,68],
+          [139,92,246], [236,72,153], [6,182,212], [249,115,22],
+          [168,85,247], [20,184,166], [234,179,8], [244,63,94]
+        ];
+        
         historyCons.forEach((hc, i) => {
           const x = chartX + spacing + i * (barW + spacing);
           const barH = ((hc.montoCalculado || 0) / maxK) * chartH;
           const y = chartY + chartH - barH;
           
-          doc.setFillColor(15, 23, 42); // slate-900
+          let mIndex = 0;
+          if (hc.mes) {
+            const parts = hc.mes.split('-');
+            if (parts.length > 1) {
+              mIndex = parseInt(parts[1], 10) - 1;
+            }
+          }
+          const color = colors[mIndex] || [15, 23, 42];
+          
+          doc.setFillColor(color[0], color[1], color[2]);
           doc.rect(x, y, barW, barH, 'F');
           
           doc.setFontSize(6);
@@ -492,13 +507,28 @@ export default function Consumo() {
       const barW = 6;
       const spacing = (chartW - (historyCons.length * barW)) / (historyCons.length + 1);
       
-      historyCons.forEach((hc, i) => {
-        const x = chartX + spacing + i * (barW + spacing);
-        const barH = ((hc.montoCalculado || 0) / maxK) * chartH;
-        const y = chartY + chartH - barH;
+        const colors = [
+          [59,130,246], [16,185,129], [245,158,11], [239,68,68],
+          [139,92,246], [236,72,153], [6,182,212], [249,115,22],
+          [168,85,247], [20,184,166], [234,179,8], [244,63,94]
+        ];
         
-        doc.setFillColor(15, 23, 42); // slate-900
-        doc.rect(x, y, barW, barH, 'F');
+        historyCons.forEach((hc, i) => {
+          const x = chartX + spacing + i * (barW + spacing);
+          const barH = ((hc.montoCalculado || 0) / maxK) * chartH;
+          const y = chartY + chartH - barH;
+          
+          let mIndex = 0;
+          if (hc.mes) {
+            const parts = hc.mes.split('-');
+            if (parts.length > 1) {
+              mIndex = parseInt(parts[1], 10) - 1;
+            }
+          }
+          const color = colors[mIndex] || [15, 23, 42];
+          
+          doc.setFillColor(color[0], color[1], color[2]);
+          doc.rect(x, y, barW, barH, 'F');
         
         doc.setFontSize(6);
         doc.text((hc.montoCalculado || 0).toFixed(0).toString(), x + barW/2, y - 1, { align: 'center' });

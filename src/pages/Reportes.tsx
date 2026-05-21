@@ -396,9 +396,9 @@ export default function Reportes() {
           </CardHeader>
           <CardContent className="flex justify-center">
             {pieDataIngresos.length > 0 ? (
-              <div className="h-64 w-full">
+              <div className="h-80 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
+                  <PieChart margin={{ bottom: 20 }}>
                     <defs>
                       <filter id="shadow3d" x="-20%" y="-20%" width="140%" height="140%">
                         <feDropShadow dx="3" dy="8" stdDeviation="4" floodOpacity="0.6" floodColor="#000000" />
@@ -442,9 +442,9 @@ export default function Reportes() {
           </CardHeader>
           <CardContent className="flex justify-center">
             {pieDataEgresos.length > 0 ? (
-               <div className="h-64 w-full">
+               <div className="h-80 w-full">
                  <ResponsiveContainer width="100%" height="100%">
-                   <PieChart>
+                   <PieChart margin={{ bottom: 20 }}>
                      <defs>
                       <filter id="shadow3d" x="-20%" y="-20%" width="140%" height="140%">
                         <feDropShadow dx="3" dy="8" stdDeviation="4" floodOpacity="0.6" floodColor="#000000" />
@@ -488,9 +488,9 @@ export default function Reportes() {
           </CardHeader>
           <CardContent className="flex justify-center">
             {pieDataConsolidado.length > 0 ? (
-               <div className="h-64 w-full">
+               <div className="h-80 w-full">
                  <ResponsiveContainer width="100%" height="100%">
-                   <PieChart>
+                   <PieChart margin={{ bottom: 20 }}>
                      <defs>
                       <filter id="shadow3d" x="-20%" y="-20%" width="140%" height="140%">
                         <feDropShadow dx="3" dy="8" stdDeviation="4" floodOpacity="0.6" floodColor="#000000" />
