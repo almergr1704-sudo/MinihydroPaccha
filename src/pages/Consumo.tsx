@@ -83,7 +83,7 @@ export default function Consumo() {
       c.clientId === clientId && 
       c.codigoSuministro === codigoSuministro && 
       c.estadoPago === 'PENDIENTE' &&
-      c.mes < currentMes
+      c.mes !== currentMes
     );
     const totalDeuda = previousUnpaid.reduce((acc, c) => acc + c.montoCalculado, 0);
     const monthsOwned = previousUnpaid.length + (hasPendingCurrent ? 1 : 0);
@@ -189,14 +189,38 @@ export default function Consumo() {
     suppliesToInvoice.forEach((item, index) => {
       const { client, codigoSuministro, currentReading, debtInfo } = item;
       
-      const numRows = (currentReading && currentReading.estadoPago === 'PENDIENTE' ? 1 : 0) 
-                    + (debtInfo.previousUnpaid.length > 0 ? 1 : 0);
+      // -- CALCULATE DYNAMIC HEIGHT --
+      const testDoc = new jsPDF({ format: 'a4' });
+      const testTableBody: any[][] = [];
+      if (currentReading && currentReading.estadoPago === 'PENDIENTE') {
+        const tarifaAplicada = client.faseSuministro === 'TRIFASICO' && (settings?.costoTrifasico || 0) > 0 
+          ? (settings?.costoTrifasico || 0) 
+          : client.tipo === 'SOCIO' ? (settings?.costoSocio || 0.2) : (settings?.costoUsuario || 0.3);
+        const kwh = currentReading.kwh || 0;
+        const minimoAplica = settings?.consumoMinimo !== undefined ? settings.consumoMinimo : 6;
+        const esMinimo = kwh * tarifaAplicada < minimoAplica;
+        testTableBody.push([
+          'Consumo Eléctrico' + (esMinimo ? ` (Mín. S/ ${minimoAplica.toFixed(2)})` : ''),
+          kwh.toString(), tarifaAplicada.toFixed(2), formatCurrencyStr(currentReading.montoCalculado)
+        ]);
+      }
+      if (debtInfo.previousUnpaid && debtInfo.previousUnpaid.length > 0) {
+        testTableBody.push([
+          'Deuda Anterior', '-', '-', 
+          formatCurrencyStr(debtInfo.previousUnpaid.reduce((acc: any, unpaid: any) => acc + unpaid.montoCalculado, 0))
+        ]);
+      }
       
-      // Calculate estimated height to decide page breaks: 
-      // Base height up to table: ~39
-      // Table rows height (header + rows): ~10 + (numRows * 6)
-      // Bottom section: ~12
-      const estimatedHeight = 39 + 10 + (numRows * 6) + 12;
+      autoTable(testDoc, {
+        startY: 39,
+        head: [['Descripción', 'Cantidad (kWh)', 'Precio (S/)', 'Subtotal']],
+        body: testTableBody,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 1 },
+        margin: { left: 14, right: 14 }
+      });
+      const estimatedHeight = ((testDoc as any).lastAutoTable.finalY || 43) + 14; 
+      // --------------------------------
 
       if (yOffset + estimatedHeight > maxH - 5) {
         doc.addPage();
@@ -356,14 +380,42 @@ export default function Consumo() {
 
     const clientName = client.nombre ? client.nombre : `${client.nombres} ${client.apellidos}`;
 
-    const doc = new jsPDF();
+    const codSuministro = cons.codigoSuministro || client.codigoSuministro;
+    const debtInfo = getDebtInfo(client.id, codSuministro || '', cons.mes, cons.estadoPago === 'PENDIENTE');
+
+    // --- CALCULATE DYNAMIC HEIGHT ---
+    const testDoc = new jsPDF();
+    const testTableBody: any[][] = [];
+    const testTarifaAplicada = client.faseSuministro === 'TRIFASICO' && settings.costoTrifasico > 0 
+      ? settings.costoTrifasico 
+      : client.tipo === 'SOCIO' ? settings.costoSocio : settings.costoUsuario;
+    const testKwh = cons.kwh || 0;
+    const testMinimoAplica = settings?.consumoMinimo !== undefined ? settings.consumoMinimo : 6;
+    const testEsMinimo = testKwh * testTarifaAplicada < testMinimoAplica;
+    const calcFormatCurrencyStr = (val: number) => new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(val);
+    testTableBody.push([
+      'Consumo Eléctrico' + (testEsMinimo ? ` (Mín. S/ ${testMinimoAplica.toFixed(2)})` : ''),
+      testKwh.toString(), testTarifaAplicada.toFixed(2), calcFormatCurrencyStr(cons.montoCalculado)
+    ]);
+    if (debtInfo.previousUnpaid && debtInfo.previousUnpaid.length > 0) {
+      testTableBody.push([
+        'Deuda Anterior', '-', '-', 
+        calcFormatCurrencyStr(debtInfo.previousUnpaid.reduce((acc: any, unpaid: any) => acc + unpaid.montoCalculado, 0))
+      ]);
+    }
+    autoTable(testDoc, {
+      startY: 65,
+      head: [['Descripción', 'Cantidad (kWh)', 'Precio (S/)', 'Subtotal']],
+      body: testTableBody,
+      theme: 'grid',
+      headStyles: { fillColor: [15, 23, 42] }
+    });
+    const requiredHeight = ((testDoc as any).lastAutoTable.finalY || 120) + 25;
+    const doc = new jsPDF({ format: [210, requiredHeight] });
     
     // Header
     doc.setFontSize(22);
     doc.text('Mini Central Hidroeléctrica PACCHA', 14, 22);
-    
-    const codSuministro = cons.codigoSuministro || client.codigoSuministro;
-    const debtInfo = getDebtInfo(client.id, codSuministro || '', cons.mes, cons.estadoPago === 'PENDIENTE');
 
     if (debtInfo.warning) {
       doc.setFontSize(10);
