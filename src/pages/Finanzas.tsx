@@ -14,7 +14,7 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
 export default function Finanzas() {
   const { transactions, addTransaction, clients, consumptions, payConsumption, fines, payFine, settings, updateClient } = useAppContext();
-  const [isModalOpen, setIsModalOpen] = useState<false | 'INGRESO' | 'EGRESO'>(false);
+  const [isModalOpen, setIsModalOpen] = useState<false | 'INGRESO' | 'EGRESO' | 'APTOS_CORTE'>(false);
   const [filterType, setFilterType] = useState<TransactionType | 'TODOS'>('INGRESO');
   const [selectedMes, setSelectedMes] = useState(''); // Empty means All time
   const [clientSearch, setClientSearch] = useState('');
@@ -43,7 +43,9 @@ export default function Finanzas() {
     doc.text('Detalles del Pago:', 14, 55);
     doc.text(`Pagado a (Nombres/Apellidos): ${t.destinatario || 'No especificado'}`, 14, 60);
     doc.text(`Monto: ${formatCurrency(t.monto)}`, 14, 65);
-    doc.text(`Concepto / Descripción: ${t.descripcion}`, 14, 70);
+    
+    const splitDesc = doc.splitTextToSize(`Concepto / Descripción: ${t.descripcion}`, 180);
+    doc.text(splitDesc, 14, 70);
 
     doc.save(`Egreso_${t.categoria}_${format(new Date(), 'yyyyMMdd')}.pdf`);
   };
@@ -267,8 +269,7 @@ export default function Finanzas() {
           <Button 
             onClick={() => { 
                 setShowOnlyAptForCut(true); 
-                setFormData({...formData, tipo: 'INGRESO', categoria: 'CONSUMO'}); 
-                setIsModalOpen('INGRESO'); 
+                setIsModalOpen('APTOS_CORTE'); 
             }} 
             className="bg-transparent border border-red-500/50 text-red-500 hover:bg-red-900/20"
           >
@@ -418,8 +419,35 @@ export default function Finanzas() {
               <form onSubmit={handleSubmit}>
                 <div className="bg-[#0B0E14] px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                   <h3 className="text-lg leading-6 font-medium text-slate-100" id="modal-title">
-                    {isModalOpen === 'INGRESO' ? 'Registrar Nuevo Cobro' : 'Registrar Nuevo Pago'}
+                    {isModalOpen === 'INGRESO' ? 'Registrar Nuevo Cobro' : isModalOpen === 'EGRESO' ? 'Registrar Nuevo Pago' : 'Usuarios Aptos para Corte'}
                   </h3>
+                  {isModalOpen === 'APTOS_CORTE' ? (
+                    <div className="mt-4 max-h-96 overflow-y-auto space-y-2">
+                      {clients.filter(c => {
+                        const pendingDebtsCount = consumptions.filter(cons => cons.clientId === c.id && cons.estadoPago === 'PENDIENTE').length;
+                        return pendingDebtsCount >= 3 && c.estado !== 'CORTADO';
+                      }).length === 0 ? (
+                        <p className="text-sm text-slate-400 p-4text-center">No hay usuarios aptos para corte.</p>
+                      ) : (
+                        clients.filter(c => {
+                          const pendingDebtsCount = consumptions.filter(cons => cons.clientId === c.id && cons.estadoPago === 'PENDIENTE').length;
+                          return pendingDebtsCount >= 3 && c.estado !== 'CORTADO';
+                        }).map(c => (
+                          <div key={c.id} className="flex justify-between items-center p-3 bg-slate-800/50 rounded-md border border-slate-700">
+                            <div>
+                              <div className="text-sm font-medium text-slate-200">{c.codigoSuministro} - {c.nombre ? c.nombre : `${c.nombres} ${c.apellidos}`}</div>
+                              <div className="text-xs font-semibold text-red-500 mt-1">{consumptions.filter(cons => cons.clientId === c.id && cons.estadoPago === 'PENDIENTE').length} meses adeudados</div>
+                            </div>
+                            <Button size="sm" variant="destructive" type="button" onClick={() => {
+                              if (window.confirm(`¿Está seguro de cambiar el estado de ${c.codigoSuministro} a CORTADO?`)) {
+                                updateClient(c.id, { estado: 'CORTADO' });
+                              }
+                            }}>Cortar Servicio</Button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  ) : (
                   <div className="mt-4 space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-slate-300">Categoría</label>
@@ -633,6 +661,7 @@ export default function Finanzas() {
                       </>
                     )}
                   </div>
+                  )}
                 </div>
                 <div className="bg-slate-800/50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
                   {!['CONSUMO', 'MULTA'].includes(formData.categoria) && (

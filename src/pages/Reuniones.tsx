@@ -67,46 +67,15 @@ export default function Reuniones() {
     const tipoReunion = activeMeeting.invitados === 'TODOS' ? 'todos los clientes' : 'socios';
 
     let yOffset = 0;
-    const itemsPerPage = 4;
-    const citationHeight = Math.floor(297 / itemsPerPage); // ~74
+    const maxH = 297;
     
     const sortedClients = [...filteredClientsList].sort((a, b) => 
       (a.codigoSuministro || '').localeCompare(b.codigoSuministro || '')
     );
     
     sortedClients.forEach((client, index) => {
-      if (index > 0 && index % itemsPerPage === 0) {
-        doc.addPage();
-        yOffset = 0;
-      }
-      
-      const posInPage = index % itemsPerPage;
-      yOffset = posInPage * citationHeight;
-
-      // Draw dashed cut lines
-      if (posInPage > 0) {
-        doc.setDrawColor(200);
-        doc.setLineDashPattern([2, 2], 0);
-        doc.line(10, yOffset, 200, yOffset);
-        doc.setLineDashPattern([], 0);
-        doc.setDrawColor(0);
-      }
-
       const nmb = client.nombre || `${client.nombres} ${client.apellidos}`;
-
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.text('CITACIÓN A REUNIÓN', 105, yOffset + 8, { align: 'center' });
-      
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      
       const paragraph = `Se cita a Ud. ${nmb}, a la reunión de ${tipoReunion} de la Mini Central Hidroeléctrica Paccha, que se llevará a cabo el día ${fDateLong} a las ${fTime} en el ${activeMeeting.lugar || 'lugar de costumbre'}, con los siguientes puntos a tratar:`;
-      const docText = doc.splitTextToSize(paragraph, 180);
-      doc.text(docText, 14, yOffset + 16);
-      
-      const paragraphBottomY = yOffset + 16 + (docText.length * 5);
-
       const temasText = activeMeeting.temas || 'No especificados';
       const parsedTemas = temasText.split('\n').map(t => t.trim()).filter(t => t.length > 0);
       let temasListToPrint = parsedTemas.map((t, idx) => {
@@ -117,7 +86,47 @@ export default function Reuniones() {
         temasListToPrint = ['1. No especificados'];
       }
 
-      let currentY = paragraphBottomY;
+      // --- CALCULATE DYNAMIC HEIGHT ---
+      const testDoc = new jsPDF({ format: 'a4' });
+      testDoc.setFontSize(10);
+      testDoc.setFont('helvetica', 'normal');
+      const testDocText = testDoc.splitTextToSize(paragraph, 180);
+      let testCurrentY = 16 + (testDocText.length * 5); // 16 is paragraph start Y offset relative to block
+      temasListToPrint.forEach(tema => {
+        const lines = testDoc.splitTextToSize(tema, 170);
+        testCurrentY += lines.length * 5;
+      });
+      // final text and signature
+      const estimatedHeight = testCurrentY + 3 + 15; // + 3 for margin, + 12 for signature + margin
+      // --------------------------------
+
+      // Auto Page Break
+      if (yOffset > 0 && yOffset + estimatedHeight > maxH - 5) {
+        doc.addPage();
+        yOffset = 0;
+      }
+
+      // Draw dashed cut lines if not at the very top of a page
+      if (yOffset > 0) {
+        doc.setDrawColor(200);
+        doc.setLineDashPattern([2, 2], 0);
+        doc.line(10, yOffset, 200, yOffset);
+        doc.setLineDashPattern([], 0);
+        doc.setDrawColor(0);
+      }
+
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('CITACIÓN A REUNIÓN', 105, yOffset + 8, { align: 'center' });
+      
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      
+      const docText = doc.splitTextToSize(paragraph, 180);
+      doc.text(docText, 14, yOffset + 16);
+      
+      let currentY = yOffset + 16 + (docText.length * 5);
+
       temasListToPrint.forEach(tema => {
         const lines = doc.splitTextToSize(tema, 170);
         doc.text(lines, 20, currentY);
@@ -129,6 +138,8 @@ export default function Reuniones() {
       
       doc.line(80, finalY + 8, 130, finalY + 8);
       doc.text('La Directiva', 105, finalY + 12, { align: 'center' });
+
+      yOffset = finalY + 18; // Setup for the next ticket offset
     });
 
     doc.save(`Citaciones_${activeMeeting.motivo}.pdf`);

@@ -384,11 +384,11 @@ export default function Consumo() {
     const debtInfo = getDebtInfo(client.id, codSuministro || '', cons.mes, cons.estadoPago === 'PENDIENTE');
 
     // --- CALCULATE DYNAMIC HEIGHT ---
-    const testDoc = new jsPDF();
+    const testDoc = new jsPDF({ format: 'a4' });
     const testTableBody: any[][] = [];
-    const testTarifaAplicada = client.faseSuministro === 'TRIFASICO' && settings.costoTrifasico > 0 
-      ? settings.costoTrifasico 
-      : client.tipo === 'SOCIO' ? settings.costoSocio : settings.costoUsuario;
+    const testTarifaAplicada = client.faseSuministro === 'TRIFASICO' && (settings?.costoTrifasico || 0) > 0 
+      ? (settings?.costoTrifasico || 0) 
+      : client.tipo === 'SOCIO' ? (settings?.costoSocio || 0.2) : (settings?.costoUsuario || 0.3);
     const testKwh = cons.kwh || 0;
     const testMinimoAplica = settings?.consumoMinimo !== undefined ? settings.consumoMinimo : 6;
     const testEsMinimo = testKwh * testTarifaAplicada < testMinimoAplica;
@@ -404,39 +404,50 @@ export default function Consumo() {
       ]);
     }
     autoTable(testDoc, {
-      startY: 65,
+      startY: 39,
       head: [['Descripción', 'Cantidad (kWh)', 'Precio (S/)', 'Subtotal']],
       body: testTableBody,
       theme: 'grid',
-      headStyles: { fillColor: [15, 23, 42] }
+      styles: { fontSize: 8, cellPadding: 1 },
+      margin: { left: 14, right: 14 }
     });
-    const requiredHeight = ((testDoc as any).lastAutoTable.finalY || 120) + 25;
-    const doc = new jsPDF({ format: [210, requiredHeight] });
+    const estimatedHeight = ((testDoc as any).lastAutoTable.finalY || 43) + 14; 
+    // --------------------------------
+
+    const doc = new jsPDF({ format: 'a4' });
+    const maxH = 297;
+    let yOffset = 10;
     
+    // Auto page break just in case
+    if (yOffset + estimatedHeight > maxH - 5) {
+      doc.addPage();
+      yOffset = 10;
+    }
+
     // Header
-    doc.setFontSize(22);
-    doc.text('Mini Central Hidroeléctrica PACCHA', 14, 22);
+    doc.setFontSize(16);
+    doc.text('Mini Central Hidroeléctrica PACCHA', 14, yOffset + 6);
 
     if (debtInfo.warning) {
-      doc.setFontSize(10);
+      doc.setFontSize(9);
       doc.setTextColor(220, 38, 38); // Red
       const extReconexion = (settings?.costoReconexion || 0).toFixed(2);
-      doc.text('SERVICIO PARA CORTE', 196, 20, { align: 'right' });
-      doc.text(`Reconexión S/ ${extReconexion}`, 196, 26, { align: 'right' });
+      doc.text('SERVICIO PARA CORTE', 196, yOffset + 6, { align: 'right' });
+      doc.text(`Reconexión S/ ${extReconexion}`, 196, yOffset + 10, { align: 'right' });
       doc.setTextColor(0, 0, 0); // Reset
     }
 
-    doc.setFontSize(14);
-    doc.text(`Recibo de Consumo | Suministro: ${codSuministro} | Tipo: ${client.tipo}`, 14, 30);
-    
     doc.setFontSize(10);
-    doc.text(`Fecha Emisión: ${format(new Date(), 'dd MMM yyyy')} | Periodo: ${cons.mes} | Estado: ${cons.estadoPago} Cliente:`, 14, 38);
+    doc.text(`Recibo de Consumo | Suministro: ${codSuministro} | Tipo: ${client.tipo}`, 14, yOffset + 12);
+    
+    doc.setFontSize(9);
+    doc.text(`Fecha Emisión: ${format(new Date(), 'dd MMM yyyy')} | Periodo: ${cons.mes} | Estado: ${cons.estadoPago} Cliente:`, 14, yOffset + 18);
 
     // Client Info
-    doc.setFontSize(12);
+    doc.setFontSize(10);
     const clientDniText = client.tipoPersona === 'EMPRESA' ? ` (RUC: ${client.dni})` : '';
-    doc.text(`${clientName}${clientDniText}`, 14, 45);
-    doc.text(`Dirección: ${client.direccion} ${client.numeroDireccion ? `N° ${client.numeroDireccion}` : ''}`, 14, 52);
+    doc.text(`${clientName}${clientDniText}`, 14, yOffset + 23);
+    doc.text(`Dirección: ${client.direccion} ${client.numeroDireccion ? `N° ${client.numeroDireccion}` : ''}`, 14, yOffset + 28);
 
     // Consumos
     const allCons = consumptions
@@ -457,7 +468,7 @@ export default function Consumo() {
       calcLecturaActual = calcLecturaAnterior + currentKwh;
     }
 
-    doc.text(`Lectura actual: ${calcLecturaActual} kWh | Lectura anterior: ${calcLecturaAnterior} kWh | Consumo de kWh: ${currentKwh}`, 14, 60);
+    doc.text(`Lectura actual: ${calcLecturaActual} kWh | Lectura anterior: ${calcLecturaAnterior} kWh | Consumo de kWh: ${currentKwh}`, 14, yOffset + 34);
 
     // Draw Chart
     const historyCons = consumptions
@@ -467,9 +478,9 @@ export default function Consumo() {
       .reverse();
     
     const chartX = 135;
-    const chartY = 36;
+    const chartY = yOffset + 18;
     const chartW = 60;
-    const chartH = 22;
+    const chartH = 16;
     
     doc.setFontSize(8);
     doc.text('Historial de Pagos (S/)', chartX, chartY - 2);
@@ -496,50 +507,40 @@ export default function Consumo() {
       });
     }
 
-    doc.setFontSize(10);
-
     // Table
-    const tarifaAplicada = client.faseSuministro === 'TRIFASICO' && settings.costoTrifasico > 0 
-      ? settings.costoTrifasico 
-      : client.tipo === 'SOCIO' ? settings.costoSocio : settings.costoUsuario;
-    const kwh = cons.kwh || 0;
-    const minimoAplica = settings?.consumoMinimo !== undefined ? settings.consumoMinimo : 6;
-    const esMinimo = kwh * tarifaAplicada < minimoAplica;
+    const tableBody: any[][] = [];
+    let totalMontoCalculado = 0;
 
-    const formatCurrencyStr = (val: number) => new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(val);
-
-    const tableBody: any[][] = [
-      [
-        'Consumo Eléctrico' + (esMinimo ? ` (Mín. S/ ${minimoAplica.toFixed(2)})` : ''),
-        kwh.toString(),
-        tarifaAplicada.toFixed(2),
-        formatCurrencyStr(cons.montoCalculado)
-      ]
-    ];
+    if (cons && cons.estadoPago === 'PENDIENTE') {
+      tableBody.push([
+        'Consumo Eléctrico' + (testEsMinimo ? ` (Mín. S/ ${testMinimoAplica.toFixed(2)})` : ''),
+        currentKwh.toString(), testTarifaAplicada.toFixed(2), calcFormatCurrencyStr(cons.montoCalculado)
+      ]);
+      totalMontoCalculado += cons.montoCalculado;
+    }
 
     if (debtInfo.previousUnpaid && debtInfo.previousUnpaid.length > 0) {
       const totalDeudaAnterior = debtInfo.previousUnpaid.reduce((acc, unpaid) => acc + unpaid.montoCalculado, 0);
       tableBody.push([
-        'Deuda Anterior',
-        '-',
-        '-',
-        formatCurrencyStr(totalDeudaAnterior)
+        'Deuda Anterior', '-', '-', calcFormatCurrencyStr(totalDeudaAnterior)
       ]);
     }
 
-    const totalAPagar = cons.montoCalculado + debtInfo.totalDeuda;
+    const totalAPagar = totalMontoCalculado + debtInfo.totalDeuda;
 
     autoTable(doc, {
-      startY: 65,
+      startY: yOffset + 39,
       head: [['Descripción', 'Cantidad (kWh)', 'Precio (S/)', 'Subtotal']],
       body: tableBody,
       theme: 'grid',
-      headStyles: { fillColor: [15, 23, 42] }
+      headStyles: { fillColor: [15, 23, 42] },
+      styles: { fontSize: 8, cellPadding: 1 },
+      margin: { left: 14, right: 14 }
     });
 
-    const finalY = (doc as any).lastAutoTable.finalY || 120;
-    doc.setFontSize(18);
-    doc.text(`Total a Pagar: ${formatCurrencyStr(totalAPagar)}`, 196, finalY + 12, { align: 'right' });
+    const finalY = (doc as any).lastAutoTable.finalY || yOffset + 43;
+    doc.setFontSize(16);
+    doc.text(`Total a Pagar: ${calcFormatCurrencyStr(totalAPagar)}`, 196, finalY + 6, { align: 'right' });
 
     doc.save(`Recibo_${client.codigoSuministro}_${cons.mes}.pdf`);
   };
