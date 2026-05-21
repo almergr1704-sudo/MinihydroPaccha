@@ -32,6 +32,8 @@ export interface Consumption {
   fechaLectura: string;
   mes: string; // YYYY-MM
   kwh: number;
+  lecturaAnterior?: number;
+  lecturaActual?: number;
   montoCalculado: number;
   estadoPago: PaymentStatus;
 }

@@ -23,12 +23,31 @@ export default function Consumo() {
 
   const [formData, setFormData] = useState({
     clientAndSuministro: '',
-    kwh: ''
+    lecturaAnterior: '',
+    lecturaActual: ''
   });
+
+  const selectedClient = formData.clientAndSuministro ? clients.find(c => c.id === formData.clientAndSuministro.split('|')[0]) : undefined;
+  const selectedClientConsumptions = selectedClient 
+    ? consumptions.filter(c => c.clientId === selectedClient.id && c.codigoSuministro === formData.clientAndSuministro.split('|')[1]).sort((a,b) => a.mes.localeCompare(b.mes))
+    : [];
+  
+  const isFirstReading = selectedClientConsumptions.length === 0;
+  let previousAccumulated = 0;
+  if (!isFirstReading) {
+    const sumKwh = selectedClientConsumptions.reduce((a, b) => a + (b.kwh || 0), 0);
+    const initialLAnterior = selectedClientConsumptions[0].lecturaAnterior || 0;
+    previousAccumulated = initialLAnterior + sumKwh;
+  }
+  
+  const currentLecturaAnterior = isFirstReading ? formData.lecturaAnterior : previousAccumulated.toString();
+  const currentKwh = Math.max(0, Number(formData.lecturaActual) - Number(currentLecturaAnterior));
+
+  const ultimaLectura = selectedClientConsumptions.length > 0 ? selectedClientConsumptions[selectedClientConsumptions.length - 1] : null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.clientAndSuministro || !formData.kwh) return;
+    if (!formData.clientAndSuministro || !formData.lecturaActual || (isFirstReading && !formData.lecturaAnterior)) return;
     
     const [clientId, codigoSuministro] = formData.clientAndSuministro.split('|');
 
@@ -43,18 +62,20 @@ export default function Consumo() {
       return;
     }
 
-    if (!window.confirm(`¿Está seguro de guardar la lectura para el periodo ${selectedMes}?`)) return;
+    if (!window.confirm(`¿Está seguro de guardar la lectura para el periodo ${selectedMes}? \nConsumo calculado: ${currentKwh} kWh`)) return;
 
     addConsumption({
       clientId,
       codigoSuministro,
-      kwh: Number(formData.kwh),
+      kwh: currentKwh,
+      lecturaAnterior: Number(currentLecturaAnterior),
+      lecturaActual: Number(formData.lecturaActual),
       fechaLectura: new Date().toISOString(),
       mes: selectedMes,
     });
     
     setIsModalOpen(false);
-    setFormData({ clientAndSuministro: '', kwh: '' });
+    setFormData({ clientAndSuministro: '', lecturaAnterior: '', lecturaActual: '' });
   };
 
     const getDebtInfo = (clientId: string, codigoSuministro: string, currentMes: string, hasPendingCurrent: boolean = false) => {
@@ -197,17 +218,33 @@ export default function Consumo() {
 
       // Client Info
       doc.setFontSize(10);
-      doc.text(`Cliente: ${clientName} (DNI/RUC: ${client.dni})`, 14, yOffset + 24);
+      const clientDniText = client.tipoPersona === 'EMPRESA' ? ` (RUC: ${client.dni})` : '';
+      doc.text(`Cliente: ${clientName}${clientDniText}`, 14, yOffset + 24);
       doc.text(`Dirección: ${client.direccion} ${client.numeroDireccion ? `N° ${client.numeroDireccion}` : ''}`, 14, yOffset + 29);
       doc.text(`Tipo: ${client.tipo} | Suministro: ${codigoSuministro}`, 14, yOffset + 34);
 
       // Consumos
+      const allCons = consumptions
+        .filter(c => c.clientId === client.id && c.codigoSuministro === codigoSuministro)
+        .sort((a,b) => a.mes.localeCompare(b.mes));
+      
+      let calcLecturaAnterior = 0;
+      let calcLecturaActual = 0;
       const currentKwh = currentReading ? currentReading.kwh || 0 : 0;
-      const sortedCons = consumptions
-        .filter(c => c.clientId === client.id && c.codigoSuministro === codigoSuministro && c.mes < selectedMes)
-        .sort((a,b) => b.mes.localeCompare(a.mes));
-      const prevKwh = sortedCons.length > 0 ? sortedCons[0].kwh || 0 : 0;
-      doc.text(`Consumo Actual: ${currentKwh} kWh  |  Consumo Anterior: ${prevKwh} kWh`, 14, yOffset + 40);
+      
+      if (currentReading) {
+        if (currentReading.lecturaAnterior !== undefined && currentReading.lecturaActual !== undefined) {
+           calcLecturaAnterior = currentReading.lecturaAnterior;
+           calcLecturaActual = currentReading.lecturaActual;
+        } else {
+           const pastCons = allCons.filter(c => c.mes < selectedMes);
+           const initialL = allCons.length > 0 && allCons[0].lecturaAnterior !== undefined ? allCons[0].lecturaAnterior : 0;
+           calcLecturaAnterior = initialL + pastCons.reduce((acc, c) => acc + (c.kwh || 0), 0);
+           calcLecturaActual = calcLecturaAnterior + currentKwh;
+        }
+      }
+
+      doc.text(`Consumo Actual: ${calcLecturaActual}  |  Consumo Anterior: ${calcLecturaAnterior}  |  Consumo de kWh: ${currentKwh}`, 14, yOffset + 40);
 
       // Draw Chart
       const historyCons = consumptions
@@ -349,17 +386,33 @@ export default function Consumo() {
     // Client Info
     doc.text('Datos del Cliente:', 14, 60);
     doc.text(`Nombre: ${clientName}`, 14, 65);
-    doc.text(`${client.tipoPersona === 'EMPRESA' ? 'RUC' : 'DNI'}: ${client.dni}`, 14, 70);
+    if (client.tipoPersona === 'EMPRESA') {
+      doc.text(`RUC: ${client.dni}`, 14, 70);
+    }
     doc.text(`Dirección: ${client.direccion} ${client.numeroDireccion ? `N° ${client.numeroDireccion}` : ''}`, 14, 75);
     doc.text(`Tipo de Cliente: ${client.tipo}`, 14, 80);
     doc.text(`Suministro: ${codSuministro}`, 14, 85);
 
     // Consumos
-    const sortedCons = consumptions
-      .filter(c => c.clientId === client.id && c.codigoSuministro === codSuministro && c.mes < cons.mes)
-      .sort((a,b) => b.mes.localeCompare(a.mes));
-    const prevKwh = sortedCons.length > 0 ? sortedCons[0].kwh || 0 : 0;
-    doc.text(`Consumo Actual: ${cons.kwh || 0} kWh  |  Consumo Anterior: ${prevKwh} kWh`, 14, 95);
+    const allCons = consumptions
+      .filter(c => c.clientId === client.id && c.codigoSuministro === codSuministro)
+      .sort((a,b) => a.mes.localeCompare(b.mes));
+    
+    let calcLecturaAnterior = 0;
+    let calcLecturaActual = 0;
+    const currentKwh = cons.kwh || 0;
+    
+    if (cons.lecturaAnterior !== undefined && cons.lecturaActual !== undefined) {
+      calcLecturaAnterior = cons.lecturaAnterior;
+      calcLecturaActual = cons.lecturaActual;
+    } else {
+      const pastCons = allCons.filter(c => c.mes < cons.mes);
+      const initialL = allCons.length > 0 && allCons[0].lecturaAnterior !== undefined ? allCons[0].lecturaAnterior : 0;
+      calcLecturaAnterior = initialL + pastCons.reduce((acc, c) => acc + (c.kwh || 0), 0);
+      calcLecturaActual = calcLecturaAnterior + currentKwh;
+    }
+
+    doc.text(`Consumo Actual: ${calcLecturaActual}  |  Consumo Anterior: ${calcLecturaAnterior}  |  Consumo de kWh: ${currentKwh}`, 14, 95);
 
     // Draw Chart
     const historyCons = consumptions
@@ -470,16 +523,10 @@ export default function Consumo() {
     if (!clientSearch) return true;
     const searchLower = clientSearch.toLowerCase();
     const fullName = c.nombre ? c.nombre.toLowerCase() : `${c.nombres || ''} ${c.apellidos || ''}`.toLowerCase();
-    return c.codigoSuministro.toLowerCase().includes(searchLower) ||
-           c.dni.includes(searchLower) ||
-           fullName.includes(searchLower);
+    return (c.codigoSuministro?.toLowerCase().includes(searchLower) ||
+           c.dni?.includes(searchLower) ||
+           fullName.includes(searchLower)) ?? false;
   }).filter(c => c.estado === 'ACTIVO' || c.estado === 'CORTADO');
-
-  const selectedClient = formData.clientAndSuministro ? clients.find(c => c.id === formData.clientAndSuministro.split('|')[0]) : undefined;
-  const selectedClientConsumptions = selectedClient 
-    ? consumptions.filter(c => c.clientId === selectedClient.id && c.codigoSuministro === formData.clientAndSuministro.split('|')[1]).sort((a,b) => new Date(b.fechaLectura).getTime() - new Date(a.fechaLectura).getTime())
-    : [];
-  const ultimaLectura = selectedClientConsumptions.length > 0 ? selectedClientConsumptions[0] : null;
 
   return (
     <div className="space-y-6">
@@ -685,29 +732,44 @@ export default function Consumo() {
                         </div>
                       )}
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-300">Consumo (kWh)</label>
-                      <input 
-                        type="number" 
-                        min="0" 
-                        step="1"
-                        required 
-                        value={formData.kwh} 
-                        onChange={e => setFormData({...formData, kwh: e.target.value})} 
-                        className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" 
-                      />
-                      {formData.clientAndSuministro && formData.kwh && (
-                        <p className="mt-2 text-sm text-slate-400 font-medium">
-                          Monto estimado: {formatCurrency(Math.max((Number(formData.kwh) || 0) * (
-                            clients.find(c => c.id === formData.clientAndSuministro.split('|')[0])?.faseSuministro === 'TRIFASICO' && (settings?.costoTrifasico || 0) > 0
-                              ? (settings?.costoTrifasico || 0)
-                              : clients.find(c => c.id === formData.clientAndSuministro.split('|')[0])?.tipo === 'SOCIO' 
-                                ? (settings?.costoSocio || 0.20)
-                                : (settings?.costoUsuario || 0.30)
-                          ), settings?.consumoMinimo !== undefined ? settings.consumoMinimo : 6))}
-                        </p>
-                      )}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300">Lectura Anterior (kWh)</label>
+                        <input 
+                          type="number" 
+                          min="0" 
+                          step="1"
+                          readOnly={!isFirstReading}
+                          required 
+                          value={isFirstReading ? formData.lecturaAnterior : previousAccumulated} 
+                          onChange={e => setFormData({...formData, lecturaAnterior: e.target.value})} 
+                          className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-slate-800 text-slate-300" 
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300">Lectura Actual (kWh)</label>
+                        <input 
+                          type="number" 
+                          min="0" 
+                          step="1"
+                          required 
+                          value={formData.lecturaActual} 
+                          onChange={e => setFormData({...formData, lecturaActual: e.target.value})} 
+                          className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" 
+                        />
+                      </div>
                     </div>
+                    {formData.clientAndSuministro && formData.lecturaActual && (
+                      <p className="mt-2 text-sm text-slate-400 font-medium">
+                        Consumo: {currentKwh} kWh | Monto: {formatCurrency(Math.max((currentKwh) * (
+                          clients.find(c => c.id === formData.clientAndSuministro.split('|')[0])?.faseSuministro === 'TRIFASICO' && (settings?.costoTrifasico || 0) > 0
+                            ? (settings?.costoTrifasico || 0)
+                            : clients.find(c => c.id === formData.clientAndSuministro.split('|')[0])?.tipo === 'SOCIO' 
+                              ? (settings?.costoSocio || 0.20)
+                              : (settings?.costoUsuario || 0.30)
+                        ), settings?.consumoMinimo !== undefined ? settings.consumoMinimo : 6))}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="bg-slate-800/50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
