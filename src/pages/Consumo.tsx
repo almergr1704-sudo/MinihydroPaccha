@@ -200,29 +200,29 @@ export default function Consumo() {
       // Header
       doc.setFontSize(16);
       doc.text('Mini Central Hidroeléctrica PACCHA', 14, yOffset + 6);
-      doc.setFontSize(12);
-      doc.text('Recibo de Consumo', 14, yOffset + 12);
-      
+
       if (debtInfo.warning) {
         doc.setFontSize(9);
         doc.setTextColor(220, 38, 38); // Red
         const extReconexion = (settings?.costoReconexion || 0).toFixed(2);
-        doc.text('SERVICIO PARA CORTE', 196, yOffset + 8, { align: 'right' });
-        doc.text(`Reconexión S/ ${extReconexion}`, 196, yOffset + 12, { align: 'right' });
+        doc.text('SERVICIO PARA CORTE', 196, yOffset + 6, { align: 'right' });
+        doc.text(`Reconexión S/ ${extReconexion}`, 196, yOffset + 10, { align: 'right' });
         doc.setTextColor(0, 0, 0); // Reset
       }
+
+      doc.setFontSize(10);
+      doc.text(`Recibo de Consumo | Suministro: ${codigoSuministro} | Tipo: ${client.tipo}`, 14, yOffset + 12);
       
-      doc.setFontSize(9);
       const docState = currentReading ? currentReading.estadoPago : 'PENDIENTE';
-      doc.text(`Fecha Emisión: ${format(new Date(), 'dd MMM yyyy')} | Periodo: ${selectedMes} | Estado: ${docState}`, 14, yOffset + 18);
+      doc.setFontSize(9);
+      doc.text(`Fecha Emisión: ${format(new Date(), 'dd MMM yyyy')} | Periodo: ${selectedMes} | Estado: ${docState} Cliente:`, 14, yOffset + 18);
 
       // Client Info
       doc.setFontSize(10);
       const clientDniText = client.tipoPersona === 'EMPRESA' ? ` (RUC: ${client.dni})` : '';
-      doc.text(`Cliente: ${clientName}${clientDniText}`, 14, yOffset + 24);
-      doc.text(`Dirección: ${client.direccion} ${client.numeroDireccion ? `N° ${client.numeroDireccion}` : ''}`, 14, yOffset + 29);
-      doc.text(`Tipo: ${client.tipo} | Suministro: ${codigoSuministro}`, 14, yOffset + 34);
-
+      doc.text(`${clientName}${clientDniText}`, 14, yOffset + 23);
+      doc.text(`Dirección: ${client.direccion} ${client.numeroDireccion ? `N° ${client.numeroDireccion}` : ''}`, 14, yOffset + 28);
+      
       // Consumos
       const allCons = consumptions
         .filter(c => c.clientId === client.id && c.codigoSuministro === codigoSuministro)
@@ -244,7 +244,7 @@ export default function Consumo() {
         }
       }
 
-      doc.text(`Consumo Actual: ${calcLecturaActual}  |  Consumo Anterior: ${calcLecturaAnterior}  |  Consumo de kWh: ${currentKwh}`, 14, yOffset + 40);
+      doc.text(`Lectura actual: ${calcLecturaActual} kWh | Lectura anterior: ${calcLecturaAnterior} kWh | Consumo de kWh: ${currentKwh}`, 14, yOffset + 34);
 
       // Draw Chart
       const historyCons = consumptions
@@ -338,7 +338,7 @@ export default function Consumo() {
       });
 
       const finalY = (doc as any).lastAutoTable.finalY || yOffset + 45;
-      doc.setFontSize(12);
+      doc.setFontSize(16);
       doc.text(`Total a Pagar: ${formatCurrencyStr(totalAPagar)}`, 196, finalY + 8, { align: 'right' });
       
       // Draw a cut line
@@ -361,10 +361,8 @@ export default function Consumo() {
     const doc = new jsPDF();
     
     // Header
-    doc.setFontSize(20);
+    doc.setFontSize(22);
     doc.text('Mini Central Hidroeléctrica PACCHA', 14, 22);
-    doc.setFontSize(12);
-    doc.text('Recibo de Consumo Eléctrico', 14, 30);
     
     const codSuministro = cons.codigoSuministro || client.codigoSuministro;
     const debtInfo = getDebtInfo(client.id, codSuministro || '', cons.mes, cons.estadoPago === 'PENDIENTE');
@@ -373,25 +371,22 @@ export default function Consumo() {
       doc.setFontSize(10);
       doc.setTextColor(220, 38, 38); // Red
       const extReconexion = (settings?.costoReconexion || 0).toFixed(2);
-      doc.text('SERVICIO PARA CORTE', 196, 26, { align: 'right' });
-      doc.text(`Reconexión S/ ${extReconexion}`, 196, 31, { align: 'right' });
+      doc.text('SERVICIO PARA CORTE', 196, 20, { align: 'right' });
+      doc.text(`Reconexión S/ ${extReconexion}`, 196, 26, { align: 'right' });
       doc.setTextColor(0, 0, 0); // Reset
     }
 
+    doc.setFontSize(14);
+    doc.text(`Recibo de Consumo | Suministro: ${codSuministro} | Tipo: ${client.tipo}`, 14, 30);
+    
     doc.setFontSize(10);
-    doc.text(`Fecha de Emisión: ${format(new Date(), 'dd MMM yyyy')}`, 14, 40);
-    doc.text(`Periodo Facturado: ${cons.mes}`, 14, 45);
-    doc.text(`Estado: ${cons.estadoPago}`, 14, 50);
+    doc.text(`Fecha Emisión: ${format(new Date(), 'dd MMM yyyy')} | Periodo: ${cons.mes} | Estado: ${cons.estadoPago} Cliente:`, 14, 38);
 
     // Client Info
-    doc.text('Datos del Cliente:', 14, 60);
-    doc.text(`Nombre: ${clientName}`, 14, 65);
-    if (client.tipoPersona === 'EMPRESA') {
-      doc.text(`RUC: ${client.dni}`, 14, 70);
-    }
-    doc.text(`Dirección: ${client.direccion} ${client.numeroDireccion ? `N° ${client.numeroDireccion}` : ''}`, 14, 75);
-    doc.text(`Tipo de Cliente: ${client.tipo}`, 14, 80);
-    doc.text(`Suministro: ${codSuministro}`, 14, 85);
+    doc.setFontSize(12);
+    const clientDniText = client.tipoPersona === 'EMPRESA' ? ` (RUC: ${client.dni})` : '';
+    doc.text(`${clientName}${clientDniText}`, 14, 45);
+    doc.text(`Dirección: ${client.direccion} ${client.numeroDireccion ? `N° ${client.numeroDireccion}` : ''}`, 14, 52);
 
     // Consumos
     const allCons = consumptions
@@ -412,7 +407,7 @@ export default function Consumo() {
       calcLecturaActual = calcLecturaAnterior + currentKwh;
     }
 
-    doc.text(`Consumo Actual: ${calcLecturaActual}  |  Consumo Anterior: ${calcLecturaAnterior}  |  Consumo de kWh: ${currentKwh}`, 14, 95);
+    doc.text(`Lectura actual: ${calcLecturaActual} kWh | Lectura anterior: ${calcLecturaAnterior} kWh | Consumo de kWh: ${currentKwh}`, 14, 60);
 
     // Draw Chart
     const historyCons = consumptions
@@ -422,7 +417,7 @@ export default function Consumo() {
       .reverse();
     
     const chartX = 135;
-    const chartY = 32;
+    const chartY = 36;
     const chartW = 60;
     const chartH = 22;
     
@@ -497,16 +492,16 @@ export default function Consumo() {
     const totalAPagar = cons.montoCalculado + debtInfo.totalDeuda;
 
     autoTable(doc, {
-      startY: 105,
-      head: [['Descripción', 'Cantidad (kWh)', 'Precio Unitario (S/)', 'Subtotal']],
+      startY: 65,
+      head: [['Descripción', 'Cantidad (kWh)', 'Precio (S/)', 'Subtotal']],
       body: tableBody,
       theme: 'grid',
       headStyles: { fillColor: [15, 23, 42] }
     });
 
     const finalY = (doc as any).lastAutoTable.finalY || 120;
-    doc.setFontSize(14);
-    doc.text(`Total a Pagar: ${formatCurrencyStr(totalAPagar)}`, 196, finalY + 10, { align: 'right' });
+    doc.setFontSize(18);
+    doc.text(`Total a Pagar: ${formatCurrencyStr(totalAPagar)}`, 196, finalY + 12, { align: 'right' });
 
     doc.save(`Recibo_${client.codigoSuministro}_${cons.mes}.pdf`);
   };
