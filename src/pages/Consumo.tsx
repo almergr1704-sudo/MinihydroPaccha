@@ -183,14 +183,18 @@ export default function Consumo() {
     const doc = new jsPDF({ format: 'a4' });
     let yOffset = 10;
     const maxH = 297;
-    const receiptHeight = 71; // 4 receipts per page
 
     const formatCurrencyStr = (val: number) => new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(val);
 
     suppliesToInvoice.forEach((item, index) => {
       const { client, codigoSuministro, currentReading, debtInfo } = item;
       
-      if (yOffset + receiptHeight > maxH) {
+      const numRows = (currentReading && currentReading.estadoPago === 'PENDIENTE' ? 1 : 0) 
+                    + Math.min(debtInfo.previousUnpaid.length, 3) 
+                    + (debtInfo.previousUnpaid.length > 3 ? 1 : 0);
+      const estimatedHeight = 55 + (numRows * 7) + 20;
+
+      if (yOffset + estimatedHeight > maxH - 10) {
         doc.addPage();
         yOffset = 10;
       }
@@ -341,12 +345,14 @@ export default function Consumo() {
       doc.setFontSize(16);
       doc.text(`Total a Pagar: ${formatCurrencyStr(totalAPagar)}`, 196, finalY + 8, { align: 'right' });
       
+      const currentReceiptBottom = finalY + 12;
+
       // Draw a cut line
       doc.setLineDashPattern([2, 2], 0);
-      doc.line(10, yOffset + receiptHeight - 1, 200, yOffset + receiptHeight - 1);
+      doc.line(10, currentReceiptBottom, 200, currentReceiptBottom);
       doc.setLineDashPattern([], 0); // reset
 
-      yOffset = yOffset + receiptHeight;
+      yOffset = currentReceiptBottom + 5;
     });
 
     doc.save(`Recibos_Masivos_${selectedMes}.pdf`);
