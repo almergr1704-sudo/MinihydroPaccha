@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Save } from 'lucide-react';
+import { Settings, Save, KeyRound } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Card, CardContent, CardTitle, Button } from '../components/ui';
+import CryptoJS from 'crypto-js';
 
 export default function Configuracion() {
-  const { settings, updateSettings, userRole } = useAppContext();
+  const { settings, updateSettings, userRole, user, updateAdmin, admins } = useAppContext();
   const [formData, setFormData] = useState({
     costoSocio: 0.20,
     costoUsuario: 0.30,
@@ -12,6 +13,12 @@ export default function Configuracion() {
     multaReunion: 40,
     costoReconexion: 0.00,
     consumoMinimo: 6.00
+  });
+
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
   });
 
   useEffect(() => {
@@ -33,6 +40,42 @@ export default function Configuracion() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: parseFloat(value) || 0 }));
+  };
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) {
+      alert('No se pudo identificar al usuario actual.');
+      return;
+    }
+
+    const currentAdmin = admins.find(a => a.email === user.email);
+    if (!currentAdmin) {
+      alert('Usuario no encontrado en la base de datos.');
+      return;
+    }
+
+    const hashedCurrent = CryptoJS.SHA256(passwordForm.currentPassword).toString();
+    if (hashedCurrent !== currentAdmin.password) {
+      alert('La contraseña actual es incorrecta.');
+      return;
+    }
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      alert('Las contraseñas no coinciden.');
+      return;
+    }
+
+    const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{6,}$/;
+    if (!passwordPattern.test(passwordForm.newPassword)) {
+      alert('La nueva contraseña debe tener al menos 6 caracteres, incluir una letra mayúscula, una minúscula, un número y un carácter especial.');
+      return;
+    }
+
+    const hashedPassword = CryptoJS.SHA256(passwordForm.newPassword).toString();
+    await updateAdmin(currentAdmin.id, { password: hashedPassword });
+    alert('Contraseña actualizada correctamente.');
+    setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
   };
 
   return (
@@ -178,6 +221,64 @@ export default function Configuracion() {
                   Guardar Configuración
                 </Button>
               )}
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="p-6">
+          <form onSubmit={handlePasswordChange} className="space-y-6">
+            <h3 className="text-lg font-medium text-slate-200 border-b border-slate-700 pb-2 flex items-center">
+              <KeyRound className="w-5 h-5 mr-2 text-slate-400" />
+              Cambiar mi Contraseña
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-slate-300">Contraseña Actual</label>
+                <div className="mt-1">
+                  <input 
+                    type="password"
+                    required
+                    value={passwordForm.currentPassword}
+                    onChange={(e) => setPasswordForm(prev => ({ ...prev, currentPassword: e.target.value }))}
+                    className="block w-full max-w-md bg-[#0B0E14] border border-slate-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-slate-100 placeholder-slate-500" 
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-300">Nueva Contraseña</label>
+                <div className="mt-1">
+                  <input 
+                    type="password"
+                    required
+                    minLength={6}
+                    value={passwordForm.newPassword}
+                    onChange={(e) => setPasswordForm(prev => ({ ...prev, newPassword: e.target.value }))}
+                    className="block w-full bg-[#0B0E14] border border-slate-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-slate-100 placeholder-slate-500" 
+                    placeholder="Mínimo 6 caracteres"
+                  />
+                </div>
+                <p className="mt-1 text-xs text-slate-400">Debe incluir mayúscula, minúscula, número y carácter especial (@$!%*?&).</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-300">Confirmar Contraseña</label>
+                <div className="mt-1">
+                  <input 
+                    type="password"
+                    required
+                    minLength={6}
+                    value={passwordForm.confirmPassword}
+                    onChange={(e) => setPasswordForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                    className="block w-full bg-[#0B0E14] border border-slate-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-slate-100 placeholder-slate-500" 
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end pt-4 border-t border-slate-800">
+              <Button type="submit" className="bg-slate-700 hover:bg-slate-600 text-white border-0">
+                Actualizar Contraseña
+              </Button>
             </div>
           </form>
         </CardContent>

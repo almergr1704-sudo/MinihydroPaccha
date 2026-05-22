@@ -18,7 +18,7 @@ export const render3DPieChartToDataURL = (
 ): string => {
   const canvas = document.createElement('canvas');
   canvas.width = 600;
-  canvas.height = 420;
+  canvas.height = 450;
   const ctx = canvas.getContext('2d');
   if (!ctx) return '';
   
@@ -91,7 +91,9 @@ export const render3DPieChartToDataURL = (
     return { text, color: slice.color, width };
   });
 
-  let legendY = cy + h + 40;
+  // The 3D pie's bottom edge reaches cy + h + ry = 200 + 45 + 90 = 335.
+  // Start the legend below this point.
+  let legendY = cy + h + ry + 30; // 365
   
   // Arrange items in rows
   let rows: {text: string, color: string, width: number}[][] = [[]];

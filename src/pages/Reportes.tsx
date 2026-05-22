@@ -159,14 +159,14 @@ export default function Reportes() {
     }
 
     if (chartData.length > 0) {
-       let finalChartY = type === 'CONSOLIDADO' ? ((doc as any).lastAutoTable.finalY + 10) : (afterTableY + 15);
-       if (finalChartY + 85 > 290) {
+       let finalChartY = type === 'CONSOLIDADO' ? ((doc as any).lastAutoTable.finalY + 15) : (afterTableY + 20);
+       if (finalChartY + 95 > 290) { // Using 95 as required space
           doc.addPage();
           finalChartY = 20;
        }
        const imgData = render3DPieChartToDataURL(chartData, type === 'CONSOLIDADO' ? 'Balance General' : `Gráfico de ${type === 'INGRESO' ? 'Ingresos' : 'Egresos'}`);
        if (imgData) {
-          doc.addImage(imgData, 'PNG', 45, finalChartY, 120, 84);
+          doc.addImage(imgData, 'PNG', 25, finalChartY, 160, 120); // Give it more width/height so legends are clearer
        }
     }
 

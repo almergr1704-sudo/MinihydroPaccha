@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Plus, Users, Calendar, AlertCircle, FileText, CheckCircle } from 'lucide-react';
+import { Plus, Users, Calendar, AlertCircle, FileText, CheckCircle, Download, XCircle } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Button, Card, CardContent, Badge, CardHeader, CardTitle } from '../components/ui';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export default function Reuniones() {
   const { clients, meetings, addMeeting, updateMeeting, recordAttendance, userRole } = useAppContext();
@@ -16,12 +17,14 @@ export default function Reuniones() {
 
   const [formData, setFormData] = useState<{
     fecha: string;
+    horaTermino: string;
     motivo: string;
     lugar: string;
     temas: string;
     invitados: 'SOCIO' | 'TODOS';
   }>({
     fecha: new Date().toISOString().slice(0, 16),
+    horaTermino: new Date(Date.now() + 3600000).toISOString().slice(0, 16),
     motivo: '',
     lugar: '',
     temas: '',
@@ -34,16 +37,21 @@ export default function Reuniones() {
     
     addMeeting({
       fecha: new Date(formData.fecha).toISOString(),
+      horaTermino: new Date(formData.horaTermino).toISOString(),
       motivo: formData.motivo,
       asistencia: {}, // Initialize with empty attendance
       lugar: formData.lugar,
       temas: formData.temas,
       invitados: formData.invitados,
-      finalizada: false
+      estado: 'PROGRAMADA'
     });
     
     setIsModalOpen(false);
-    setFormData({ fecha: new Date().toISOString().slice(0, 16), motivo: '', lugar: '', temas: '', invitados: 'SOCIO' });
+    setFormData({ 
+      fecha: new Date().toISOString().slice(0, 16), 
+      horaTermino: new Date(Date.now() + 3600000).toISOString().slice(0, 16),
+      motivo: '', lugar: '', temas: '', invitados: 'SOCIO' 
+    });
   };
 
   const activeMeeting = meetings.find(m => m.id === selectedMeeting);
@@ -147,6 +155,13 @@ export default function Reuniones() {
 
   const handleFinalizarReunion = () => {
     if (!activeMeeting) return;
+    
+    // Check if current time is before the scheduled end time
+    if (activeMeeting.horaTermino && new Date() < new Date(activeMeeting.horaTermino)) {
+      alert('No se puede finalizar la reunión antes de la hora programada de término.');
+      return;
+    }
+
     const unregistered = filteredClientsList.filter(client => !activeMeeting.asistencia[client.id]);
     
     if (unregistered.length > 0) {
@@ -155,7 +170,27 @@ export default function Reuniones() {
     }
 
     if (window.confirm('¿Desea finalizar la reunión? Una vez finalizada no podrá modificar la asistencia.')) {
-        updateMeeting(activeMeeting.id, { finalizada: true });
+        updateMeeting(activeMeeting.id, { estado: 'FINALIZADA', finalizada: true });
+    }
+  };
+
+  const handleIniciarReunion = () => {
+    if (!activeMeeting) return;
+    if (new Date() < new Date(activeMeeting.fecha)) {
+      alert('La hora programada para la reunión aún no ha llegado.');
+      return;
+    }
+    updateMeeting(activeMeeting.id, { estado: 'EN_CURSO' });
+  };
+
+  const handleCancelarReunion = () => {
+    if (!activeMeeting) return;
+    if (activeMeeting.estado && activeMeeting.estado !== 'PROGRAMADA') {
+      alert('Solo se puede cancelar una reunión antes de que haya iniciado.');
+      return;
+    }
+    if (window.confirm('¿Desea cancelar la reunión? Esta acción no se puede deshacer.')) {
+      updateMeeting(activeMeeting.id, { estado: 'CANCELADA', finalizada: true });
     }
   };
 
@@ -256,7 +291,9 @@ export default function Reuniones() {
                     </div>
                     
                     <div className="flex space-x-2 items-center">
-                       {activeMeeting.finalizada ? (
+                       {activeMeeting.estado === 'CANCELADA' ? (
+                         <Badge variant="danger" className="px-3 py-2 text-sm"><XCircle className="w-4 h-4 mr-2"/> Reunión Cancelada</Badge>
+                       ) : activeMeeting.finalizada || activeMeeting.estado === 'FINALIZADA' ? (
                          <>
                            <Badge variant="success" className="px-3 py-2 text-sm"><CheckCircle className="w-4 h-4 mr-2"/> Reunión Finalizada</Badge>
                            <Button variant="outline" onClick={() => handleGenerarReporteAsistencia(activeMeeting)}>
@@ -265,9 +302,28 @@ export default function Reuniones() {
                          </>
                        ) : (
                          userRole !== 'FISCALIZADOR' && (
-                           <Button onClick={handleFinalizarReunion} variant="danger">
-                             Finalizar Reunión
-                           </Button>
+                           <>
+                             {(!activeMeeting.estado || activeMeeting.estado === 'PROGRAMADA') && (
+                               <Button 
+                                 onClick={handleIniciarReunion} 
+                                 className="bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                                 disabled={new Date() < new Date(activeMeeting.fecha)}
+                                 title={new Date() < new Date(activeMeeting.fecha) ? 'La reunión aún no puede iniciar (hora programada futura)' : ''}
+                               >
+                                 Iniciar Reunión
+                               </Button>
+                             )}
+                             {activeMeeting.estado === 'EN_CURSO' && (
+                               <Button onClick={handleFinalizarReunion} variant="danger">
+                                 Finalizar
+                               </Button>
+                             )}
+                             {(!activeMeeting.estado || activeMeeting.estado === 'PROGRAMADA') && (
+                               <Button variant="outline" onClick={handleCancelarReunion} className="text-red-400 border-red-500/30 hover:bg-red-500/10 hover:text-red-300">
+                                 Cancelar
+                               </Button>
+                             )}
+                           </>
                          )
                        )}
                        <Button variant="outline" onClick={handleImprimirCitaciones}>
@@ -278,12 +334,23 @@ export default function Reuniones() {
                  </div>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="bg-yellow-500/10 p-4 border-b border-yellow-500/20 flex items-start space-x-3">
-                   <AlertCircle className="h-5 w-5 text-yellow-500 mt-0.5 flex-shrink-0" />
-                   <p className="text-sm text-yellow-200/80">
-                     Marcar a una persona con <strong>"Falta Injustificada"</strong> penalizará según las reglas.
-                   </p>
-                </div>
+                {activeMeeting.estado === 'EN_CURSO' ? (
+                  <div className="bg-yellow-500/10 p-4 border-b border-yellow-500/20 flex items-start space-x-3">
+                     <AlertCircle className="h-5 w-5 text-yellow-500 mt-0.5 flex-shrink-0" />
+                     <p className="text-sm text-yellow-200/80">
+                       Marcar a una persona con <strong>"Falta Injustificada"</strong> penalizará según las reglas.
+                     </p>
+                  </div>
+                ) : (
+                  <div className="bg-blue-500/10 p-4 border-b border-blue-500/20 flex items-start space-x-3">
+                     <AlertCircle className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
+                     <p className="text-sm text-blue-200/80">
+                       {activeMeeting.estado === 'PROGRAMADA' 
+                         ? 'Debe iniciar la reunión para habilitar el registro de asistencia.' 
+                         : 'El registro de asistencia ya se ha cerrado.'}
+                     </p>
+                  </div>
+                )}
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-slate-800">
                     <thead className="bg-slate-800/50">
@@ -310,7 +377,7 @@ export default function Reuniones() {
                              </td>
                              <td className="px-6 py-4 whitespace-nowrap">
                                <div className="flex space-x-2">
-                                  {(activeMeeting.finalizada || userRole === 'FISCALIZADOR') ? (
+                                  {(activeMeeting.finalizada || userRole === 'FISCALIZADOR' || activeMeeting.estado !== 'EN_CURSO') ? (
                                     <span className={`px-3 py-1 text-xs font-medium rounded-full ${
                                       status === 'ASISTIO' ? 'bg-emerald-500/20 text-emerald-400' :
                                       status === 'FALTA_JUSTIFICADA' ? 'bg-amber-500/20 text-amber-400' :
@@ -381,15 +448,27 @@ export default function Reuniones() {
                     Programar Asamblea / Reunión
                   </h3>
                   <div className="mt-4 space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-300">Fecha y Hora</label>
-                      <input 
-                        type="datetime-local" 
-                        required 
-                        value={formData.fecha} 
-                        onChange={e => setFormData({...formData, fecha: e.target.value})} 
-                        className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" 
-                      />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300">Fecha y Hora de Inicio</label>
+                        <input 
+                          type="datetime-local" 
+                          required 
+                          value={formData.fecha} 
+                          onChange={e => setFormData({...formData, fecha: e.target.value})} 
+                          className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" 
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300">Fecha y Hora de Término</label>
+                        <input 
+                          type="datetime-local" 
+                          required 
+                          value={formData.horaTermino} 
+                          onChange={e => setFormData({...formData, horaTermino: e.target.value})} 
+                          className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" 
+                        />
+                      </div>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-300">Motivo de la Reunión</label>

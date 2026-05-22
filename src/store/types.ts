@@ -52,12 +52,14 @@ export interface Transaction {
 export interface Meeting {
   id: string;
   fecha: string;
+  horaTermino?: string;
   motivo: string;
   asistencia: Record<string, AttendanceStatus>; // clientId -> status
   lugar?: string;
   temas?: string;
   invitados?: 'SOCIO' | 'TODOS';
   finalizada?: boolean;
+  estado?: 'PROGRAMADA' | 'EN_CURSO' | 'FINALIZADA' | 'CANCELADA';
 }
 
 export interface Fine {
