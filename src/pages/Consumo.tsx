@@ -48,6 +48,11 @@ export default function Consumo() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.clientAndSuministro || !formData.lecturaActual || (isFirstReading && !formData.lecturaAnterior)) return;
+
+    if (Number(formData.lecturaActual) < Number(currentLecturaAnterior)) {
+      alert('La lectura actual no puede ser menor a la lectura anterior.');
+      return;
+    }
     
     const [clientId, codigoSuministro] = formData.clientAndSuministro.split('|');
 
@@ -578,10 +583,32 @@ export default function Consumo() {
   const [activeTab, setActiveTab] = useState<'LECTURAS' | 'DEUDAS'>('LECTURAS');
 
   // Filter consumptions by selected month
-  const filteredConsumptions = consumptions.filter(c => c.mes === selectedMes);
+  const [tableSearch, setTableSearch] = useState('');
+
+  const filteredConsumptions = consumptions.filter(c => {
+    if (c.mes !== selectedMes) return false;
+    if (!tableSearch) return true;
+    const client = clients.find(cl => cl.id === c.clientId);
+    if (!client) return false;
+    const searchLower = tableSearch.toLowerCase();
+    const fullName = client.nombre ? client.nombre.toLowerCase() : `${client.nombres || ''} ${client.apellidos || ''}`.toLowerCase();
+    return (c.codigoSuministro?.toLowerCase().includes(searchLower) ||
+           client.dni?.includes(searchLower) ||
+           fullName.includes(searchLower)) ?? false;
+  });
   
   // All pending debts
-  const pendingDebts = consumptions.filter(c => c.estadoPago === 'PENDIENTE').sort((a,b) => new Date(b.fechaLectura).getTime() - new Date(a.fechaLectura).getTime());
+  const pendingDebts = consumptions.filter(c => {
+    if (c.estadoPago !== 'PENDIENTE') return false;
+    if (!tableSearch) return true;
+    const client = clients.find(cl => cl.id === c.clientId);
+    if (!client) return false;
+    const searchLower = tableSearch.toLowerCase();
+    const fullName = client.nombre ? client.nombre.toLowerCase() : `${client.nombres || ''} ${client.apellidos || ''}`.toLowerCase();
+    return (c.codigoSuministro?.toLowerCase().includes(searchLower) ||
+           client.dni?.includes(searchLower) ||
+           fullName.includes(searchLower)) ?? false;
+  }).sort((a,b) => new Date(b.fechaLectura).getTime() - new Date(a.fechaLectura).getTime());
 
   const searchedClients = clients.filter(c => {
     if (!clientSearch) return true;
@@ -638,6 +665,16 @@ export default function Consumo() {
                 Todas las Deudas Pendientes
               </button>
             </nav>
+          </div>
+
+          <div className="p-4 border-b border-slate-800 bg-[#0B0E14]">
+            <input 
+              type="text" 
+              placeholder="Buscar recibos por cliente, DNI o suministro..." 
+              value={tableSearch}
+              onChange={e => setTableSearch(e.target.value)}
+              className="block w-full max-w-md border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100 placeholder-slate-500"
+            />
           </div>
 
           {activeTab === 'LECTURAS' && (
@@ -720,11 +757,9 @@ export default function Consumo() {
                         </Badge>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                        {cons.estadoPago === 'PAGADO' && (
-                          <Button size="sm" variant="ghost" className="text-blue-600" onClick={() => handleGenerateReceipt(cons)}>
-                            <Download className="h-4 w-4 mr-1" /> Recibo
-                          </Button>
-                        )}
+                        <Button size="sm" variant="ghost" className="text-blue-600" onClick={() => handleGenerateReceipt(cons)}>
+                          <Download className="h-4 w-4 mr-1" /> Imprimir Recibo
+                        </Button>
                       </td>
                     </tr>
                   );
