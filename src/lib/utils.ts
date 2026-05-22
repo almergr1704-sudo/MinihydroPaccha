@@ -17,8 +17,8 @@ export const render3DPieChartToDataURL = (
   title: string
 ): string => {
   const canvas = document.createElement('canvas');
-  canvas.width = 500;
-  canvas.height = 350;
+  canvas.width = 600;
+  canvas.height = 420;
   const ctx = canvas.getContext('2d');
   if (!ctx) return '';
   
@@ -27,15 +27,15 @@ export const render3DPieChartToDataURL = (
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   ctx.fillStyle = '#0f172a';
-  ctx.font = 'bold 16px sans-serif';
+  ctx.font = 'bold 20px sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText(title, canvas.width / 2, 30);
+  ctx.fillText(title, canvas.width / 2, 40);
 
   const cx = canvas.width / 2;
-  const cy = 160;
-  const rx = 160;
-  const ry = 80;
-  const h = 40;
+  const cy = 200;
+  const rx = 180;
+  const ry = 90;
+  const h = 45;
 
   const total = data.reduce((sum, d) => sum + d.value, 0);
   if (total === 0) return '';
@@ -80,27 +80,45 @@ export const render3DPieChartToDataURL = (
     });
   }
 
-  // Draw legends - centered
+  // Draw legends - wrapped if needed
   ctx.textAlign = 'left';
-  let totalLegendWidth = 0;
+  
   const legendItems = data.map(slice => {
     const pct = ((slice.value / total) * 100).toFixed(1);
     const text = `${slice.name} (${pct}%)`;
     ctx.font = '14px sans-serif';
     const width = 15 + 10 + ctx.measureText(text).width + 20; // box + space + text + padding
-    totalLegendWidth += width;
     return { text, color: slice.color, width };
   });
 
-  let legendX = (canvas.width - totalLegendWidth) / 2;
-  let legendY = 300;
-
+  let legendY = cy + h + 40;
+  
+  // Arrange items in rows
+  let rows: {text: string, color: string, width: number}[][] = [[]];
+  let currentRowWidth = 0;
+  
   legendItems.forEach(item => {
-      ctx.fillStyle = item.color;
-      ctx.fillRect(legendX, legendY - 12, 15, 15);
-      ctx.fillStyle = '#0f172a';
-      ctx.fillText(item.text, legendX + 25, legendY);
-      legendX += item.width;
+    if (currentRowWidth + item.width > canvas.width - 40 && rows[rows.length - 1].length > 0) {
+       rows.push([item]);
+       currentRowWidth = item.width;
+    } else {
+       rows[rows.length - 1].push(item);
+       currentRowWidth += item.width;
+    }
+  });
+
+  rows.forEach(row => {
+    const rowWidth = row.reduce((sum, item) => sum + item.width, 0);
+    let legendX = (canvas.width - rowWidth) / 2;
+    
+    row.forEach(item => {
+        ctx.fillStyle = item.color;
+        ctx.fillRect(legendX, legendY - 12, 15, 15);
+        ctx.fillStyle = '#0f172a';
+        ctx.fillText(item.text, legendX + 25, legendY);
+        legendX += item.width;
+    });
+    legendY += 25;
   });
 
   return canvas.toDataURL('image/png');

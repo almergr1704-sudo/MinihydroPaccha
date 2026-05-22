@@ -7,7 +7,7 @@ import { es } from 'date-fns/locale';
 import { jsPDF } from 'jspdf';
 
 export default function Reuniones() {
-  const { clients, meetings, addMeeting, updateMeeting, recordAttendance } = useAppContext();
+  const { clients, meetings, addMeeting, updateMeeting, recordAttendance, userRole } = useAppContext();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedMeeting, setSelectedMeeting] = useState<string | null>(null);
   const [attendanceFilter, setAttendanceFilter] = useState<'SOCIO' | 'TODOS'>('SOCIO');
@@ -159,6 +159,38 @@ export default function Reuniones() {
     }
   };
 
+  const handleGenerarReporteAsistencia = (meeting: typeof activeMeeting) => {
+    if (!meeting) return;
+    const doc = new jsPDF();
+    doc.text(`Reporte de Asistencia`, 14, 20);
+    doc.setFontSize(12);
+    doc.text(`Motivo: ${meeting.motivo}`, 14, 28);
+    doc.text(`Fecha: ${format(parseISO(meeting.fecha), 'eeee, dd MMM yyyy, HH:mm', { locale: es })}`, 14, 34);
+
+    const data: any[][] = [];
+    filteredClientsList.forEach(client => {
+      const status = meeting.asistencia[client.id] || 'NO_REGISTRADO';
+      const labelStatus = 
+          status === 'ASISTIO' ? 'Asistió' :
+          status === 'FALTA_JUSTIFICADA' ? 'Falta Just.' :
+          status === 'FALTA_INJUSTIFICADA' ? 'Falta Injust.' : 'No Registrado';
+      data.push([
+        client.codigoSuministro,
+        client.nombre ? client.nombre : `${client.nombres} ${client.apellidos}`,
+        client.dni,
+        labelStatus
+      ]);
+    });
+
+    autoTable(doc, {
+      startY: 42,
+      head: [['Cod.', 'Persona', 'DNI', 'Estado']],
+      body: data,
+    });
+
+    doc.save(`Asistencia_${meeting.motivo.substring(0, 15)}_${format(new Date(), 'yyyyMMdd')}.pdf`);
+  };
+
   return (
     <div className="space-y-6">
       <div className="sm:flex sm:items-center sm:justify-between">
@@ -171,10 +203,12 @@ export default function Reuniones() {
           </p>
         </div>
         <div className="mt-4 sm:mt-0">
-          <Button onClick={() => setIsModalOpen(true)}>
-            <Plus className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
-            Programar Reunión
-          </Button>
+          {userRole !== 'FISCALIZADOR' && (
+            <Button onClick={() => setIsModalOpen(true)}>
+              <Plus className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
+              Programar Reunión
+            </Button>
+          )}
         </div>
       </div>
 
@@ -221,13 +255,20 @@ export default function Reuniones() {
                       </p>
                     </div>
                     
-                    <div className="flex space-x-2">
+                    <div className="flex space-x-2 items-center">
                        {activeMeeting.finalizada ? (
-                         <Badge variant="success" className="px-3 py-1 text-sm"><CheckCircle className="w-4 h-4 mr-2"/> Reunión Finalizada</Badge>
+                         <>
+                           <Badge variant="success" className="px-3 py-2 text-sm"><CheckCircle className="w-4 h-4 mr-2"/> Reunión Finalizada</Badge>
+                           <Button variant="outline" onClick={() => handleGenerarReporteAsistencia(activeMeeting)}>
+                             <Download className="w-4 h-4 mr-2"/> Reporte
+                           </Button>
+                         </>
                        ) : (
-                         <Button onClick={handleFinalizarReunion} variant="danger">
-                           Finalizar Reunión
-                         </Button>
+                         userRole !== 'FISCALIZADOR' && (
+                           <Button onClick={handleFinalizarReunion} variant="danger">
+                             Finalizar Reunión
+                           </Button>
+                         )
                        )}
                        <Button variant="outline" onClick={handleImprimirCitaciones}>
                          <FileText className="w-4 h-4 mr-2"/>
@@ -269,7 +310,7 @@ export default function Reuniones() {
                              </td>
                              <td className="px-6 py-4 whitespace-nowrap">
                                <div className="flex space-x-2">
-                                  {activeMeeting.finalizada ? (
+                                  {(activeMeeting.finalizada || userRole === 'FISCALIZADOR') ? (
                                     <span className={`px-3 py-1 text-xs font-medium rounded-full ${
                                       status === 'ASISTIO' ? 'bg-emerald-500/20 text-emerald-400' :
                                       status === 'FALTA_JUSTIFICADA' ? 'bg-amber-500/20 text-amber-400' :

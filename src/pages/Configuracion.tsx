@@ -22,7 +22,7 @@ export default function Configuracion() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (userRole === 'LECTURISTA') {
+    if (userRole === 'OPERATOR' || userRole === 'FISCALIZADOR') {
       alert('No tiene permisos para modificar la configuración.');
       return;
     }
@@ -172,10 +172,12 @@ export default function Configuracion() {
             </div>
 
             <div className="flex justify-end pt-4 border-t border-slate-800">
-              <Button type="submit" disabled={userRole === 'LECTURISTA'}>
-                <Save className="w-4 h-4 mr-2" />
-                Guardar Configuración
-              </Button>
+              {userRole !== 'FISCALIZADOR' && userRole !== 'OPERATOR' && (
+                <Button type="submit">
+                  <Save className="w-4 h-4 mr-2" />
+                  Guardar Configuración
+                </Button>
+              )}
             </div>
           </form>
         </CardContent>

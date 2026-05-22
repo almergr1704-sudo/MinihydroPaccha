@@ -13,7 +13,7 @@ import { TransactionType, Transaction } from '../store/types';
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
 export default function Finanzas() {
-  const { transactions, addTransaction, clients, consumptions, payConsumption, fines, payFine, settings, updateClient } = useAppContext();
+  const { transactions, addTransaction, clients, consumptions, payConsumption, fines, payFine, settings, updateClient, userRole } = useAppContext();
   const [isModalOpen, setIsModalOpen] = useState<false | 'INGRESO' | 'EGRESO' | 'APTOS_CORTE'>(false);
   const [filterType, setFilterType] = useState<TransactionType | 'TODOS'>('INGRESO');
   const [selectedMes, setSelectedMes] = useState(''); // Empty means All time
@@ -276,14 +276,18 @@ export default function Finanzas() {
             <FileWarning className="-ml-1 mr-2 h-4 w-4" />
             Aptos para corte
           </Button>
-          <Button onClick={() => { setFormData({...formData, tipo: 'INGRESO', categoria: 'OTROS'}); setIsModalOpen('INGRESO'); }} className="bg-emerald-600 hover:bg-emerald-500 text-white border-0">
-            <Plus className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
-            Nuevo Cobro
-          </Button>
-          <Button onClick={() => { setFormData({...formData, tipo: 'EGRESO', categoria: 'MANTENIMIENTO'}); setIsModalOpen('EGRESO'); }} className="bg-red-600 hover:bg-red-500 text-white border-0">
-            <Plus className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
-            Nuevo Pago
-          </Button>
+          {userRole !== 'FISCALIZADOR' && (
+            <>
+              <Button onClick={() => { setFormData({...formData, tipo: 'INGRESO', categoria: 'OTROS'}); setIsModalOpen('INGRESO'); }} className="bg-emerald-600 hover:bg-emerald-500 text-white border-0">
+                <Plus className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
+                Nuevo Cobro
+              </Button>
+              <Button onClick={() => { setFormData({...formData, tipo: 'EGRESO', categoria: 'MANTENIMIENTO'}); setIsModalOpen('EGRESO'); }} className="bg-red-600 hover:bg-red-500 text-white border-0">
+                <Plus className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
+                Nuevo Pago
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -438,14 +442,16 @@ export default function Finanzas() {
                               <div className="text-sm font-medium text-slate-200">{c.codigoSuministro} - {c.nombre ? c.nombre : `${c.nombres} ${c.apellidos}`}</div>
                               <div className="text-xs font-semibold text-red-500 mt-1">{consumptions.filter(cons => cons.clientId === c.id && cons.estadoPago === 'PENDIENTE').length} meses adeudados</div>
                             </div>
-                            <Button size="sm" variant="destructive" className="bg-red-600 hover:bg-red-700 font-semibold" type="button" onClick={() => {
-                              if (window.confirm(`¿Está seguro de cambiar el estado de ${c.codigoSuministro} a CORTADO?`)) {
-                                updateClient(c.id, { estado: 'CORTADO' });
-                              }
-                            }}>
-                              <PowerOff className="w-4 h-4 mr-2" />
-                              Cortar Servicio
-                            </Button>
+                            {userRole !== 'FISCALIZADOR' && (
+                              <Button size="sm" variant="destructive" className="bg-red-600 hover:bg-red-700 font-semibold" type="button" onClick={() => {
+                                if (window.confirm(`¿Está seguro de cambiar el estado de ${c.codigoSuministro} a CORTADO?`)) {
+                                  updateClient(c.id, { estado: 'CORTADO' });
+                                }
+                              }}>
+                                <PowerOff className="w-4 h-4 mr-2" />
+                                Cortar servicio
+                              </Button>
+                            )}
                           </div>
                         ))
                       )}

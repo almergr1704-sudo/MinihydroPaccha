@@ -159,7 +159,7 @@ export default function Reportes() {
     }
 
     if (chartData.length > 0) {
-       let finalChartY = (doc as any).lastAutoTable.finalY + 10;
+       let finalChartY = type === 'CONSOLIDADO' ? ((doc as any).lastAutoTable.finalY + 10) : (afterTableY + 15);
        if (finalChartY + 85 > 290) {
           doc.addPage();
           finalChartY = 20;

@@ -6,9 +6,9 @@ import { Card, CardContent, Badge, Button } from '../components/ui';
 import CryptoJS from 'crypto-js';
 
 export default function Usuarios() {
-  const { admins, updateAdmin, user } = useAppContext();
+  const { admins, updateAdmin, user, userRole } = useAppContext();
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [selectedRole, setSelectedRole] = useState<'ADMIN' | 'OPERATOR' | 'SUPERVISOR'>('OPERATOR');
+  const [selectedRole, setSelectedRole] = useState<'ADMIN' | 'OPERATOR' | 'FISCALIZADOR'>('OPERATOR');
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newEmail, setNewEmail] = useState('');
@@ -16,7 +16,7 @@ export default function Usuarios() {
   const [newNombres, setNewNombres] = useState('');
   const [newApellidos, setNewApellidos] = useState('');
   const [newDni, setNewDni] = useState('');
-  const [newRole, setNewRole] = useState<'ADMIN' | 'OPERATOR' | 'SUPERVISOR'>('OPERATOR');
+  const [newRole, setNewRole] = useState<'ADMIN' | 'OPERATOR' | 'FISCALIZADOR'>('OPERATOR');
   const [creatingUser, setCreatingUser] = useState(false);
 
   const handleUpdateRole = (id: string) => {
@@ -76,10 +76,12 @@ export default function Usuarios() {
           </p>
         </div>
         <div className="mt-4 sm:mt-0">
-          <Button onClick={() => setIsModalOpen(true)} className="flex items-center">
-            <Plus className="mr-2 h-4 w-4" />
-            Crear Usuario Local
-          </Button>
+          {userRole !== 'FISCALIZADOR' && (
+            <Button onClick={() => setIsModalOpen(true)} className="flex items-center">
+              <Plus className="mr-2 h-4 w-4" />
+              Crear Usuario Local
+            </Button>
+          )}
         </div>
       </div>
 
@@ -137,37 +139,41 @@ export default function Usuarios() {
                           className="mt-1 block max-w-[150px] bg-[#0B0E14] text-slate-100 border border-slate-700 rounded-md shadow-sm py-1.5 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                         >
                           <option value="ADMIN">Administrador</option>
-                          <option value="SUPERVISOR">Supervisor</option>
+                          <option value="FISCALIZADOR">Fiscalizador</option>
                           <option value="OPERATOR">Operador</option>
                         </select>
                       ) : (
-                        <Badge variant={admin.role === 'ADMIN' ? 'danger' : admin.role === 'SUPERVISOR' ? 'warning' : 'info'}>
-                          {admin.role}
+                        <Badge variant={admin.role === 'ADMIN' ? 'danger' : admin.role === 'FISCALIZADOR' ? 'warning' : 'info'}>
+                          {admin.role === 'FISCALIZADOR' ? 'FISCALIZADOR' : admin.role}
                         </Badge>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                      {editingId === admin.id ? (
+                      {userRole !== 'FISCALIZADOR' && (
                         <>
-                          <Button size="sm" onClick={() => handleUpdateRole(admin.id)}>
-                            Guardar
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>
-                            Cancelar
-                          </Button>
+                          {editingId === admin.id ? (
+                            <>
+                              <Button size="sm" onClick={() => handleUpdateRole(admin.id)}>
+                                Guardar
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>
+                                Cancelar
+                              </Button>
+                            </>
+                          ) : (
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              onClick={() => {
+                                setEditingId(admin.id);
+                                setSelectedRole(admin.role);
+                              }}
+                              disabled={admin.email === user?.email}
+                            >
+                              Cambiar Rol
+                            </Button>
+                          )}
                         </>
-                      ) : (
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          onClick={() => {
-                            setEditingId(admin.id);
-                            setSelectedRole(admin.role);
-                          }}
-                          disabled={admin.email === user?.email}
-                        >
-                          Cambiar Rol
-                        </Button>
                       )}
                     </td>
                   </tr>
@@ -249,7 +255,7 @@ export default function Usuarios() {
                         className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100"
                       >
                         <option value="OPERATOR">Operador</option>
-                        <option value="SUPERVISOR">Supervisor</option>
+                        <option value="FISCALIZADOR">Fiscalizador</option>
                         <option value="ADMIN">Administrador</option>
                       </select>
                     </div>

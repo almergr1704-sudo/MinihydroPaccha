@@ -11,7 +11,7 @@ import * as XLSX from 'xlsx';
 import { Consumption } from '../store/types';
 
 export default function Consumo() {
-  const { clients, consumptions, addConsumption, settings } = useAppContext();
+  const { clients, consumptions, addConsumption, settings, userRole } = useAppContext();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedMes, setSelectedMes] = useState(() => {
     const d = new Date();
@@ -604,10 +604,12 @@ export default function Consumo() {
           </p>
         </div>
         <div className="mt-4 sm:mt-0">
-          <Button onClick={() => setIsModalOpen(true)}>
-            <Plus className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
-            Registrar Lectura
-          </Button>
+          {userRole !== 'FISCALIZADOR' && (
+            <Button onClick={() => setIsModalOpen(true)}>
+              <Plus className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
+              Registrar Lectura
+            </Button>
+          )}
         </div>
       </div>
 

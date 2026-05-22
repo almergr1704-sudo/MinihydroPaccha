@@ -42,14 +42,14 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<AuthGuard><AppLayout /></AuthGuard>}>
-            <Route index element={<RoleGuard allowedRoles={['ADMIN', 'SUPERVISOR']}><Dashboard /></RoleGuard>} />
-            <Route path="clientes" element={<RoleGuard allowedRoles={['ADMIN', 'SUPERVISOR']}><Clientes /></RoleGuard>} />
-            <Route path="consumo" element={<RoleGuard allowedRoles={['ADMIN', 'SUPERVISOR', 'OPERATOR']}><Consumo /></RoleGuard>} />
-            <Route path="finanzas" element={<RoleGuard allowedRoles={['ADMIN', 'SUPERVISOR']}><Finanzas /></RoleGuard>} />
-            <Route path="reuniones" element={<RoleGuard allowedRoles={['ADMIN', 'SUPERVISOR']}><Reuniones /></RoleGuard>} />
-            <Route path="reportes" element={<RoleGuard allowedRoles={['ADMIN', 'SUPERVISOR']}><Reportes /></RoleGuard>} />
-            <Route path="usuarios" element={<RoleGuard allowedRoles={['ADMIN', 'SUPERVISOR']}><Usuarios /></RoleGuard>} />
-            <Route path="config" element={<RoleGuard allowedRoles={['ADMIN', 'SUPERVISOR']}><Configuracion /></RoleGuard>} />
+            <Route index element={<RoleGuard allowedRoles={['ADMIN', 'FISCALIZADOR']}><Dashboard /></RoleGuard>} />
+            <Route path="clientes" element={<RoleGuard allowedRoles={['ADMIN', 'FISCALIZADOR']}><Clientes /></RoleGuard>} />
+            <Route path="consumo" element={<RoleGuard allowedRoles={['ADMIN', 'FISCALIZADOR', 'OPERATOR']}><Consumo /></RoleGuard>} />
+            <Route path="finanzas" element={<RoleGuard allowedRoles={['ADMIN', 'FISCALIZADOR']}><Finanzas /></RoleGuard>} />
+            <Route path="reuniones" element={<RoleGuard allowedRoles={['ADMIN', 'FISCALIZADOR']}><Reuniones /></RoleGuard>} />
+            <Route path="reportes" element={<RoleGuard allowedRoles={['ADMIN', 'FISCALIZADOR']}><Reportes /></RoleGuard>} />
+            <Route path="usuarios" element={<RoleGuard allowedRoles={['ADMIN', 'FISCALIZADOR']}><Usuarios /></RoleGuard>} />
+            <Route path="config" element={<RoleGuard allowedRoles={['ADMIN', 'FISCALIZADOR']}><Configuracion /></RoleGuard>} />
             <Route path="*" element={
               <div className="flex flex-col items-center justify-center h-full">
                 <h2 className="text-2xl font-bold text-slate-100">Módulo no encontrado</h2>

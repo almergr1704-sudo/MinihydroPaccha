@@ -6,7 +6,7 @@ import { Client, ClientType } from '../store/types';
 import * as XLSX from 'xlsx';
 
 export default function Clientes() {
-  const { clients, addClient, updateClient, settings, consumptions, fines, addTransaction } = useAppContext();
+  const { clients, addClient, updateClient, settings, consumptions, fines, addTransaction, userRole } = useAppContext();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<ClientType | 'TODOS' | 'CORTADO'>('TODOS');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -237,14 +237,18 @@ export default function Clientes() {
             <Download className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
             Descargar Plantilla
           </Button>
-          <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
-            <Upload className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
-            Importar Excel
-          </Button>
-          <Button onClick={() => setIsModalOpen(true)}>
-            <Plus className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
-            Nuevo Registro
-          </Button>
+          {userRole !== 'FISCALIZADOR' && (
+            <>
+              <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+                <Upload className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
+                Importar Excel
+              </Button>
+              <Button onClick={() => setIsModalOpen(true)}>
+                <Plus className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
+                Nuevo Registro
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -348,7 +352,7 @@ export default function Clientes() {
                       </Badge>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                       {aptForCut && (
+                       {userRole !== 'FISCALIZADOR' && aptForCut && (
                           <button 
                             onClick={() => {
                               if(window.confirm('¿Desea marcar el servicio como EN CORTE?')) {
@@ -360,7 +364,7 @@ export default function Clientes() {
                             En corte
                           </button>
                        )}
-                       {client.estado === 'CORTADO' && (
+                       {userRole !== 'FISCALIZADOR' && client.estado === 'CORTADO' && (
                          <button 
                            onClick={() => {
                              if(pendingDebtsCount > 0) {
@@ -376,12 +380,14 @@ export default function Clientes() {
                            Reactivar
                          </button>
                        )}
-                      <button 
-                        onClick={() => openEditModal(client)}
-                        className="text-blue-600 hover:text-blue-900"
-                      >
-                        Editar
-                      </button>
+                      {userRole !== 'FISCALIZADOR' && (
+                        <button 
+                          onClick={() => openEditModal(client)}
+                          className="text-blue-600 hover:text-blue-900"
+                        >
+                          Editar
+                        </button>
+                      )}
                     </td>
                   </tr>
                 )}) : (
