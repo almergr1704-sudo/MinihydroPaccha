@@ -9,7 +9,7 @@ import { toast } from 'react-hot-toast';
 export default function Usuarios() {
   const { admins, updateAdmin, user, userRole } = useAppContext();
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [selectedRole, setSelectedRole] = useState<'ADMIN' | 'OPERATOR' | 'FISCALIZADOR'>('OPERATOR');
+  const [selectedRole, setSelectedRole] = useState<'ADMIN'|'TESORERO'|'OPERATOR'|'FISCALIZADOR'>('OPERATOR');
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newEmail, setNewEmail] = useState('');
@@ -17,7 +17,7 @@ export default function Usuarios() {
   const [newNombres, setNewNombres] = useState('');
   const [newApellidos, setNewApellidos] = useState('');
   const [newDni, setNewDni] = useState('');
-  const [newRole, setNewRole] = useState<'ADMIN' | 'OPERATOR' | 'FISCALIZADOR'>('OPERATOR');
+  const [newRole, setNewRole] = useState<'ADMIN'|'TESORERO'|'OPERATOR'|'FISCALIZADOR'>('OPERATOR');
   const [creatingUser, setCreatingUser] = useState(false);
 
   const handleUpdateRole = (id: string) => {
@@ -140,12 +140,13 @@ export default function Usuarios() {
                           className="mt-1 block max-w-[150px] bg-[#0B0E14] text-slate-100 border border-slate-700 rounded-md shadow-sm py-1.5 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                         >
                           <option value="ADMIN">Administrador</option>
+                          <option value="TESORERO">Tesorero</option>
                           <option value="FISCALIZADOR">Fiscalizador</option>
                           <option value="OPERATOR">Operador</option>
                         </select>
                       ) : (
-                        <Badge variant={admin.role === 'ADMIN' ? 'danger' : admin.role === 'FISCALIZADOR' ? 'warning' : 'info'}>
-                          {admin.role === 'FISCALIZADOR' ? 'FISCALIZADOR' : admin.role}
+                        <Badge variant={admin.role === 'ADMIN' ? 'danger' : admin.role === 'TESORERO' ? 'success' : admin.role === 'FISCALIZADOR' ? 'warning' : 'info'}>
+                          {admin.role}
                         </Badge>
                       )}
                     </td>
@@ -256,6 +257,7 @@ export default function Usuarios() {
                         className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100"
                       >
                         <option value="OPERATOR">Operador</option>
+                        <option value="TESORERO">Tesorero</option>
                         <option value="FISCALIZADOR">Fiscalizador</option>
                         <option value="ADMIN">Administrador</option>
                       </select>

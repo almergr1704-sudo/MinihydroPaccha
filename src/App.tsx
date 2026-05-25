@@ -44,12 +44,12 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<AuthGuard><AppLayout /></AuthGuard>}>
-            <Route index element={<RoleGuard allowedRoles={['ADMIN', 'FISCALIZADOR']}><Dashboard /></RoleGuard>} />
-            <Route path="clientes" element={<RoleGuard allowedRoles={['ADMIN', 'FISCALIZADOR']}><Clientes /></RoleGuard>} />
-            <Route path="consumo" element={<RoleGuard allowedRoles={['ADMIN', 'FISCALIZADOR', 'OPERATOR']}><Consumo /></RoleGuard>} />
-            <Route path="finanzas" element={<RoleGuard allowedRoles={['ADMIN', 'FISCALIZADOR']}><Finanzas /></RoleGuard>} />
-            <Route path="reuniones" element={<RoleGuard allowedRoles={['ADMIN', 'FISCALIZADOR']}><Reuniones /></RoleGuard>} />
-            <Route path="reportes" element={<RoleGuard allowedRoles={['ADMIN', 'FISCALIZADOR']}><Reportes /></RoleGuard>} />
+            <Route index element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><Dashboard /></RoleGuard>} />
+            <Route path="clientes" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><Clientes /></RoleGuard>} />
+            <Route path="consumo" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR', 'OPERATOR']}><Consumo /></RoleGuard>} />
+            <Route path="finanzas" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><Finanzas /></RoleGuard>} />
+            <Route path="reuniones" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><Reuniones /></RoleGuard>} />
+            <Route path="reportes" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><Reportes /></RoleGuard>} />
             <Route path="usuarios" element={<RoleGuard allowedRoles={['ADMIN', 'FISCALIZADOR']}><Usuarios /></RoleGuard>} />
             <Route path="config" element={<RoleGuard allowedRoles={['ADMIN', 'FISCALIZADOR']}><Configuracion /></RoleGuard>} />
             <Route path="*" element={

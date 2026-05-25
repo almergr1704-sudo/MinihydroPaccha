@@ -107,7 +107,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newClient: Client = {
       ...client,
       id: generateId(),
-      fechaRegistro: new Date().toISOString()
+      fechaRegistro: new Date().toISOString(),
+      createdBy: user?.email || 'Unknown'
     };
     setState(prev => {
       const newState = { ...prev, clients: [...prev.clients, newClient] };
@@ -148,6 +149,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         kwh: consumption.kwh || 0,
         montoCalculado,
         estadoPago: 'PENDIENTE',
+        createdBy: user?.email || 'Unknown',
       };
       
       const newState = { ...currentState, consumptions: [...currentState.consumptions, newConsumption] };
@@ -190,7 +192,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...fine,
       id: generateId(),
       estadoPago: 'PENDIENTE',
-      fecha: new Date().toISOString()
+      fecha: new Date().toISOString(),
+      createdBy: user?.email || 'Unknown'
     };
     setState(prev => {
       const newState = { ...prev, fines: [...(prev.fines || []), newFine] };
@@ -221,7 +224,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newTx: Transaction = {
       ...transaction,
       id: generateId(),
-      fecha: new Date().toISOString()
+      fecha: new Date().toISOString(),
+      createdBy: user?.email || 'Unknown'
     };
     // Need to use current state, since this might be called in sequence with other updates
     setState(prev => {
@@ -234,7 +238,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addMeeting = async (meeting: Omit<Meeting, 'id'>) => {
     const newMeeting: Meeting = {
       ...meeting,
-      id: generateId()
+      id: generateId(),
+      createdBy: user?.email || 'Unknown'
     };
     persistState({ ...state, meetings: [...state.meetings, newMeeting] });
   };

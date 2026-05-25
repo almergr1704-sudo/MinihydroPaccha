@@ -23,6 +23,7 @@ export interface Client {
   estado: 'ACTIVO' | 'INACTIVO' | 'CORTADO';
   fechaRegistro: string;
   nombre?: string; // Legacy fallback
+  createdBy?: string; // Para trazabilidad/auditoría
 }
 
 export interface Consumption {
@@ -36,6 +37,7 @@ export interface Consumption {
   lecturaActual?: number;
   montoCalculado: number;
   estadoPago: PaymentStatus;
+  createdBy?: string; // Para trazabilidad/auditoría
 }
 
 export interface Transaction {
@@ -47,6 +49,7 @@ export interface Transaction {
   descripcion: string;
   destinatario?: string; // For egresos
   clientId?: string; // If associated with a specific client (e.g. payment, fine)
+  createdBy?: string; // Para trazabilidad/auditoría
 }
 
 export interface Meeting {
@@ -60,6 +63,7 @@ export interface Meeting {
   invitados?: 'SOCIO' | 'TODOS';
   finalizada?: boolean;
   estado?: 'PROGRAMADA' | 'EN_CURSO' | 'FINALIZADA' | 'CANCELADA';
+  createdBy?: string; // Para trazabilidad/auditoría
 }
 
 export interface Fine {
@@ -70,6 +74,7 @@ export interface Fine {
   motivo: string;
   estadoPago: PaymentStatus;
   fecha: string;
+  createdBy?: string; // Para trazabilidad/auditoría
 }
 
 export interface AppSettings {
