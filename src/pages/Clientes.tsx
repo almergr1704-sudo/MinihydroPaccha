@@ -88,6 +88,12 @@ export default function Clientes() {
     setCurrentPage(1);
   }, [searchTerm, filterType]);
 
+  const ensurePrefix = (s: string) => {
+    const trimmed = s.trim();
+    if (!trimmed) return "";
+    return trimmed.toUpperCase().startsWith('SUM-') ? trimmed.toUpperCase() : `SUM-${trimmed}`;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!window.confirm('¿Está seguro de guardar este registro?')) return;
@@ -120,12 +126,12 @@ export default function Clientes() {
       }
     }
 
-    const suministrosArray = suministrosStr.split(',').map(s => s.trim()).filter(s => s);
+    const suministrosArray = suministrosStr.split(',').map(s => ensurePrefix(s)).filter(s => s);
     const clientData = {
       ...formData,
       apellidos: `${apellidoPaterno} ${apellidoMaterno}`.trim(),
       suministros: suministrosArray,
-      codigoSuministro: suministrosArray[0] || formData.codigoSuministro
+      codigoSuministro: suministrosArray[0] || ensurePrefix(formData.codigoSuministro)
     };
 
     if (editingId) {
@@ -178,7 +184,7 @@ export default function Clientes() {
           const suministroStr = (row.Suministro || row.suministro || row.Suministros || '').toString();
           
           if (nombres || apellidos || dni) {
-            const suministrosArray = suministroStr.split(',').map((s: string) => s.trim()).filter((s: string) => s);
+            const suministrosArray = suministroStr.split(',').map((s: string) => ensurePrefix(s)).filter((s: string) => s);
             addClient({
               nombres,
               apellidos,
@@ -217,7 +223,7 @@ export default function Clientes() {
       'Apellido Materno': 'Gomez (vacío si es empresa)',
       'DNI/RUC': '12345678',
       Tipo: 'SOCIO o USUARIO',
-      Suministro: 'SUM-001, SUM-002',
+      Suministro: '001, 002',
       Direccion: 'Av. Principal',
       Numero: '123',
       Referencia: 'Frente al parque',
@@ -554,8 +560,20 @@ export default function Clientes() {
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-slate-300">Cod. Suministro(s)</label>
-                            <input type="text" required value={suministrosStr} onChange={e => setSuministrosStr(e.target.value)} placeholder="Ej: SUM-001, SUM-002" className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" />
-                            <p className="text-xs text-slate-500 mt-1">Separe múltiples códigos por comas.</p>
+                            <div className="mt-1 flex rounded-md shadow-sm border border-slate-700 overflow-hidden focus-within:ring-1 focus-within:ring-blue-500 focus-within:border-blue-500">
+                              <span className="inline-flex items-center px-3 border-r border-slate-700 bg-slate-800 text-slate-400 text-sm">
+                                SUM-
+                              </span>
+                              <input 
+                                type="text" 
+                                required 
+                                value={suministrosStr.split(',').map(s => s.trim().replace(/^SUM-/i, '')).join(', ')} 
+                                onChange={e => setSuministrosStr(e.target.value)} 
+                                placeholder="Ej: 001, 002" 
+                                className="flex-1 block w-full py-2 px-3 focus:outline-none sm:text-sm bg-[#0B0E14] text-slate-100" 
+                              />
+                            </div>
+                            <p className="text-xs text-slate-500 mt-1">Separe múltiples códigos por comas (el prefijo SUM- se añade automáticamente).</p>
                           </div>
                         </div>
                         <div>

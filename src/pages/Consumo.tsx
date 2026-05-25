@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Check, FileText, Download } from 'lucide-react';
+import { Plus, Check, FileText, Download, Upload } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Button, Card, CardContent, Badge } from '../components/ui';
 import { formatCurrency } from '../lib/utils';
@@ -35,70 +35,6 @@ export default function Consumo() {
         toast.success('Facturación anulada y lectura eliminada.');
       });
     }
-  };
-
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
-
-  const handleImportarLecturas = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      try {
-        const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
-        const data = XLSX.utils.sheet_to_json(ws);
-
-        let processed = 0;
-        let errors = 0;
-
-        for (const row of data as any[]) {
-          const suministro = row['Suministro'] || row['SUMINISTRO'] || row['codigoSuministro'];
-          const lectura = row['Lectura'] || row['LECTURA'] || row['LecturaActual'];
-          
-          if (suministro && lectura !== undefined) {
-             const client = clients.find(c => c.codigoSuministro === suministro.toString());
-             if (client) {
-                // Determine previous reading
-                const clientConsumptions = consumptions.filter(c => c.clientId === client.id && c.codigoSuministro === client.codigoSuministro).sort((a,b) => a.mes.localeCompare(b.mes));
-                let prevLectura = 0;
-                if (clientConsumptions.length > 0) {
-                   prevLectura = clientConsumptions[clientConsumptions.length - 1].lecturaActual || 0;
-                }
-                
-                const curLectura = Number(lectura);
-                if (curLectura >= prevLectura) {
-                   const kwh = curLectura - prevLectura;
-                   // Only add if doesn't exist for the month
-                   const exists = consumptions.some(c => c.codigoSuministro === client.codigoSuministro && c.mes === selectedMes);
-                   
-                   if (!exists) {
-                     await addConsumption({
-                        clientId: client.id,
-                        codigoSuministro: client.codigoSuministro,
-                        kwh: kwh,
-                        lecturaAnterior: prevLectura,
-                        lecturaActual: curLectura,
-                        fechaLectura: new Date().toISOString(),
-                        mes: selectedMes,
-                     });
-                     processed++;
-                   } else { errors++; }
-                } else { errors++; }
-             } else { errors++; }
-          }
-        }
-        toast.success(`Importación finalizada. Lecturas registradas: ${processed}. Errores/Omitidos: ${errors}`);
-        if(fileInputRef.current) fileInputRef.current.value = '';
-      } catch (error) {
-        toast.error('Error al importar el archivo Excel.');
-        console.error(error);
-      }
-    };
-    reader.readAsBinaryString(file);
   };
 
   const [clientSearch, setClientSearch] = useState('');
@@ -741,22 +677,10 @@ export default function Consumo() {
         </div>
         <div className="mt-4 sm:mt-0 flex items-center space-x-2">
           {userRole !== 'FISCALIZADOR' && (
-            <>
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                onChange={handleImportarLecturas} 
-                className="hidden" 
-                accept=".xlsx, .xls" 
-              />
-              <Button variant="outline" onClick={() => fileInputRef.current?.click()} title="Importar Lecturas de Excel (Columnas: Suministro, Lectura)">
-                Importar Excel
-              </Button>
-              <Button onClick={() => setIsModalOpen(true)}>
-                <Plus className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
-                Registrar Lectura
-              </Button>
-            </>
+            <Button onClick={() => setIsModalOpen(true)}>
+              <Plus className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
+              Registrar Lectura
+            </Button>
           )}
         </div>
       </div>
