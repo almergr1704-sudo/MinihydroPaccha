@@ -170,7 +170,7 @@ export default function Reportes() {
        }
     }
 
-    doc.save(`Reporte_${type}_${format(new Date(), 'yyyyMMdd')}.pdf`);
+    window.open(doc.output('bloburl'), '_blank');
   };
 
   const handleExportExcel = () => {

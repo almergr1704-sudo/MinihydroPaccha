@@ -24,14 +24,24 @@ export default function Dashboard() {
 
   const balance = ingresosMes - egresosMes;
 
-  const consumoTotalMes = consumptions
-    .filter(c => c.mes === currentMonth)
-    .reduce((sum, c) => sum + c.kwh, 0);
-
   const pendingDebtsConsumptions = consumptions.filter(c => c.estadoPago === 'PENDIENTE').map(c => ({...c, type: 'CONSUMO' as const}));
   const pendingDebtsFines = (fines || []).filter(c => c.estadoPago === 'PENDIENTE').map(f => ({...f, type: 'MULTA' as const, montoCalculado: f.monto, kwh: null, mes: f.fecha.split('-').slice(0,2).join('-')}));
   
   const pendingDebts = [...pendingDebtsConsumptions, ...pendingDebtsFines].sort((a,b) => new Date(b.mes).getTime() - new Date(a.mes).getTime());
+
+  const balancesByClient = new Set(pendingDebts.map(d => d.clientId));
+  const totalMorosos = balancesByClient.size;
+
+  const serviciosCortados = clients.filter(c => c.estado === 'CORTADO').length;
+
+  const reconexionesPendientes = clients.filter(c => 
+    c.estado === 'CORTADO' && 
+    consumptions.filter(cons => cons.clientId === c.id && cons.estadoPago === 'PENDIENTE').length === 0
+  ).length;
+
+  const consumoTotalMes = consumptions
+    .filter(c => c.mes === currentMonth)
+    .reduce((sum, c) => sum + (c.kwh || 0), 0);
 
   const aptForCutClientsCount = clients.filter(c => 
     c.estado !== 'CORTADO' && 
@@ -63,6 +73,23 @@ export default function Dashboard() {
   }, [transactions]);
 
 
+  // Chart data for consumption
+  const chartDataConsumo = useMemo(() => {
+    const monthlyData: Record<string, { name: string; consumo: number }> = {};
+    for(let i=5; i>=0; i--) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      const m = d.toISOString().slice(0, 7);
+      monthlyData[m] = { name: m, consumo: 0 };
+    }
+    consumptions.forEach(c => {
+      if (monthlyData[c.mes]) {
+        monthlyData[c.mes].consumo += (c.kwh || 0);
+      }
+    });
+    return Object.values(monthlyData);
+  }, [consumptions]);
+
   return (
     <div className="space-y-6">
       <div className="md:flex md:items-center md:justify-between">
@@ -88,8 +115,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-5">
-        <Card>
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
+        <Card className="col-span-1 sm:col-span-2">
           <CardContent className="p-5 flex items-center">
             <div className="flex-shrink-0 bg-blue-500/10 rounded-md p-3">
               <UsersRound className="h-6 w-6 text-blue-500" />
@@ -106,7 +133,23 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="col-span-1 sm:col-span-2">
+          <CardContent className="p-5 flex items-center">
+            <div className="flex-shrink-0 bg-amber-500/10 rounded-md p-3">
+              <Zap className="h-6 w-6 text-amber-500" />
+            </div>
+            <div className="ml-5 w-0 flex-1">
+              <dl>
+                <dt className="text-sm font-medium text-slate-400 truncate">Consumo Mes</dt>
+                <dd className="text-lg font-medium text-slate-100">
+                  {consumoTotalMes} kWh
+                </dd>
+              </dl>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="col-span-1 sm:col-span-2">
           <CardContent className="p-5 flex items-center">
             <div className="flex-shrink-0 bg-emerald-500/10 rounded-md p-3">
               <ArrowUpRight className="h-6 w-6 text-emerald-500" />
@@ -122,30 +165,14 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="p-5 flex items-center">
-            <div className="flex-shrink-0 bg-red-500/10 rounded-md p-3">
-              <ArrowDownRight className="h-6 w-6 text-red-500" />
-            </div>
-            <div className="ml-5 w-0 flex-1">
-              <dl>
-                <dt className="text-sm font-medium text-slate-400 truncate">Egresos Mes</dt>
-                <dd className="text-lg font-medium text-slate-100">
-                  {formatCurrency(egresosMes)}
-                </dd>
-              </dl>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
+        <Card className="col-span-1 sm:col-span-2">
           <CardContent className="p-5 flex items-center">
              <div className={`flex-shrink-0 rounded-md p-3 ${balance >= 0 ? 'bg-blue-500/10' : 'bg-orange-500/10'}`}>
               <Activity className={`h-6 w-6 ${balance >= 0 ? 'text-blue-500' : 'text-orange-500'}`} />
             </div>
             <div className="ml-5 w-0 flex-1">
               <dl>
-                <dt className="text-sm font-medium text-slate-400 truncate">Diferencia / Saldo</dt>
+                <dt className="text-sm font-medium text-slate-400 truncate">Saldo Mensual</dt>
                 <dd className={`text-lg font-medium ${balance >= 0 ? 'text-blue-400' : 'text-orange-400'}`}>
                   {formatCurrency(balance)}
                 </dd>
@@ -153,17 +180,51 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
+      </div>
 
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
         <Card>
           <CardContent className="p-5 flex items-center">
-            <div className="flex-shrink-0 bg-amber-500/10 rounded-md p-3">
-              <Zap className="h-6 w-6 text-amber-500" />
+             <div className="flex-shrink-0 bg-red-500/10 rounded-md p-3">
+              <Users className="h-6 w-6 text-red-500" />
             </div>
             <div className="ml-5 w-0 flex-1">
               <dl>
-                <dt className="text-sm font-medium text-slate-400 truncate">Consumo Energía</dt>
-                <dd className="text-lg font-medium text-slate-100">
-                  {consumoTotalMes} kWh
+                <dt className="text-sm font-medium text-slate-400 truncate">Total Morosos</dt>
+                <dd className="text-lg font-medium text-red-400">
+                  {totalMorosos} clientes
+                </dd>
+              </dl>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-5 flex items-center">
+             <div className="flex-shrink-0 bg-orange-500/10 rounded-md p-3">
+              <FileWarning className="h-6 w-6 text-orange-500" />
+            </div>
+            <div className="ml-5 w-0 flex-1">
+              <dl>
+                <dt className="text-sm font-medium text-slate-400 truncate">Servicios Cortados</dt>
+                <dd className="text-lg font-medium text-orange-400">
+                  {serviciosCortados} clientes
+                </dd>
+              </dl>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-5 flex items-center">
+             <div className="flex-shrink-0 bg-emerald-500/10 rounded-md p-3">
+              <Zap className="h-6 w-6 text-emerald-500" />
+            </div>
+            <div className="ml-5 w-0 flex-1">
+              <dl>
+                <dt className="text-sm font-medium text-slate-400 truncate">Reconexiones Pendientes</dt>
+                <dd className="text-lg font-medium text-emerald-400">
+                  {reconexionesPendientes} clientes
                 </dd>
               </dl>
             </div>
@@ -171,10 +232,10 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <Card className="col-span-1">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+        <Card className="col-span-1 border-slate-800">
           <CardHeader>
-            <CardTitle>Flujo Financiero (Últimos 6 meses)</CardTitle>
+            <CardTitle>Flujo Financiero (6 Meses)</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-72">
@@ -197,8 +258,32 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="col-span-1 border-red-500/20">
-          <CardHeader className="bg-red-500/5 border-b border-red-500/10 flex justify-between items-center">
+        <Card className="col-span-1 border-slate-800">
+          <CardHeader>
+            <CardTitle>Consumo Energético (6 Meses)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartDataConsumo} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94A3B8', fontSize: 12 }} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94A3B8', fontSize: 12 }} tickFormatter={(val) => `${val} kWh`} />
+                  <Tooltip 
+                    formatter={(value) => `${value} kWh`}
+                    cursor={{ fill: '#1E293B' }}
+                    contentStyle={{ borderRadius: '8px', border: '1px solid #334155', backgroundColor: '#0F172A', color: '#E2E8F0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.3)' }}
+                  />
+                  <Legend iconType="circle" />
+                  <Bar dataKey="consumo" name="Consumo" fill="#F59E0B" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="col-span-1 border-red-500/20 bg-red-500/5">
+          <CardHeader className="border-b border-red-500/10 flex justify-between items-center bg-transparent">
             <div className="flex items-center">
                <FileWarning className="w-5 h-5 text-red-500 mr-2" />
                <CardTitle className="text-red-400">Deudas Pendientes de Cobro</CardTitle>

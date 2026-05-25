@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import { AppProvider, useAppContext } from './store/AppContext';
 import { AppLayout } from './components/layout/AppLayout';
 
@@ -38,6 +39,7 @@ const RoleGuard = ({ children, allowedRoles }: { children: React.ReactNode, allo
 export default function App() {
   return (
     <AppProvider>
+      <Toaster position="bottom-right" toastOptions={{ className: 'bg-slate-800 text-slate-100 border border-slate-700' }} />
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />

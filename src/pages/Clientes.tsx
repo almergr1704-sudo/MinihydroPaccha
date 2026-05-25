@@ -4,9 +4,10 @@ import { useAppContext } from '../store/AppContext';
 import { Button, Card, CardContent, Badge } from '../components/ui';
 import { Client, ClientType } from '../store/types';
 import * as XLSX from 'xlsx';
+import { toast } from 'react-hot-toast';
 
 export default function Clientes() {
-  const { clients, addClient, updateClient, settings, consumptions, fines, addTransaction, userRole } = useAppContext();
+  const { clients, addClient, updateClient, settings, consumptions, fines, addTransaction, userRole, meetings } = useAppContext();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<ClientType | 'TODOS' | 'CORTADO'>('TODOS');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -73,6 +74,20 @@ export default function Clientes() {
     return matchesSearch && matchesType;
   });
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
+  const totalPages = Math.ceil(filteredClients.length / itemsPerPage);
+  
+  const currentClients = filteredClients.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  // Reset to first page if search/filter changes
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterType]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!window.confirm('¿Está seguro de guardar este registro?')) return;
@@ -84,7 +99,7 @@ export default function Clientes() {
         const pendingFinesCount = (fines || []).filter(f => f.clientId === editingId && f.estadoPago === 'PENDIENTE').length;
         
         if (pendingDebtsCount > 0 || pendingFinesCount > 0) {
-          alert('El cliente no puede ser reactivado porque tiene recibos de consumo o multas pendientes.');
+          toast.error('El cliente no puede ser reactivado porque tiene recibos de consumo o multas pendientes.');
           return;
         }
 
@@ -183,11 +198,11 @@ export default function Clientes() {
           }
         });
         
-        alert(`Se importaron ${processed} registros correctamente. (Se requiere recargar la página para ver cambios agregados muy rapido)`);
-        window.location.reload(); // Quick refresh to force sync state since we might fire multiple synchronous addClient which relies on previous state
+        toast.success(`Se importaron ${processed} registros correctamente.`);
+        setTimeout(() => window.location.reload(), 1000); // Wait for toast to display briefly
       } catch (err) {
         console.error(err);
-        alert('Hubo un error importando el archivo.');
+        toast.error('Hubo un error importando el archivo.');
       }
     };
     reader.readAsBinaryString(file);
@@ -300,15 +315,26 @@ export default function Clientes() {
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
                     Estado
                   </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
+                    Asistencia
+                  </th>
                   <th scope="col" className="relative px-6 py-3">
                     <span className="sr-only">Acciones</span>
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-[#0B0E14] divide-y divide-slate-800">
-                {filteredClients.length > 0 ? filteredClients.map((client) => {
+                {currentClients.length > 0 ? currentClients.map((client) => {
                   const pendingDebtsCount = consumptions.filter(c => c.clientId === client.id && c.estadoPago === 'PENDIENTE').length;
                   const aptForCut = pendingDebtsCount >= 3 && client.estado !== 'CORTADO';
+
+                  // Calculate attendance percentage
+                  let asisPercent = 0;
+                  if (client.tipo === 'SOCIO') {
+                    const asambleas = meetings.filter(m => m.tipo === 'ASAMBLEA' && m.estado === 'FINALIZADA');
+                    const asambleasAsistidas = asambleas.filter(m => m.asistencia[client.id] === 'ASISTIO' || m.asistencia[client.id] === 'JUSTIFICO');
+                    asisPercent = asambleas.length > 0 ? Math.round((asambleasAsistidas.length / asambleas.length) * 100) : 100;
+                  }
 
                   return (
                   <tr key={client.id} className="hover:bg-slate-800/50">
@@ -351,6 +377,18 @@ export default function Clientes() {
                         {client.estado}
                       </Badge>
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {client.tipo === 'SOCIO' ? (
+                        <div className="flex items-center">
+                          <div className="w-16 bg-slate-700 rounded-full h-2 mr-2">
+                            <div className={`h-2 rounded-full ${asisPercent >= 80 ? 'bg-emerald-500' : asisPercent >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${asisPercent}%` }}></div>
+                          </div>
+                          <span className="text-xs text-slate-300">{asisPercent}%</span>
+                        </div>
+                      ) : (
+                         <span className="text-xs text-slate-500">-</span>
+                      )}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                        {userRole !== 'FISCALIZADOR' && aptForCut && (
                           <button 
@@ -368,7 +406,7 @@ export default function Clientes() {
                          <button 
                            onClick={() => {
                              if(pendingDebtsCount > 0) {
-                               alert('El cliente no puede ser reactivado porque tiene deudas pendientes.');
+                               toast.error('El cliente no puede ser reactivado porque tiene deudas pendientes.');
                              } else {
                                if(window.confirm('¿Desea REACTIVAR el servicio del cliente?')) {
                                  updateClient(client.id, { estado: 'ACTIVO' });
@@ -399,6 +437,46 @@ export default function Clientes() {
                 )}
               </tbody>
             </table>
+            
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between border-t border-slate-800 bg-[#0B0E14] px-4 py-3 sm:px-6">
+                <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm text-slate-400">
+                      Mostrando <span className="font-medium text-slate-200">{((currentPage - 1) * itemsPerPage) + 1}</span> a <span className="font-medium text-slate-200">{Math.min(currentPage * itemsPerPage, filteredClients.length)}</span> de <span className="font-medium text-slate-200">{filteredClients.length}</span> resultados
+                    </p>
+                  </div>
+                  <div>
+                    <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                      <button
+                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                        disabled={currentPage === 1}
+                        className="relative inline-flex items-center rounded-l-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-800 hover:bg-slate-800 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+                      >
+                        <span className="sr-only">Anterior</span>
+                        <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                          <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
+                        </svg>
+                      </button>
+                      <span className="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-slate-200 ring-1 ring-inset ring-slate-800 focus:z-20 focus:outline-offset-0">
+                        Página {currentPage} de {totalPages}
+                      </span>
+                      <button
+                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                        disabled={currentPage === totalPages}
+                        className="relative inline-flex items-center rounded-r-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-800 hover:bg-slate-800 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+                      >
+                        <span className="sr-only">Siguiente</span>
+                        <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                          <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+                        </svg>
+                      </button>
+                    </nav>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Save, KeyRound } from 'lucide-react';
+import { Settings, Save, KeyRound, Database } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Card, CardContent, CardTitle, Button } from '../components/ui';
 import CryptoJS from 'crypto-js';
+import { toast } from 'react-hot-toast';
 
 export default function Configuracion() {
   const { settings, updateSettings, userRole, user, updateAdmin, admins } = useAppContext();
@@ -30,11 +31,11 @@ export default function Configuracion() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (userRole === 'OPERATOR' || userRole === 'FISCALIZADOR') {
-      alert('No tiene permisos para modificar la configuración.');
+      toast.error('No tiene permisos para modificar la configuración.');
       return;
     }
     updateSettings(formData);
-    alert('Configuración guardada correctamente.');
+    toast.success('Configuración guardada correctamente.');
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -45,37 +46,79 @@ export default function Configuracion() {
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) {
-      alert('No se pudo identificar al usuario actual.');
+      toast.error('No se pudo identificar al usuario actual.');
       return;
     }
 
     const currentAdmin = admins.find(a => a.email === user.email);
     if (!currentAdmin) {
-      alert('Usuario no encontrado en la base de datos.');
+      toast.error('Usuario no encontrado en la base de datos.');
       return;
     }
 
     const hashedCurrent = CryptoJS.SHA256(passwordForm.currentPassword).toString();
     if (hashedCurrent !== currentAdmin.password) {
-      alert('La contraseña actual es incorrecta.');
+      toast.error('La contraseña actual es incorrecta.');
       return;
     }
 
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      alert('Las contraseñas no coinciden.');
+      toast.error('Las contraseñas no coinciden.');
       return;
     }
 
     const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{6,}$/;
     if (!passwordPattern.test(passwordForm.newPassword)) {
-      alert('La nueva contraseña debe tener al menos 6 caracteres, incluir una letra mayúscula, una minúscula, un número y un carácter especial.');
+      toast.error('La nueva contraseña debe tener al menos 6 caracteres, incluir una letra mayúscula, una minúscula, un número y un carácter especial.');
       return;
     }
 
     const hashedPassword = CryptoJS.SHA256(passwordForm.newPassword).toString();
     await updateAdmin(currentAdmin.id, { password: hashedPassword });
-    alert('Contraseña actualizada correctamente.');
+    toast.success('Contraseña actualizada correctamente.');
     setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  };
+
+  const backupInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleExportBackup = () => {
+    const data = localStorage.getItem('erp_data');
+    if (!data) {
+      toast.error('No hay datos para exportar.');
+      return;
+    }
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Backup_Sistema_${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success('Copia de seguridad descargada.');
+  };
+
+  const handleImportBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!window.confirm('¿ESTÁS SEGURO? Importar una copia de seguridad sobrescribirá TODOS los datos actuales del sistema. Esta acción no se puede deshacer.')) {
+      if(backupInputRef.current) backupInputRef.current.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const jsonStr = evt.target?.result as string;
+        JSON.parse(jsonStr); // Validate JSON
+        localStorage.setItem('erp_data', jsonStr);
+        toast.success('Base de datos restaurada correctamente. Recargando sistema...');
+        setTimeout(() => window.location.reload(), 1500);
+      } catch (error) {
+        toast.error('El archivo de respaldo no es válido o está dañado.');
+      }
+    };
+    reader.readAsText(file);
   };
 
   return (
@@ -281,6 +324,38 @@ export default function Configuracion() {
               </Button>
             </div>
           </form>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="p-6">
+          <div className="space-y-6">
+            <h3 className="text-lg font-medium text-slate-200 border-b border-slate-700 pb-2 flex items-center">
+              <Database className="w-5 h-5 mr-2 text-slate-400" />
+              Respaldo y Recuperación (Backups)
+            </h3>
+            <p className="text-sm text-slate-400">
+              Crea copias de seguridad de toda la información del sistema (clientes, consumos, multas, configuración). Guárdalas en un lugar seguro.
+            </p>
+            <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
+              <Button type="button" onClick={handleExportBackup} variant="outline" className="text-blue-400 border-blue-500/30 hover:bg-blue-500/10">
+                Descargar Copia de Seguridad
+              </Button>
+              
+              <input 
+                type="file" 
+                ref={backupInputRef} 
+                onChange={handleImportBackup} 
+                className="hidden" 
+                accept=".json" 
+              />
+              <Button type="button" variant="danger" onClick={() => backupInputRef.current?.click()}>
+                Restaurar desde Respaldo
+              </Button>
+            </div>
+            <p className="text-xs text-red-400 mt-2">
+              <strong>Atención:</strong> Restaurar una base de datos sobrescribirá toda la información actual y no se podrá deshacer.
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>

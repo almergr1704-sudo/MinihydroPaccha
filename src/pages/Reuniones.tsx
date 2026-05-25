@@ -6,6 +6,7 @@ import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { toast } from 'react-hot-toast';
 
 export default function Reuniones() {
   const { clients, meetings, addMeeting, updateMeeting, recordAttendance, userRole } = useAppContext();
@@ -150,7 +151,7 @@ export default function Reuniones() {
       yOffset = finalY + 18; // Setup for the next ticket offset
     });
 
-    doc.save(`Citaciones_${activeMeeting.motivo}.pdf`);
+    window.open(doc.output('bloburl'), '_blank');
   };
 
   const handleFinalizarReunion = () => {
@@ -158,14 +159,14 @@ export default function Reuniones() {
     
     // Check if current time is before the scheduled end time
     if (activeMeeting.horaTermino && new Date() < new Date(activeMeeting.horaTermino)) {
-      alert('No se puede finalizar la reunión antes de la hora programada de término.');
+      toast.error('No se puede finalizar la reunión antes de la hora programada de término.');
       return;
     }
 
     const unregistered = filteredClientsList.filter(client => !activeMeeting.asistencia[client.id]);
     
     if (unregistered.length > 0) {
-      alert(`No se puede finalizar la reunión. Faltan registrar la asistencia de ${unregistered.length} persona(s).`);
+      toast.error(`No se puede finalizar la reunión. Faltan registrar la asistencia de ${unregistered.length} persona(s).`);
       return;
     }
 
@@ -177,7 +178,7 @@ export default function Reuniones() {
   const handleIniciarReunion = () => {
     if (!activeMeeting) return;
     if (new Date() < new Date(activeMeeting.fecha)) {
-      alert('La hora programada para la reunión aún no ha llegado.');
+      toast.error('La hora programada para la reunión aún no ha llegado.');
       return;
     }
     updateMeeting(activeMeeting.id, { estado: 'EN_CURSO' });
@@ -186,7 +187,7 @@ export default function Reuniones() {
   const handleCancelarReunion = () => {
     if (!activeMeeting) return;
     if (activeMeeting.estado && activeMeeting.estado !== 'PROGRAMADA') {
-      alert('Solo se puede cancelar una reunión antes de que haya iniciado.');
+      toast.error('Solo se puede cancelar una reunión antes de que haya iniciado.');
       return;
     }
     if (window.confirm('¿Desea cancelar la reunión? Esta acción no se puede deshacer.')) {
@@ -223,7 +224,7 @@ export default function Reuniones() {
       body: data,
     });
 
-    doc.save(`Asistencia_${meeting.motivo.substring(0, 15)}_${format(new Date(), 'yyyyMMdd')}.pdf`);
+    window.open(doc.output('bloburl'), '_blank');
   };
 
   return (

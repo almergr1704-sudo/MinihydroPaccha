@@ -9,6 +9,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { TransactionType, Transaction } from '../store/types';
+import { toast } from 'react-hot-toast';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
@@ -47,7 +48,7 @@ export default function Finanzas() {
     const splitDesc = doc.splitTextToSize(`Concepto / Descripción: ${t.descripcion}`, 180);
     doc.text(splitDesc, 14, 70);
 
-    doc.save(`Egreso_${t.categoria}_${format(new Date(), 'yyyyMMdd')}.pdf`);
+    window.open(doc.output('bloburl'), '_blank');
   };
 
   const closeModal = () => {
@@ -155,7 +156,7 @@ export default function Finanzas() {
        }
     }
 
-    doc.save(`Reporte_Detallado_${type}_${selectedMes || 'Historico'}_${format(new Date(), 'yyyyMMdd')}.pdf`);
+    window.open(doc.output('bloburl'), '_blank');
   };
 
   const handleGenerateReportExcel = () => {
@@ -615,7 +616,7 @@ export default function Finanzas() {
                                     <span className="text-slate-200 font-medium">{formatCurrency(reconexionFee)}</span>
                                     <Button size="sm" type="button" onClick={async () => {
                                       if (pendingConsumptions.length > 2) {
-                                        alert('No se puede reconectar el servicio. El cliente tiene deuda de 3 o más recibos pendientes. Debe regularizar la deuda de consumo primero.');
+                                        toast.error('No se puede reconectar el servicio. El cliente tiene deuda de 3 o más recibos pendientes. Debe regularizar la deuda de consumo primero.');
                                         return;
                                       }
                                       if (window.confirm(`¿Está seguro de cobrar S/ ${reconexionFee.toFixed(2)} por reconexión y reactivar el servicio?`)) {
@@ -627,7 +628,7 @@ export default function Finanzas() {
                                           clientId: selectedClientId
                                         });
                                         await updateClient(selectedClientId, { estado: 'ACTIVO' });
-                                        alert('Cobro realizado y servicio reactivado exitosamente.');
+                                        toast.success('Cobro realizado y servicio reactivado exitosamente.');
                                         closeModal();
                                       }
                                     }}>Cobrar y Reactivar</Button>

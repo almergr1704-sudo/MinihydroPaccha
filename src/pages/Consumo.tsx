@@ -9,9 +9,10 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { Consumption } from '../store/types';
+import { toast } from 'react-hot-toast';
 
 export default function Consumo() {
-  const { clients, consumptions, addConsumption, settings, userRole } = useAppContext();
+  const { clients, consumptions, addConsumption, deleteConsumption, settings, userRole } = useAppContext();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedMes, setSelectedMes] = useState(() => {
     const d = new Date();
@@ -19,6 +20,87 @@ export default function Consumo() {
     return d.toISOString().slice(0, 7);
   });
   
+  const handleAnularRecibo = (cons: Consumption) => {
+    if (cons.estadoPago !== 'PENDIENTE') {
+      toast.error('Solo se pueden anular recibos en estado PENDIENTE.');
+      return;
+    }
+    const motivo = window.prompt("Ingrese el motivo de la anulación (Mecanismo de Auditoría):");
+    if (motivo) {
+      if (motivo.length < 5) {
+        toast.error('El motivo debe ser más detallado y descriptivo.');
+        return;
+      }
+      deleteConsumption(cons.id, motivo).then(() => {
+        toast.success('Facturación anulada y lectura eliminada.');
+      });
+    }
+  };
+
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleImportarLecturas = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws);
+
+        let processed = 0;
+        let errors = 0;
+
+        for (const row of data as any[]) {
+          const suministro = row['Suministro'] || row['SUMINISTRO'] || row['codigoSuministro'];
+          const lectura = row['Lectura'] || row['LECTURA'] || row['LecturaActual'];
+          
+          if (suministro && lectura !== undefined) {
+             const client = clients.find(c => c.codigoSuministro === suministro.toString());
+             if (client) {
+                // Determine previous reading
+                const clientConsumptions = consumptions.filter(c => c.clientId === client.id && c.codigoSuministro === client.codigoSuministro).sort((a,b) => a.mes.localeCompare(b.mes));
+                let prevLectura = 0;
+                if (clientConsumptions.length > 0) {
+                   prevLectura = clientConsumptions[clientConsumptions.length - 1].lecturaActual || 0;
+                }
+                
+                const curLectura = Number(lectura);
+                if (curLectura >= prevLectura) {
+                   const kwh = curLectura - prevLectura;
+                   // Only add if doesn't exist for the month
+                   const exists = consumptions.some(c => c.codigoSuministro === client.codigoSuministro && c.mes === selectedMes);
+                   
+                   if (!exists) {
+                     await addConsumption({
+                        clientId: client.id,
+                        codigoSuministro: client.codigoSuministro,
+                        kwh: kwh,
+                        lecturaAnterior: prevLectura,
+                        lecturaActual: curLectura,
+                        fechaLectura: new Date().toISOString(),
+                        mes: selectedMes,
+                     });
+                     processed++;
+                   } else { errors++; }
+                } else { errors++; }
+             } else { errors++; }
+          }
+        }
+        toast.success(`Importación finalizada. Lecturas registradas: ${processed}. Errores/Omitidos: ${errors}`);
+        if(fileInputRef.current) fileInputRef.current.value = '';
+      } catch (error) {
+        toast.error('Error al importar el archivo Excel.');
+        console.error(error);
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
   const [clientSearch, setClientSearch] = useState('');
 
   const [formData, setFormData] = useState({
@@ -50,20 +132,32 @@ export default function Consumo() {
     if (!formData.clientAndSuministro || !formData.lecturaActual || (isFirstReading && !formData.lecturaAnterior)) return;
 
     if (Number(formData.lecturaActual) < Number(currentLecturaAnterior)) {
-      alert('La lectura actual no puede ser menor a la lectura anterior.');
+      toast.error('La lectura actual no puede ser menor a la lectura anterior.');
       return;
+    }
+
+    if (selectedClientConsumptions.length > 0) {
+      const pastKwhs = selectedClientConsumptions.map(c => c.kwh).filter(kwh => kwh != null) as number[];
+      if (pastKwhs.length > 0) {
+        const averageKwh = pastKwhs.reduce((a, b) => a + b, 0) / pastKwhs.length;
+        if (currentKwh > averageKwh * 2 && currentKwh > 20) { // Consider anomalous if > twice average and > 20kwh
+          if(!window.confirm(`⚠️ ALERTA DE CONSUMO EXCESIVO\n\nEl consumo de ${currentKwh} kWh es significativamente mayor a su promedio histórico (${averageKwh.toFixed(1)} kWh).\n\n¿Estás seguro de registrar esta lectura?`)) {
+            return;
+          }
+        }
+      }
     }
     
     const [clientId, codigoSuministro] = formData.clientAndSuministro.split('|');
 
     if (selectedMes >= new Date().toISOString().slice(0, 7)) {
-      alert('El periodo de lectura debe ser un mes anterior al actual.');
+      toast.error('El periodo de lectura debe ser un mes anterior al actual.');
       return;
     }
 
     const exists = consumptions.some(c => c.codigoSuministro === codigoSuministro && c.mes === selectedMes);
     if (exists) {
-      alert(`Ya existe una lectura para el suministro ${codigoSuministro} en el mes ${selectedMes}.`);
+      toast.error(`Ya existe una lectura para el suministro ${codigoSuministro} en el mes ${selectedMes}.`);
       return;
     }
 
@@ -149,7 +243,7 @@ export default function Consumo() {
       body: tableData,
     });
 
-    doc.save(`Reporte_Consumos_${selectedMes}.pdf`);
+    window.open(doc.output('bloburl'), '_blank');
   };
 
   const handleGenerateMassReceipts = () => {
@@ -178,7 +272,7 @@ export default function Consumo() {
     });
 
     if (suppliesToInvoice.length === 0) {
-      alert('No hay recibos para generar.');
+      toast.error('No hay recibos para generar.');
       return;
     }
 
@@ -391,7 +485,7 @@ export default function Consumo() {
       yOffset = currentReceiptBottom + 4;
     });
 
-    doc.save(`Recibos_Masivos_${selectedMes}.pdf`);
+    window.open(doc.output('bloburl'), '_blank');
   };
 
   const handleGenerateReceipt = (cons: Consumption) => {
@@ -577,7 +671,7 @@ export default function Consumo() {
     doc.setFontSize(16);
     doc.text(`Total a Pagar: ${calcFormatCurrencyStr(totalAPagar)}`, 196, finalY + 6, { align: 'right' });
 
-    doc.save(`Recibo_${client.codigoSuministro}_${cons.mes}.pdf`);
+    window.open(doc.output('bloburl'), '_blank');
   };
 
   const [activeTab, setActiveTab] = useState<'LECTURAS' | 'DEUDAS'>('LECTURAS');
@@ -619,6 +713,21 @@ export default function Consumo() {
            fullName.includes(searchLower)) ?? false;
   }).filter(c => c.estado === 'ACTIVO' || c.estado === 'CORTADO');
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
+
+  const currentList = activeTab === 'LECTURAS' ? filteredConsumptions : pendingDebts;
+  const totalPages = Math.ceil(currentList.length / itemsPerPage);
+  
+  const currentItems = currentList.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedMes, tableSearch, activeTab]);
+
   return (
     <div className="space-y-6">
       <div className="sm:flex sm:items-center sm:justify-between">
@@ -630,12 +739,24 @@ export default function Consumo() {
             Registro de lecturas de medidor y control de pagos.
           </p>
         </div>
-        <div className="mt-4 sm:mt-0">
+        <div className="mt-4 sm:mt-0 flex items-center space-x-2">
           {userRole !== 'FISCALIZADOR' && (
-            <Button onClick={() => setIsModalOpen(true)}>
-              <Plus className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
-              Registrar Lectura
-            </Button>
+            <>
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleImportarLecturas} 
+                className="hidden" 
+                accept=".xlsx, .xls" 
+              />
+              <Button variant="outline" onClick={() => fileInputRef.current?.click()} title="Importar Lecturas de Excel (Columnas: Suministro, Lectura)">
+                Importar Excel
+              </Button>
+              <Button onClick={() => setIsModalOpen(true)}>
+                <Plus className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
+                Registrar Lectura
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -729,7 +850,7 @@ export default function Consumo() {
                 </tr>
               </thead>
               <tbody className="bg-[#0B0E14] divide-y divide-slate-800">
-                {(activeTab === 'LECTURAS' ? filteredConsumptions : pendingDebts).length > 0 ? (activeTab === 'LECTURAS' ? filteredConsumptions : pendingDebts).map((cons) => {
+                {currentItems.length > 0 ? currentItems.map((cons) => {
                   const client = clients.find(c => c.id === cons.clientId);
                   const clientName = client?.nombre ? client.nombre : `${client?.nombres || ''} ${client?.apellidos || ''}`;
                   return (
@@ -757,6 +878,11 @@ export default function Consumo() {
                         </Badge>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                        {userRole !== 'OPERATOR' && cons.estadoPago === 'PENDIENTE' && (
+                          <Button size="sm" variant="ghost" className="text-red-500 hover:bg-red-500/10 hover:text-red-400 mr-2" onClick={() => handleAnularRecibo(cons)}>
+                            Anular
+                          </Button>
+                        )}
                         <Button size="sm" variant="ghost" className="text-blue-600" onClick={() => handleGenerateReceipt(cons)}>
                           <Download className="h-4 w-4 mr-1" /> Imprimir Recibo
                         </Button>
@@ -772,6 +898,46 @@ export default function Consumo() {
                 )}
               </tbody>
             </table>
+            
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between border-t border-slate-800 bg-[#0B0E14] px-4 py-3 sm:px-6">
+                <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm text-slate-400">
+                      Mostrando <span className="font-medium text-slate-200">{((currentPage - 1) * itemsPerPage) + 1}</span> a <span className="font-medium text-slate-200">{Math.min(currentPage * itemsPerPage, currentList.length)}</span> de <span className="font-medium text-slate-200">{currentList.length}</span> resultados
+                    </p>
+                  </div>
+                  <div>
+                    <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                      <button
+                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                        disabled={currentPage === 1}
+                        className="relative inline-flex items-center rounded-l-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-800 hover:bg-slate-800 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+                      >
+                        <span className="sr-only">Anterior</span>
+                        <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                          <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
+                        </svg>
+                      </button>
+                      <span className="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-slate-200 ring-1 ring-inset ring-slate-800 focus:z-20 focus:outline-offset-0">
+                        Página {currentPage} de {totalPages}
+                      </span>
+                      <button
+                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                        disabled={currentPage === totalPages}
+                        className="relative inline-flex items-center rounded-r-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-800 hover:bg-slate-800 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+                      >
+                        <span className="sr-only">Siguiente</span>
+                        <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                          <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+                        </svg>
+                      </button>
+                    </nav>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

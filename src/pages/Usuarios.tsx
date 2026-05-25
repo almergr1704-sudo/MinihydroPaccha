@@ -4,6 +4,7 @@ import { useAppContext } from '../store/AppContext';
 import { Card, CardContent, Badge, Button } from '../components/ui';
 
 import CryptoJS from 'crypto-js';
+import { toast } from 'react-hot-toast';
 
 export default function Usuarios() {
   const { admins, updateAdmin, user, userRole } = useAppContext();
@@ -53,7 +54,7 @@ export default function Usuarios() {
       currentData.admins = updatedAdmins;
       localStorage.setItem('erp_data', JSON.stringify(currentData));
       
-      alert(`Usuario creado correctamente.\n\nPor favor, ingresa con:\nUsuario: ${newUsername}\nRol: ${newRole}`);
+      toast.success(`Usuario creado correctamente.\nUsuario: ${newUsername}\nRol: ${newRole}`, { duration: 5000 });
       
       // Need a full reload to reflect changes in this simple hack
       window.location.reload();

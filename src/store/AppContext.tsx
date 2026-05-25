@@ -17,6 +17,7 @@ interface AppContextType extends AppState {
   updateSettings: (settings: any) => Promise<void>;
   recordAttendance: (meetingId: string, clientId: string, status: Meeting['asistencia'][string]) => Promise<void>;
   updateAdmin: (id: string, updates: Partial<any>) => Promise<void>;
+  deleteConsumption: (id: string, reason: string) => Promise<void>;
   login: (email: string) => void;
   logout: () => void;
 }
@@ -173,6 +174,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  const deleteConsumption = async (id: string, reason: string) => {
+    const consumption = state.consumptions.find(c => c.id === id);
+    if (!consumption) return;
+    
+    // Simplistic audit log via console since there's no backend
+    console.warn(`[AUDIT] Consumption Deleted: ID ${id}, Reason: ${reason}, By: ${user?.email || 'Unknown'}`);
+    
+    const newConsumptions = state.consumptions.filter(c => c.id !== id);
+    persistState({ ...state, consumptions: newConsumptions });
+  };
+
   const addFine = async (fine: Omit<Fine, 'id' | 'estadoPago' | 'fecha'>) => {
     const newFine: Fine = {
       ...fine,
@@ -289,6 +301,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updateSettings,
       recordAttendance,
       updateAdmin,
+      deleteConsumption,
       login,
       logout
     }}>
