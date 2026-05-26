@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Settings, Save, KeyRound, Database } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Card, CardContent, CardTitle, Button } from '../components/ui';
-import CryptoJS from 'crypto-js';
+import bcrypt from 'bcryptjs';
 import { toast } from 'react-hot-toast';
 
 export default function Configuracion() {
@@ -56,8 +56,14 @@ export default function Configuracion() {
       return;
     }
 
-    const hashedCurrent = CryptoJS.SHA256(passwordForm.currentPassword).toString();
-    if (hashedCurrent !== currentAdmin.password) {
+    let isMatch = false;
+    try {
+      isMatch = bcrypt.compareSync(passwordForm.currentPassword, currentAdmin.password) || currentAdmin.password === passwordForm.currentPassword;
+    } catch {
+      isMatch = currentAdmin.password === passwordForm.currentPassword;
+    }
+
+    if (!isMatch) {
       toast.error('La contraseña actual es incorrecta.');
       return;
     }
@@ -73,7 +79,7 @@ export default function Configuracion() {
       return;
     }
 
-    const hashedPassword = CryptoJS.SHA256(passwordForm.newPassword).toString();
+    const hashedPassword = bcrypt.hashSync(passwordForm.newPassword, 10);
     await updateAdmin(currentAdmin.id, { password: hashedPassword });
     toast.success('Contraseña actualizada correctamente.');
     setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });

@@ -3,7 +3,7 @@ import { Shield, ShieldAlert, UserCheck, Plus, X, ChevronLeft, ChevronRight } fr
 import { useAppContext } from '../store/AppContext';
 import { Card, CardContent, Badge, Button } from '../components/ui';
 
-import CryptoJS from 'crypto-js';
+import bcrypt from 'bcryptjs';
 import { toast } from 'react-hot-toast';
 
 export default function Usuarios() {
@@ -39,7 +39,7 @@ export default function Usuarios() {
          id: Math.random().toString(36).substr(2, 9),
          email: (newEmail || `${newUsername}@paccha.local`).toLowerCase(),
          username: newUsername.toLowerCase(),
-         password: CryptoJS.SHA256(newPassword).toString(),
+         password: bcrypt.hashSync(newPassword, 10),
          nombres: newNombres,
          apellidos: newApellidos,
          dni: newDni,

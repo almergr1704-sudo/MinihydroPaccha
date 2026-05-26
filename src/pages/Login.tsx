@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Zap } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { useNavigate } from 'react-router-dom';
-import CryptoJS from 'crypto-js';
+import bcrypt from 'bcryptjs';
 
 export default function Login() {
   const [error, setError] = useState('');
@@ -25,8 +25,8 @@ export default function Login() {
       setLoading(true);
       setError('');
       
-      // Local setup for Admin / Admin
-      if (email.toLowerCase() === 'admin' && password.toLowerCase() === 'admin') {
+      // Local setup for Admin
+      if (email.toLowerCase() === 'admin' && password === 'ALANgaona2010@') {
         login('admin@paccha.local');
         return;
       }
@@ -34,10 +34,17 @@ export default function Login() {
       // Check local configuration
       const storedData = JSON.parse(localStorage.getItem('erp_data') || '{"admins":[]}');
       const admins = storedData.admins || [];
-      const userMatched = admins.find((a: any) => 
-        (a.username?.toLowerCase() === email.toLowerCase() || a.email?.toLowerCase() === email.toLowerCase()) && 
-        (a.password === password || a.password === CryptoJS.SHA256(password).toString())
-      );
+      const userMatched = admins.find((a: any) => {
+        const isEmailMatch = a.username?.toLowerCase() === email.toLowerCase() || a.email?.toLowerCase() === email.toLowerCase();
+        if (!isEmailMatch) return false;
+        
+        // Ensure backward compatibility with sha256 or plain fallback if not bcrypt
+        try {
+          return bcrypt.compareSync(password, a.password) || a.password === password;
+        } catch (e) {
+           return a.password === password; // fallback
+        }
+      });
 
       if (userMatched) {
         // Log in with matched user using email or username
@@ -45,7 +52,7 @@ export default function Login() {
         return;
       }
 
-      setError('Para usuario local usa "admin" y contraseña "admin".');
+      setError('Para usuario local usa "admin" y contraseña "ALANgaona2010@".');
       setLoading(false);
     } catch (err: any) {
       console.error("Login attempt failed:", err);
