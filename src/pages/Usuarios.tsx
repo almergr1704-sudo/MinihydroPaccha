@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Shield, ShieldAlert, UserCheck, Plus, X } from 'lucide-react';
+import { Shield, ShieldAlert, UserCheck, Plus, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Card, CardContent, Badge, Button } from '../components/ui';
 
@@ -27,24 +27,26 @@ export default function Usuarios() {
 
   const handleCreateLocalUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPassword || (!newNombres && !newEmail)) return;
+    if (!newEmail) {
+      toast.error('El correo electrónico es requerido');
+      return;
+    }
     
     setCreatingUser(true);
     
     try {
-      // Local addition
-      const newUsername = (newNombres.charAt(0) + (newApellidos.split(' ')[0] || '')).toLowerCase().replace(/[^a-z0-9]/g, '') + (newDni.slice(-2) || '');
+      // Generate a temporary code/password for the invitation
+      const generatedCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const newUsername = newEmail.split('@')[0].toLowerCase();
       
       const newAdmin = {
          id: Math.random().toString(36).substr(2, 9),
-         email: (newEmail || `${newUsername}@paccha.local`).toLowerCase(),
-         username: newUsername.toLowerCase(),
-         password: CryptoJS.SHA256(newPassword).toString(),
-         nombres: newNombres,
-         apellidos: newApellidos,
-         dni: newDni,
+         email: newEmail.toLowerCase(),
+         username: newUsername,
+         password: CryptoJS.SHA256(generatedCode).toString(),
          role: newRole,
-         createdAt: new Date().toISOString()
+         createdAt: new Date().toISOString(),
+         invited: true
       };
 
       // Workaround: if updateAdmin acts as "create" if we mock it, or we need to add an addAdmin in context.
@@ -54,16 +56,27 @@ export default function Usuarios() {
       currentData.admins = updatedAdmins;
       localStorage.setItem('erp_data', JSON.stringify(currentData));
       
-      toast.success(`Usuario creado correctamente.\nUsuario: ${newUsername}\nRol: ${newRole}`, { duration: 5000 });
+      toast.success(`Invitación enviada a ${newEmail}.\nCódigo temporal de acceso: ${generatedCode}`, { duration: 8000 });
       
-      // Need a full reload to reflect changes in this simple hack
-      window.location.reload();
+      setTimeout(() => {
+        window.location.reload();
+      }, 3000);
     } catch (err: any) {
       console.error(err);
+      toast.error('Error al enviar la invitación');
     } finally {
       setCreatingUser(false);
     }
   };
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 15;
+  const totalPages = Math.ceil(admins.length / itemsPerPage);
+  
+  const currentAdmins = admins.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   return (
     <div className="space-y-6">
@@ -110,7 +123,7 @@ export default function Usuarios() {
                 </tr>
               </thead>
               <tbody className="bg-[#0B0E14] divide-y divide-slate-800">
-                {admins.map((admin) => (
+                {currentAdmins.map((admin) => (
                   <tr key={admin.id} className="hover:bg-slate-800/50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
@@ -180,7 +193,7 @@ export default function Usuarios() {
                     </td>
                   </tr>
                 ))}
-                {admins.length === 0 && (
+                {currentAdmins.length === 0 && (
                   <tr>
                     <td colSpan={3} className="px-6 py-10 text-center text-slate-400">
                       No hay usuarios registrados.
@@ -189,6 +202,59 @@ export default function Usuarios() {
                 )}
               </tbody>
             </table>
+            
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between border-t border-slate-800 bg-[#0B0E14] px-4 py-3 sm:px-6">
+                <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm text-slate-400">
+                      Mostrando <span className="font-medium text-slate-200">{((currentPage - 1) * itemsPerPage) + 1}</span> a <span className="font-medium text-slate-200">{Math.min(currentPage * itemsPerPage, admins.length)}</span> de <span className="font-medium text-slate-200">{admins.length}</span> resultados
+                    </p>
+                  </div>
+                  <div>
+                    <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                      <button
+                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                        disabled={currentPage === 1}
+                        className="relative inline-flex items-center rounded-l-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-800 hover:bg-slate-800 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+                      >
+                        <span className="sr-only">Anterior</span>
+                        <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+                      </button>
+                      <span className="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-slate-200 ring-1 ring-inset ring-slate-800 focus:z-20 focus:outline-offset-0">
+                        {currentPage} de {totalPages}
+                      </span>
+                      <button
+                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                        disabled={currentPage === totalPages}
+                        className="relative inline-flex items-center rounded-r-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-800 hover:bg-slate-800 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+                      >
+                        <span className="sr-only">Siguiente</span>
+                        <ChevronRight className="h-5 w-5" aria-hidden="true" />
+                      </button>
+                    </nav>
+                  </div>
+                </div>
+                {/* Mobile version */}
+                <div className="flex flex-1 justify-between sm:hidden">
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                    className="relative inline-flex items-center rounded-md border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-200 hover:bg-slate-700 disabled:opacity-50"
+                  >
+                    Anterior
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                    className="relative ml-3 inline-flex items-center rounded-md border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-200 hover:bg-slate-700 disabled:opacity-50"
+                  >
+                    Siguiente
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -215,80 +281,34 @@ export default function Usuarios() {
               </div>
               <form onSubmit={handleCreateLocalUser}>
                 <div className="px-4 py-5 sm:p-6 space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-300">Nombres</label>
-                      <input 
-                        type="text" 
-                        required 
-                        value={newNombres} 
-                        onChange={e => setNewNombres(e.target.value)} 
-                        className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" 
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-300">Apellidos</label>
-                      <input 
-                        type="text" 
-                        required 
-                        value={newApellidos} 
-                        onChange={e => setNewApellidos(e.target.value)} 
-                        className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" 
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-300">DNI</label>
-                      <input 
-                        type="text" 
-                        required 
-                        value={newDni} 
-                        onChange={e => setNewDni(e.target.value)} 
-                        className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" 
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-300">Rol Inicial</label>
-                      <select 
-                        value={newRole} 
-                        onChange={e => setNewRole(e.target.value as any)} 
-                        className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100"
-                      >
-                        <option value="OPERATOR">Operador</option>
-                        <option value="TESORERO">Tesorero</option>
-                        <option value="FISCALIZADOR">Fiscalizador</option>
-                        <option value="ADMIN">Administrador</option>
-                      </select>
-                    </div>
-                  </div>
-
                   <div>
-                    <label className="block text-sm font-medium text-slate-300">Correo Electrónico (Opcional)</label>
+                    <label className="block text-sm font-medium text-slate-300">Correo Electrónico a Invitar</label>
                     <input 
                       type="email" 
+                      required
                       value={newEmail} 
                       onChange={e => setNewEmail(e.target.value)} 
                       className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" 
+                      placeholder="usuario@ejemplo.com"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-300">Contraseña</label>
-                    <input 
-                      type="password" 
-                      required 
-                      minLength={6}
-                      value={newPassword} 
-                      onChange={e => setNewPassword(e.target.value)} 
-                      className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" 
-                    />
-                    <p className="text-xs text-slate-500 mt-1">Mínimo 6 caracteres.</p>
+                    <label className="block text-sm font-medium text-slate-300">Rol Inicial</label>
+                    <select 
+                      value={newRole} 
+                      onChange={e => setNewRole(e.target.value as any)} 
+                      className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100"
+                    >
+                      <option value="OPERATOR">Operador</option>
+                      <option value="TESORERO">Tesorero</option>
+                      <option value="FISCALIZADOR">Fiscalizador</option>
+                      <option value="ADMIN">Administrador</option>
+                    </select>
                   </div>
                 </div>
                 <div className="px-4 py-3 bg-slate-800/30 sm:px-6 sm:flex sm:flex-row-reverse border-t border-slate-800">
                   <Button type="submit" disabled={creatingUser} className="w-full sm:ml-3 sm:w-auto">
-                    {creatingUser ? 'Creando...' : 'Crear Usuario'}
+                    {creatingUser ? 'Enviando...' : 'Enviar Invitación'}
                   </Button>
                   <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)} className="mt-3 w-full sm:mt-0 sm:ml-3 sm:w-auto">
                     Cancelar

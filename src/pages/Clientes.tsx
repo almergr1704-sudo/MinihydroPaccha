@@ -344,16 +344,16 @@ export default function Clientes() {
 
                   return (
                   <tr key={client.id} className="hover:bg-slate-800/50">
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 whitespace-normal min-w-[250px]">
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10 bg-slate-100 rounded-full flex items-center justify-center">
                           <User className="h-5 w-5 text-slate-500" />
                         </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-slate-100 flex items-center gap-2">
+                        <div className="ml-4 break-words">
+                          <div className="text-sm font-medium text-slate-100 flex flex-wrap gap-2 items-center">
                              {client.nombre ? client.nombre : `${client.nombres} ${client.apellidos}`.trim()}
                              {aptForCut && (
-                                <span title="Apto para corte: 3 o más deudas pendientes" className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-900/50 text-red-400 border border-red-500/20">
+                                <span title="Apto para corte: 3 o más deudas pendientes" className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-900/50 text-red-400 border border-red-500/20 whitespace-nowrap">
                                   APTO PARA CORTE ({pendingDebtsCount} deudas)
                                 </span>
                              )}
@@ -362,7 +362,7 @@ export default function Clientes() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 whitespace-normal min-w-[200px] max-w-[300px] break-words">
                       <div className="text-sm text-slate-100">{client.telefono}</div>
                       <div className="text-sm text-slate-400">{client.direccion} {client.numeroDireccion ? `N° ${client.numeroDireccion}` : ''} {client.referenciaDireccion ? `(${client.referenciaDireccion})` : ''}</div>
                     </td>

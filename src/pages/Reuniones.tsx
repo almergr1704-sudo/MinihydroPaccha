@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Users, Calendar, AlertCircle, FileText, CheckCircle, Download, XCircle } from 'lucide-react';
+import { Plus, Users, Calendar, AlertCircle, FileText, CheckCircle, Download, XCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Button, Card, CardContent, Badge, CardHeader, CardTitle } from '../components/ui';
 import { format, parseISO } from 'date-fns';
@@ -65,6 +65,19 @@ export default function Reuniones() {
   }).sort((a, b) => 
     (a.codigoSuministro || '').localeCompare(b.codigoSuministro || '', undefined, { numeric: true, sensitivity: 'base' })
   );
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 15;
+  const totalPages = Math.ceil(filteredClientsList.length / itemsPerPage);
+  
+  const currentClientsList = filteredClientsList.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedMeeting]);
 
   const handleImprimirCitaciones = () => {
     if (!activeMeeting) return;
@@ -361,7 +374,7 @@ export default function Reuniones() {
                       </tr>
                     </thead>
                     <tbody className="bg-[#0B0E14] divide-y divide-slate-800">
-                       {filteredClientsList.map(socio => {
+                       {currentClientsList.map(socio => {
                          const status = activeMeeting.asistencia[socio.id];
                          return (
                            <tr key={socio.id} className="hover:bg-slate-800/50">
@@ -424,6 +437,59 @@ export default function Reuniones() {
                     </tbody>
                   </table>
                 </div>
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between border-t border-slate-800 bg-[#0B0E14] px-4 py-3 sm:px-6">
+                    <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-sm text-slate-400">
+                          Mostrando <span className="font-medium text-slate-200">{((currentPage - 1) * itemsPerPage) + 1}</span> a <span className="font-medium text-slate-200">{Math.min(currentPage * itemsPerPage, filteredClientsList.length)}</span> de <span className="font-medium text-slate-200">{filteredClientsList.length}</span> resultados
+                        </p>
+                      </div>
+                      <div>
+                        <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                          <button
+                            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                            disabled={currentPage === 1}
+                            className="relative inline-flex items-center rounded-l-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-800 hover:bg-slate-800 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+                          >
+                            <span className="sr-only">Anterior</span>
+                            <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+                          </button>
+                          <span className="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-slate-200 ring-1 ring-inset ring-slate-800 focus:z-20 focus:outline-offset-0">
+                            {currentPage} de {totalPages}
+                          </span>
+                          <button
+                            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                            disabled={currentPage === totalPages}
+                            className="relative inline-flex items-center rounded-r-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-800 hover:bg-slate-800 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+                          >
+                            <span className="sr-only">Siguiente</span>
+                            <ChevronRight className="h-5 w-5" aria-hidden="true" />
+                          </button>
+                        </nav>
+                      </div>
+                    </div>
+                    {/* Mobile version */}
+                    <div className="flex flex-1 justify-between sm:hidden">
+                      <button
+                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                        disabled={currentPage === 1}
+                        className="relative inline-flex items-center rounded-md border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-200 hover:bg-slate-700 disabled:opacity-50"
+                      >
+                        Anterior
+                      </button>
+                      <button
+                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                        disabled={currentPage === totalPages}
+                        className="relative ml-3 inline-flex items-center rounded-md border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-200 hover:bg-slate-700 disabled:opacity-50"
+                      >
+                        Siguiente
+                      </button>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           ) : (
