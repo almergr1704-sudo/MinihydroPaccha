@@ -27,26 +27,24 @@ export default function Usuarios() {
 
   const handleCreateLocalUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newEmail) {
-      toast.error('El correo electrónico es requerido');
-      return;
-    }
+    if (!newPassword || (!newNombres && !newEmail)) return;
     
     setCreatingUser(true);
     
     try {
-      // Generate a temporary code/password for the invitation
-      const generatedCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-      const newUsername = newEmail.split('@')[0].toLowerCase();
+      // Local addition
+      const newUsername = (newNombres.charAt(0) + (newApellidos.split(' ')[0] || '')).toLowerCase().replace(/[^a-z0-9]/g, '') + (newDni.slice(-2) || '');
       
       const newAdmin = {
          id: Math.random().toString(36).substr(2, 9),
-         email: newEmail.toLowerCase(),
-         username: newUsername,
-         password: CryptoJS.SHA256(generatedCode).toString(),
+         email: (newEmail || `${newUsername}@paccha.local`).toLowerCase(),
+         username: newUsername.toLowerCase(),
+         password: CryptoJS.SHA256(newPassword).toString(),
+         nombres: newNombres,
+         apellidos: newApellidos,
+         dni: newDni,
          role: newRole,
-         createdAt: new Date().toISOString(),
-         invited: true
+         createdAt: new Date().toISOString()
       };
 
       // Workaround: if updateAdmin acts as "create" if we mock it, or we need to add an addAdmin in context.
@@ -56,14 +54,12 @@ export default function Usuarios() {
       currentData.admins = updatedAdmins;
       localStorage.setItem('erp_data', JSON.stringify(currentData));
       
-      toast.success(`Invitación enviada a ${newEmail}.\nCódigo temporal de acceso: ${generatedCode}`, { duration: 8000 });
+      toast.success(`Usuario creado correctamente.\nUsuario: ${newUsername}\nRol: ${newRole}`, { duration: 5000 });
       
-      setTimeout(() => {
-        window.location.reload();
-      }, 3000);
+      // Need a full reload to reflect changes in this simple hack
+      window.location.reload();
     } catch (err: any) {
       console.error(err);
-      toast.error('Error al enviar la invitación');
     } finally {
       setCreatingUser(false);
     }
@@ -281,34 +277,80 @@ export default function Usuarios() {
               </div>
               <form onSubmit={handleCreateLocalUser}>
                 <div className="px-4 py-5 sm:p-6 space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300">Nombres</label>
+                      <input 
+                        type="text" 
+                        required 
+                        value={newNombres} 
+                        onChange={e => setNewNombres(e.target.value)} 
+                        className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300">Apellidos</label>
+                      <input 
+                        type="text" 
+                        required 
+                        value={newApellidos} 
+                        onChange={e => setNewApellidos(e.target.value)} 
+                        className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" 
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300">DNI</label>
+                      <input 
+                        type="text" 
+                        required 
+                        value={newDni} 
+                        onChange={e => setNewDni(e.target.value)} 
+                        className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300">Rol Inicial</label>
+                      <select 
+                        value={newRole} 
+                        onChange={e => setNewRole(e.target.value as any)} 
+                        className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100"
+                      >
+                        <option value="OPERATOR">Operador</option>
+                        <option value="TESORERO">Tesorero</option>
+                        <option value="FISCALIZADOR">Fiscalizador</option>
+                        <option value="ADMIN">Administrador</option>
+                      </select>
+                    </div>
+                  </div>
+
                   <div>
-                    <label className="block text-sm font-medium text-slate-300">Correo Electrónico a Invitar</label>
+                    <label className="block text-sm font-medium text-slate-300">Correo Electrónico (Opcional)</label>
                     <input 
                       type="email" 
-                      required
                       value={newEmail} 
                       onChange={e => setNewEmail(e.target.value)} 
                       className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" 
-                      placeholder="usuario@ejemplo.com"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-300">Rol Inicial</label>
-                    <select 
-                      value={newRole} 
-                      onChange={e => setNewRole(e.target.value as any)} 
-                      className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100"
-                    >
-                      <option value="OPERATOR">Operador</option>
-                      <option value="TESORERO">Tesorero</option>
-                      <option value="FISCALIZADOR">Fiscalizador</option>
-                      <option value="ADMIN">Administrador</option>
-                    </select>
+                    <label className="block text-sm font-medium text-slate-300">Contraseña</label>
+                    <input 
+                      type="password" 
+                      required 
+                      minLength={6}
+                      value={newPassword} 
+                      onChange={e => setNewPassword(e.target.value)} 
+                      className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" 
+                    />
+                    <p className="text-xs text-slate-500 mt-1">Mínimo 6 caracteres.</p>
                   </div>
                 </div>
                 <div className="px-4 py-3 bg-slate-800/30 sm:px-6 sm:flex sm:flex-row-reverse border-t border-slate-800">
                   <Button type="submit" disabled={creatingUser} className="w-full sm:ml-3 sm:w-auto">
-                    {creatingUser ? 'Enviando...' : 'Enviar Invitación'}
+                    {creatingUser ? 'Creando...' : 'Crear Usuario'}
                   </Button>
                   <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)} className="mt-3 w-full sm:mt-0 sm:ml-3 sm:w-auto">
                     Cancelar
