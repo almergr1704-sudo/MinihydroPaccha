@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Settings, Save, KeyRound, Database } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Settings, Save, KeyRound, Database, BookOpen, Download } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Card, CardContent, CardTitle, Button } from '../components/ui';
 import bcrypt from 'bcryptjs';
 import { toast } from 'react-hot-toast';
+import { jsPDF } from 'jspdf';
 
 export default function Configuracion() {
   const { settings, updateSettings, userRole, user, updateAdmin, admins } = useAppContext();
@@ -125,6 +126,88 @@ export default function Configuracion() {
       }
     };
     reader.readAsText(file);
+  };
+
+  const handleDownloadManual = (roleType: string) => {
+    const doc = new jsPDF();
+    let yOffset = 20;
+    
+    // Header
+    doc.setFillColor(15, 23, 42); // slate-900
+    doc.rect(0, 0, 210, 30, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(22);
+    doc.text(`Manual de Usuario - ${roleType}`, 105, 20, { align: 'center' });
+    
+    // Content
+    doc.setTextColor(50, 50, 50);
+    yOffset = 45;
+    
+    doc.setFontSize(14);
+    doc.text('Módulos Habilitados y Funcionalidades:', 14, yOffset);
+    yOffset += 10;
+    
+    doc.setFontSize(11);
+    const writeSection = (title: string, desc: string) => {
+      doc.setFont(undefined, 'bold');
+      doc.text(`• ${title}`, 14, yOffset);
+      doc.setFont(undefined, 'normal');
+      const textLines = doc.splitTextToSize(desc, 170);
+      doc.text(textLines, 20, yOffset + 5);
+      yOffset += 5 + (textLines.length * 5) + 5;
+      
+      // Simulate an illustrative image based on section
+      if (yOffset > 240) {
+        doc.addPage();
+        yOffset = 20;
+      }
+      
+      // Draw a mock screenshot wireframe
+      doc.setDrawColor(200, 200, 200);
+      doc.setFillColor(245, 245, 245);
+      doc.rect(20, yOffset, 170, 40, 'FD');
+      // Mock toolbar
+      doc.setFillColor(220, 220, 220);
+      doc.rect(20, yOffset, 170, 8, 'F');
+      // Mock content
+      doc.setDrawColor(220, 220, 220);
+      for (let i = 0; i < 3; i++) {
+        doc.rect(25, yOffset + 15 + (i * 8), 160, 4, 'S');
+      }
+      
+      yOffset += 45 + 10;
+      
+      if (yOffset > 270) {
+        doc.addPage();
+        yOffset = 20;
+      }
+    };
+
+    if (roleType === 'ADMIN') {
+      writeSection('Dashboard Completo', 'Visualización de finanzas totales, clientes morosos, egresos e ingresos.');
+      writeSection('Clientes', 'Gestión completa de clientes (socios y usuarios). Altas, bajas y gestión de estados.');
+      writeSection('Consumos Anuales', 'Registrar lecturas de medidores mensualmente, generar recibos y procesar pagos en masa.');
+      writeSection('Asistencia de Reuniones', 'Registrar reuniones de asamblea, contabilizar quórum, generar padrones, y asignar multas automáticamente a inasistentes.');
+      writeSection('Finanzas', 'Modulo exclusivo. Control de todos los ingresos automáticos y registro de egresos operativos de la asociación.');
+      writeSection('Usuarios y Roles', 'Creación y gestión de acceso para operadores, tesoreros y fiscalizadores. Restricción de permisos.');
+      writeSection('Configuración', 'Ajuste de tarifas, precios de multas, costo de usuarios y socios, entre otros parámetros. Respaldo de Base de Datos.');
+    } else if (roleType === 'TESORERO') {
+      writeSection('Dashboard Financiero', 'Vista limitada a recolección de pagos y balances de caja diaria.');
+      writeSection('Clientes', 'Búsqueda de clientes, vista de deudas pendientes para cobro.');
+      writeSection('Consumos Anuales (Cobros)', 'Capacidad de cobrar recibos de consumos de agua generados previamente y emitir comprobantes.');
+      writeSection('Asistencia de Reuniones', 'Capacidad de cobrar multas de reuniones o asambleas.');
+    } else if (roleType === 'OPERATOR') {
+      writeSection('Clientes', 'Registrar nuevos pobladores, modificar datos de dirección y suministro.');
+      writeSection('Consumos Anuales (Lecturas)', 'Módulo para ingresar en campo las lecturas de los medidores de agua mes a mes y verificar saltos anormales.');
+      writeSection('Asistencia de Reuniones', 'Apoyo en registro en puerta durante asambleas, pasando lista de asistencia.');
+    } else if (roleType === 'FISCALIZADOR') {
+      writeSection('Dashboard General', 'Lectura de métricas operativas generales y estado moroso.');
+      writeSection('Clientes (Solo Lectura)', 'Consultar datos de pobladores y verificar deudas para emitir reportes u opiniones.');
+      writeSection('Consumos Anuales (Auditoría)', 'Verificar las lecturas tomadas a los clientes sin posibilidad de modificarlas o emitir cobros no autorizados.');
+      writeSection('Reportes Financieros', 'Acceso a los registros de ingresos y egresos, exportación Excel de finanzas, sin capacidad de crear egresos o alterar movimientos.');
+    }
+
+    doc.save(`Manual_Paccha_${roleType}.pdf`);
   };
 
   return (
@@ -361,6 +444,33 @@ export default function Configuracion() {
             <p className="text-xs text-red-400 mt-2">
               <strong>Atención:</strong> Restaurar una base de datos sobrescribirá toda la información actual y no se podrá deshacer.
             </p>
+          </div>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="p-6">
+          <div className="space-y-6">
+            <h3 className="text-lg font-medium text-slate-200 border-b border-slate-700 pb-2 flex items-center">
+              <BookOpen className="w-5 h-5 mr-2 text-slate-400" />
+              Manuales de Usuario y Capacitación
+            </h3>
+            <p className="text-sm text-slate-400">
+              Descargue los manuales detallados de uso del sistema según el rol del usuario, incluye descripciones de módulos e imágenes de referencia.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+              <Button type="button" onClick={() => handleDownloadManual('ADMIN')} variant="outline" className="text-slate-300 border-slate-700 hover:bg-slate-800 flex justify-center">
+                <Download className="w-4 h-4 mr-2" /> Manual Admin
+              </Button>
+              <Button type="button" onClick={() => handleDownloadManual('TESORERO')} variant="outline" className="text-slate-300 border-slate-700 hover:bg-slate-800 flex justify-center">
+                <Download className="w-4 h-4 mr-2" /> Manual Tesorero
+              </Button>
+              <Button type="button" onClick={() => handleDownloadManual('OPERATOR')} variant="outline" className="text-slate-300 border-slate-700 hover:bg-slate-800 flex justify-center">
+                <Download className="w-4 h-4 mr-2" /> Manual Operador
+              </Button>
+              <Button type="button" onClick={() => handleDownloadManual('FISCALIZADOR')} variant="outline" className="text-slate-300 border-slate-700 hover:bg-slate-800 flex justify-center">
+                <Download className="w-4 h-4 mr-2" /> Manual Fiscalizador
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

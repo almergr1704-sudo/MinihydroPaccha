@@ -217,14 +217,14 @@ export default function Dashboard() {
 
         <Card>
           <CardContent className="p-5 flex items-center">
-             <div className="flex-shrink-0 bg-emerald-500/10 rounded-md p-3">
-              <Zap className="h-6 w-6 text-emerald-500" />
+             <div className="flex-shrink-0 bg-red-500/10 rounded-md p-3">
+              <ArrowDownRight className="h-6 w-6 text-red-500" />
             </div>
             <div className="ml-5 w-0 flex-1">
               <dl>
-                <dt className="text-sm font-medium text-slate-400 truncate">Reconexiones Pendientes</dt>
-                <dd className="text-lg font-medium text-emerald-400">
-                  {reconexionesPendientes} clientes
+                <dt className="text-sm font-medium text-slate-400 truncate">Egresos del Mes</dt>
+                <dd className="text-lg font-medium text-red-400">
+                  {formatCurrency(egresosMes)}
                 </dd>
               </dl>
             </div>
