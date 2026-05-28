@@ -6,7 +6,7 @@ import { formatCurrency } from '../lib/utils';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { Consumption } from '../store/types';
 import { toast } from 'react-hot-toast';
@@ -173,7 +173,7 @@ export default function Consumo() {
       ];
     });
 
-    autoTable(doc, {
+    (doc as any).autoTable({
       startY: 30,
       head: [['Cliente', 'Suministro', 'kWh', 'Monto', 'Estado']],
       body: tableData,
@@ -246,7 +246,7 @@ export default function Consumo() {
         ]);
       }
       
-      autoTable(testDoc, {
+      (testDoc as any).autoTable({
         startY: 39,
         head: [['Descripción', 'Cantidad (kWh)', 'Precio (S/)', 'Subtotal']],
         body: testTableBody,
@@ -397,7 +397,7 @@ export default function Consumo() {
 
       const totalAPagar = totalMontoCalculado + debtInfo.totalDeuda;
 
-      autoTable(doc, {
+      (doc as any).autoTable({
         startY: yOffset + 39,
         head: [['Descripción', 'Cantidad (kWh)', 'Precio (S/)', 'Subtotal']],
         body: tableBody,
@@ -453,7 +453,7 @@ export default function Consumo() {
         calcFormatCurrencyStr(debtInfo.previousUnpaid.reduce((acc: any, unpaid: any) => acc + unpaid.montoCalculado, 0))
       ]);
     }
-    autoTable(testDoc, {
+    (testDoc as any).autoTable({
       startY: 39,
       head: [['Descripción', 'Cantidad (kWh)', 'Precio (S/)', 'Subtotal']],
       body: testTableBody,
@@ -593,7 +593,7 @@ export default function Consumo() {
 
     const totalAPagar = totalMontoCalculado + debtInfo.totalDeuda;
 
-    autoTable(doc, {
+    (doc as any).autoTable({
       startY: yOffset + 39,
       head: [['Descripción', 'Cantidad (kWh)', 'Precio (S/)', 'Subtotal']],
       body: tableBody,

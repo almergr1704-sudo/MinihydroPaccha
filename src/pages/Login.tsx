@@ -25,12 +25,6 @@ export default function Login() {
       setLoading(true);
       setError('');
       
-      // Local setup for Admin
-      if (email.toLowerCase() === 'admin' && password === 'ALANgaona2010@') {
-        login('admin@paccha.local');
-        return;
-      }
-      
       // Check local configuration
       const storedData = JSON.parse(localStorage.getItem('erp_data') || '{"admins":[]}');
       const admins = storedData.admins || [];
@@ -52,7 +46,7 @@ export default function Login() {
         return;
       }
 
-      setError('Para usuario local usa "admin" y contraseña "ALANgaona2010@".');
+      setError('Credenciales incorrectas.');
       setLoading(false);
     } catch (err: any) {
       console.error("Login attempt failed:", err);

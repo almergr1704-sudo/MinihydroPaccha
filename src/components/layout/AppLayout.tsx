@@ -27,11 +27,15 @@ export function AppLayout() {
 
   const userInitial = user?.email ? user.email.charAt(0).toUpperCase() : 'U';
 
-  const navigation = userRole === 'OPERATOR' 
-    ? baseNavigation.filter(nav => nav.name === 'Consumo & Facturación') 
+  const baseNavFiltered = userRole === 'OPERATOR' 
+    ? baseNavigation.filter(nav => ['Consumo & Facturación', 'Configuración'].includes(nav.name))
     : userRole === 'TESORERO' || userRole === 'FISCALIZADOR'
-    ? baseNavigation.filter(nav => !['Usuarios', 'Configuración'].includes(nav.name))
+    ? baseNavigation.filter(nav => nav.name !== 'Usuarios')
     : baseNavigation;
+
+  const navigation = useAppContext().mustChangePassword 
+    ? baseNavFiltered.filter(nav => nav.name === 'Configuración')
+    : baseNavFiltered;
 
   return (
     <div className="h-screen flex overflow-hidden bg-[#0B0E14] font-sans">

@@ -5,9 +5,10 @@ import { Card, CardContent, CardTitle, Button } from '../components/ui';
 import bcrypt from 'bcryptjs';
 import { toast } from 'react-hot-toast';
 import { jsPDF } from 'jspdf';
+import { PasswordStrengthIndicator, evaluatePasswordStrength } from '../components/PasswordStrengthIndicator';
 
 export default function Configuracion() {
-  const { settings, updateSettings, userRole, user, updateAdmin, admins } = useAppContext();
+  const { settings, updateSettings, userRole, user, updateAdmin, admins, mustChangePassword } = useAppContext();
   const [formData, setFormData] = useState({
     costoSocio: 0.20,
     costoUsuario: 0.30,
@@ -74,14 +75,14 @@ export default function Configuracion() {
       return;
     }
 
-    const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{6,}$/;
-    if (!passwordPattern.test(passwordForm.newPassword)) {
-      toast.error('La nueva contraseña debe tener al menos 6 caracteres, incluir una letra mayúscula, una minúscula, un número y un carácter especial.');
+    const strength = evaluatePasswordStrength(passwordForm.newPassword);
+    if (strength.score < 3) {
+      toast.error('La contraseña es demasiado débil. Por favor siga las recomendaciones para mejorar su seguridad.');
       return;
     }
 
     const hashedPassword = bcrypt.hashSync(passwordForm.newPassword, 10);
-    await updateAdmin(currentAdmin.id, { password: hashedPassword });
+    await updateAdmin(currentAdmin.id, { password: hashedPassword, mustChangePassword: false });
     toast.success('Contraseña actualizada correctamente.');
     setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
   };
@@ -385,13 +386,22 @@ export default function Configuracion() {
           </p>
         </div>
       </div>
+      
+      {mustChangePassword && (
+        <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-lg">
+          <p className="text-red-400 text-sm font-medium">
+            Atención: Por motivos de seguridad, debe cambiar su contraseña predeterminada o antigua para continuar utilizando los demás módulos del sistema.
+          </p>
+        </div>
+      )}
 
-      <Card>
-        <CardContent className="p-6">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              
-              <div className="bg-slate-800/30 p-4 rounded-xl border border-slate-700/50">
+      {userRole === 'ADMIN' && (
+        <Card>
+          <CardContent className="p-6">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                <div className="bg-slate-800/30 p-4 rounded-xl border border-slate-700/50">
                 <h3 className="text-lg font-medium text-slate-200 mb-4 border-b border-slate-700 pb-2">Tarifas de Consumo (S/ por kWh)</h3>
                 <div className="space-y-4">
                   <div>
@@ -507,18 +517,16 @@ export default function Configuracion() {
               </div>
 
             </div>
-
             <div className="flex justify-end pt-4 border-t border-slate-800">
-              {userRole !== 'FISCALIZADOR' && userRole !== 'OPERATOR' && (
-                <Button type="submit">
-                  <Save className="w-4 h-4 mr-2" />
-                  Guardar Configuración
-                </Button>
-              )}
+              <Button type="submit">
+                <Save className="w-4 h-4 mr-2" />
+                Guardar Configuración
+              </Button>
             </div>
           </form>
         </CardContent>
       </Card>
+      )}
 
       <Card>
         <CardContent className="p-6">
@@ -553,7 +561,7 @@ export default function Configuracion() {
                     placeholder="Mínimo 6 caracteres"
                   />
                 </div>
-                <p className="mt-1 text-xs text-slate-400">Debe incluir mayúscula, minúscula, número y carácter especial (@$!%*?&).</p>
+                <PasswordStrengthIndicator passwordStr={passwordForm.newPassword} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-300">Confirmar Contraseña</label>
@@ -577,13 +585,14 @@ export default function Configuracion() {
           </form>
         </CardContent>
       </Card>
-      <Card>
-        <CardContent className="p-6">
-          <div className="space-y-6">
-            <h3 className="text-lg font-medium text-slate-200 border-b border-slate-700 pb-2 flex items-center">
-              <Database className="w-5 h-5 mr-2 text-slate-400" />
-              Respaldo y Recuperación (Backups)
-            </h3>
+      {userRole === 'ADMIN' && (
+        <Card>
+          <CardContent className="p-6">
+            <div className="space-y-6">
+              <h3 className="text-lg font-medium text-slate-200 border-b border-slate-700 pb-2 flex items-center">
+                <Database className="w-5 h-5 mr-2 text-slate-400" />
+                Respaldo y Recuperación (Backups)
+              </h3>
             <p className="text-sm text-slate-400">
               Crea copias de seguridad de toda la información del sistema (clientes, consumos, multas, configuración). Guárdalas en un lugar seguro.
             </p>
@@ -609,6 +618,7 @@ export default function Configuracion() {
           </div>
         </CardContent>
       </Card>
+      )}
       <Card>
         <CardContent className="p-6">
           <div className="space-y-6">

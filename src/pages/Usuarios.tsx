@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Shield, ShieldAlert, UserCheck, Plus, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Card, CardContent, Badge, Button } from '../components/ui';
+import { PasswordStrengthIndicator, evaluatePasswordStrength } from '../components/PasswordStrengthIndicator';
 
 import bcrypt from 'bcryptjs';
 import { toast } from 'react-hot-toast';
@@ -29,6 +30,12 @@ export default function Usuarios() {
     e.preventDefault();
     if (!newPassword || (!newNombres && !newEmail)) return;
     
+    const strength = evaluatePasswordStrength(newPassword);
+    if (strength.score < 3) {
+      toast.error('La contraseña es demasiado débil. Siga las recomendaciones para continuar.');
+      return;
+    }
+    
     setCreatingUser(true);
     
     try {
@@ -44,6 +51,7 @@ export default function Usuarios() {
          apellidos: newApellidos,
          dni: newDni,
          role: newRole,
+         mustChangePassword: true,
          createdAt: new Date().toISOString()
       };
 
@@ -63,6 +71,20 @@ export default function Usuarios() {
     } finally {
       setCreatingUser(false);
     }
+  };
+
+  const handleResetPassword = (id: string, username: string) => {
+    if (!window.confirm(`¿Está seguro de querer restablecer la contraseña a "${username}123!"? Esta acción obligará al usuario a cambiar su contraseña en su próximo inicio de sesión.`)) return;
+
+    const defaultPassword = `${username}123!`;
+    const hashedPassword = bcrypt.hashSync(defaultPassword, 10);
+    
+    updateAdmin(id, { 
+      password: hashedPassword, 
+      mustChangePassword: true 
+    });
+    
+    toast.success(`Contraseña restablecida correctamente.\nNueva Contraseña: ${defaultPassword}`);
   };
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -172,17 +194,27 @@ export default function Usuarios() {
                               </Button>
                             </>
                           ) : (
-                            <Button 
-                              size="sm" 
-                              variant="outline" 
-                              onClick={() => {
-                                setEditingId(admin.id);
-                                setSelectedRole(admin.role);
-                              }}
-                              disabled={admin.email === user?.email}
-                            >
-                              Cambiar Rol
-                            </Button>
+                            <>
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                onClick={() => {
+                                  setEditingId(admin.id);
+                                  setSelectedRole(admin.role);
+                                }}
+                                disabled={admin.email === user?.email}
+                              >
+                                Cambiar Rol
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="danger"
+                                onClick={() => handleResetPassword(admin.id, admin.username || admin.email.split('@')[0])}
+                                disabled={admin.email === user?.email}
+                              >
+                                Restablecer Clave
+                              </Button>
+                            </>
                           )}
                         </>
                       )}
@@ -340,12 +372,12 @@ export default function Usuarios() {
                     <input 
                       type="password" 
                       required 
-                      minLength={6}
+                      minLength={8}
                       value={newPassword} 
                       onChange={e => setNewPassword(e.target.value)} 
                       className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" 
                     />
-                    <p className="text-xs text-slate-500 mt-1">Mínimo 6 caracteres.</p>
+                    <PasswordStrengthIndicator passwordStr={newPassword} />
                   </div>
                 </div>
                 <div className="px-4 py-3 bg-slate-800/30 sm:px-6 sm:flex sm:flex-row-reverse border-t border-slate-800">

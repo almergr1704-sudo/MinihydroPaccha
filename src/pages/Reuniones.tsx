@@ -5,7 +5,7 @@ import { Button, Card, CardContent, Badge, CardHeader, CardTitle } from '../comp
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import 'jspdf-autotable';
 import { toast } from 'react-hot-toast';
 
 export default function Reuniones() {
@@ -231,7 +231,7 @@ export default function Reuniones() {
       ]);
     });
 
-    autoTable(doc, {
+    (doc as any).autoTable({
       startY: 42,
       head: [['Cod.', 'Persona', 'DNI', 'Estado']],
       body: data,

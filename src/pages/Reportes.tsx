@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, Button } from '../components/
 import { formatCurrency, render3DPieChartToDataURL } from '../lib/utils';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 
@@ -94,7 +94,7 @@ export default function Reportes() {
       headParams = [['Categoría', type === 'INGRESO' ? 'Total Ingresos' : 'Total Egresos']];
     }
 
-    autoTable(doc, {
+    (doc as any).autoTable({
       startY: 35,
       head: headParams,
       body: tableData,
@@ -118,7 +118,7 @@ export default function Reportes() {
       doc.setFontSize(14);
       doc.text('Resumen de Morosidad', 14, finalY);
       
-      autoTable(doc, {
+      (doc as any).autoTable({
         startY: finalY + 6,
         head: [['Recibos Vencidos', 'Monto Total en Deuda', 'Índice de Morosidad']],
         body: [[

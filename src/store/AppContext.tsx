@@ -4,6 +4,7 @@ import { AppState, Client, Consumption, Transaction, Meeting, ClientType, Fine }
 interface AppContextType extends AppState {
   user: any;
   userRole: string;
+  mustChangePassword?: boolean;
   loadingAuth: boolean;
   addClient: (client: Omit<Client, 'id' | 'fechaRegistro'>) => Promise<void>;
   updateClient: (id: string, client: Partial<Client>) => Promise<void>;
@@ -66,11 +67,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!data.settings) {
       data.settings = initialData.settings;
     }
+    
+    // Ensure default admin exists
+    const hasAdmin = data.admins.find((a: any) => a.email === 'admin@paccha.local');
+    if (!hasAdmin) {
+      data.admins.push({
+        id: 'admin_default',
+        email: 'admin@paccha.local',
+        username: 'admin',
+        password: 'ALANgaona2010@', // Will be plain or handled by backward compatibility check
+        role: 'ADMIN',
+        nombres: 'Super',
+        apellidos: 'Admin',
+        mustChangePassword: true
+      });
+      setLocalData(data);
+    }
+    
     return data;
   });
 
   const adminProfile = state.admins.find(a => a.email === user?.email || a.username === user?.email);
   const userRole = adminProfile?.role || 'ADMIN';
+  const mustChangePassword = adminProfile?.mustChangePassword || false;
 
   useEffect(() => {
     const savedUser = localStorage.getItem('erp_user');
@@ -293,6 +312,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...state,
       user,
       userRole,
+      mustChangePassword,
       loadingAuth,
       addClient,
       updateClient,

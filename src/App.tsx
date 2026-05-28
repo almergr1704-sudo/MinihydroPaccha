@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AppProvider, useAppContext } from './store/AppContext';
 import { AppLayout } from './components/layout/AppLayout';
@@ -15,7 +15,8 @@ import Configuracion from './pages/Configuracion';
 import Login from './pages/Login';
 
 const AuthGuard = ({ children }: { children: React.ReactNode }) => {
-  const { user, loadingAuth } = useAppContext();
+  const { user, loadingAuth, mustChangePassword } = useAppContext();
+  const location = useLocation();
   
   if (loadingAuth) {
     return <div className="h-screen flex items-center justify-center bg-slate-900 text-white">Cargando...</div>;
@@ -23,6 +24,10 @@ const AuthGuard = ({ children }: { children: React.ReactNode }) => {
   
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+  
+  if (mustChangePassword && location.pathname !== '/config') {
+    return <Navigate to="/config" replace />;
   }
   
   return <>{children}</>;
@@ -51,7 +56,7 @@ export default function App() {
             <Route path="reuniones" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><Reuniones /></RoleGuard>} />
             <Route path="reportes" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><Reportes /></RoleGuard>} />
             <Route path="usuarios" element={<RoleGuard allowedRoles={['ADMIN', 'FISCALIZADOR']}><Usuarios /></RoleGuard>} />
-            <Route path="config" element={<RoleGuard allowedRoles={['ADMIN', 'FISCALIZADOR']}><Configuracion /></RoleGuard>} />
+            <Route path="config" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR', 'OPERATOR']}><Configuracion /></RoleGuard>} />
             <Route path="*" element={
               <div className="flex flex-col items-center justify-center h-full">
                 <h2 className="text-2xl font-bold text-slate-100">Módulo no encontrado</h2>

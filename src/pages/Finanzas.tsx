@@ -6,7 +6,7 @@ import { formatCurrency, render3DPieChartToDataURL } from '../lib/utils';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { TransactionType, Transaction } from '../store/types';
 import { toast } from 'react-hot-toast';
@@ -119,7 +119,7 @@ export default function Finanzas() {
     tableData.push(['TOTAL GENERAL', '', '', formatCurrency(totalAmount)]);
     headParams = [['Fecha', 'Categoría', 'Descripción', type === 'INGRESO' ? 'Monto Ingreso' : 'Monto Egreso']];
 
-    autoTable(doc, {
+    (doc as any).autoTable({
       startY: selectedMes ? 35 : 30,
       head: headParams,
       body: tableData,
