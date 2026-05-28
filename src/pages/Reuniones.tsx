@@ -81,7 +81,9 @@ export default function Reuniones() {
 
   const handleImprimirCitaciones = () => {
     if (!activeMeeting) return;
-    const doc = new jsPDF({ format: 'a4' });
+    const toastId = toast.loading('Generando citaciones...');
+    try {
+      const doc = new jsPDF({ format: 'a4' });
     
     const fDateLong = format(parseISO(activeMeeting.fecha), "eeee, dd 'de' MMMM 'de' yyyy", { locale: es });
     const fDate = format(parseISO(activeMeeting.fecha), "dd/MM/yyyy", { locale: es });
@@ -164,7 +166,12 @@ export default function Reuniones() {
       yOffset = finalY + 18; // Setup for the next ticket offset
     });
 
-    window.open(doc.output('bloburl'), '_blank');
+      doc.save(`Citaciones_Reunion_${activeMeeting.fecha.split('T')[0]}.pdf`);
+      toast.success('Citaciones generadas con éxito.', { id: toastId });
+    } catch (error) {
+      console.error('Error generating invitations PDF:', error);
+      toast.error('Error al generar citaciones.', { id: toastId });
+    }
   };
 
   const handleFinalizarReunion = () => {
@@ -210,7 +217,9 @@ export default function Reuniones() {
 
   const handleGenerarReporteAsistencia = (meeting: typeof activeMeeting) => {
     if (!meeting) return;
-    const doc = new jsPDF();
+    const toastId = toast.loading('Generando reporte de asistencia...');
+    try {
+      const doc = new jsPDF();
     doc.text(`Reporte de Asistencia`, 14, 20);
     doc.setFontSize(12);
     doc.text(`Motivo: ${meeting.motivo}`, 14, 28);
@@ -237,7 +246,12 @@ export default function Reuniones() {
       body: data,
     });
 
-    window.open(doc.output('bloburl'), '_blank');
+      doc.save(`Reporte_Asistencia_${meeting.fecha.split('T')[0]}.pdf`);
+      toast.success('Reporte de asistencia generado con éxito.', { id: toastId });
+    } catch (error) {
+      console.error('Error generating attendance PDF:', error);
+      toast.error('Error al generar el reporte de asistencia.', { id: toastId });
+    }
   };
 
   return (

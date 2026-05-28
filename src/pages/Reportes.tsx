@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, Button } from '../components/
 import { formatCurrency, render3DPieChartToDataURL } from '../lib/utils';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { jsPDF } from 'jspdf';
+import { toast } from 'react-hot-toast';
 import 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
@@ -36,7 +37,9 @@ export default function Reportes() {
   const indiceMorosidad = totalDeudasRegistradas > 0 ? ((totalRecibosVencidos / totalDeudasRegistradas) * 100).toFixed(1) : 0;
 
   const handleExportPDF = (type: 'INGRESO' | 'EGRESO' | 'CONSOLIDADO') => {
-    const doc = new jsPDF();
+    const toastId = toast.loading('Generando PDF...');
+    try {
+      const doc = new jsPDF();
     
     if (type === 'CONSOLIDADO') {
       doc.text(`Reporte Consolidado por Categoría`, 14, 20);
@@ -170,7 +173,12 @@ export default function Reportes() {
        }
     }
 
-    window.open(doc.output('bloburl'), '_blank');
+      doc.save(`Reporte_${type}.pdf`);
+      toast.success('Reporte generado con éxito.', { id: toastId });
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast.error('Error al generar el reporte.', { id: toastId });
+    }
   };
 
   const handleExportExcel = () => {

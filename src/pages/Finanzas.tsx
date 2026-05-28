@@ -34,7 +34,9 @@ export default function Finanzas() {
   const itemsPerPage = 15;
 
   const handleGenerateEgresoPDF = (t: Transaction) => {
-    const doc = new jsPDF();
+    const toastId = toast.loading('Generando PDF...');
+    try {
+      const doc = new jsPDF();
     doc.setFontSize(20);
     doc.text('Central Hidroeléctrica', 14, 22);
     doc.setFontSize(12);
@@ -51,7 +53,12 @@ export default function Finanzas() {
     const splitDesc = doc.splitTextToSize(`Concepto / Descripción: ${t.descripcion}`, 180);
     doc.text(splitDesc, 14, 70);
 
-    window.open(doc.output('bloburl'), '_blank');
+      doc.save(`Egreso_${t.fecha}.pdf`);
+      toast.success('Comprobante generado éxito.', { id: toastId });
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast.error('Error al generar comprobante.', { id: toastId });
+    }
   };
 
   const closeModal = () => {
@@ -91,7 +98,9 @@ export default function Finanzas() {
   };
 
   const handleGenerateReportPDFDetailed = (type: 'INGRESO' | 'EGRESO') => {
-    const doc = new jsPDF();
+    const toastId = toast.loading(`Generando reporte de ${type.toLowerCase()}...`);
+    try {
+      const doc = new jsPDF();
     doc.text(`Reporte Detallado de Transacciones - ${type}`, 14, 20);
     
     if (selectedMes) {
@@ -159,7 +168,12 @@ export default function Finanzas() {
        }
     }
 
-    window.open(doc.output('bloburl'), '_blank');
+      doc.save(`Reporte_Detallado_${type}_${selectedMes || 'Historico'}.pdf`);
+      toast.success('Reporte generado con éxito.', { id: toastId });
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast.error('Error al generar el PDF.', { id: toastId });
+    }
   };
 
   const handleGenerateReportExcel = () => {

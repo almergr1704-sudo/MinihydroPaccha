@@ -158,7 +158,9 @@ export default function Consumo() {
 
   const handleExportConsumosPDF = (consumptionsList: Consumption[]) => {
     if (consumptionsList.length === 0) return;
-    const doc = new jsPDF();
+    const toastId = toast.loading('Generando PDF...');
+    try {
+      const doc = new jsPDF();
     doc.text(`Reporte de Consumos - ${selectedMes}`, 14, 20);
     
     const tableData = consumptionsList.map(cons => {
@@ -179,11 +181,18 @@ export default function Consumo() {
       body: tableData,
     });
 
-    window.open(doc.output('bloburl'), '_blank');
+      doc.save(`Reporte_Consumos_${selectedMes}.pdf`);
+      toast.success('PDF generado con éxito.', { id: toastId });
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast.error('Error al generar el PDF.', { id: toastId });
+    }
   };
 
   const handleGenerateMassReceipts = () => {
-    const suppliesToInvoice: any[] = [];
+    const toastId = toast.loading('Generando PDF masivo...');
+    try {
+      const suppliesToInvoice: any[] = [];
     
     clients.forEach(client => {
       if (client.estado !== 'ACTIVO' && client.estado !== 'CORTADO') return;
@@ -421,11 +430,18 @@ export default function Consumo() {
       yOffset = currentReceiptBottom + 4;
     });
 
-    window.open(doc.output('bloburl'), '_blank');
+      doc.save(`Recibos_Masivos_${selectedMes}.pdf`);
+      toast.success('Recibos generados con éxito.', { id: toastId });
+    } catch (error) {
+      console.error('Error generating mass receipts PDF:', error);
+      toast.error('Error al generar los recibos.', { id: toastId });
+    }
   };
 
   const handleGenerateReceipt = (cons: Consumption) => {
-    const client = clients.find(c => c.id === cons.clientId);
+    const toastId = toast.loading('Generando recibo...');
+    try {
+      const client = clients.find(c => c.id === cons.clientId);
     if (!client) return;
 
     const clientName = client.nombre ? client.nombre : `${client.nombres} ${client.apellidos}`;
@@ -607,7 +623,12 @@ export default function Consumo() {
     doc.setFontSize(16);
     doc.text(`Total a Pagar: ${calcFormatCurrencyStr(totalAPagar)}`, 196, finalY + 6, { align: 'right' });
 
-    window.open(doc.output('bloburl'), '_blank');
+      doc.save(`Recibo_${clientName.replace(/\s+/g, '_')}_${cons.mes}.pdf`);
+      toast.success('Recibo generado con éxito.', { id: toastId });
+    } catch (error) {
+      console.error('Error generating receipt PDF:', error);
+      toast.error('Error al generar el recibo.', { id: toastId });
+    }
   };
 
   const [activeTab, setActiveTab] = useState<'LECTURAS' | 'DEUDAS'>('LECTURAS');
