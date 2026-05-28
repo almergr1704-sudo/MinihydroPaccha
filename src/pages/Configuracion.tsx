@@ -132,79 +132,241 @@ export default function Configuracion() {
     const doc = new jsPDF();
     let yOffset = 20;
     
+    // Helper to add page if needed
+    const checkPage = (addedHeight: number) => {
+      if (yOffset + addedHeight > 280) {
+        doc.addPage();
+        yOffset = 20;
+      }
+    };
+    
     // Header
     doc.setFillColor(15, 23, 42); // slate-900
     doc.rect(0, 0, 210, 30, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(22);
-    doc.text(`Manual de Usuario - ${roleType}`, 105, 20, { align: 'center' });
+    doc.text(`Manual de Usuario - Perfil: ${roleType}`, 105, 20, { align: 'center' });
     
     // Content
-    doc.setTextColor(50, 50, 50);
     yOffset = 45;
     
     doc.setFontSize(14);
+    doc.setTextColor(15, 23, 42);
+    doc.text('Descripción General y Permisos:', 14, yOffset);
+    yOffset += 8;
+    
+    doc.setFontSize(11);
+    doc.setTextColor(50, 50, 50);
+    
+    let description = '';
+    if (roleType === 'ADMIN') {
+      description = 'El Administrador tiene acceso total al sistema. Puede gestionar clientes, ver y procesar cobros, aplicar consumos y multas, configurar tarifas, administrar cuentas de usuario, realizar exportaciones/importaciones (Backups) y visualizar finanzas.';
+    } else if (roleType === 'TESORERO') {
+      description = 'El Tesorero se encarga principalmente de recaudar ingresos. Tiene acceso al cobro de recibos (Consumos y Multas) y puede visualizar el estado de deuda de los clientes. No puede alterar lecturas ni reportar egresos.';
+    } else if (roleType === 'OPERATOR') {
+      description = 'El Operador (Digitador) es responsable del trabajo de campo o digitación. Puede registrar nuevos clientes, actualizar direcciones e ingresar mensualmente las lecturas de los medidores de agua.';
+    } else if (roleType === 'FISCALIZADOR') {
+      description = 'El Fiscalizador realiza tareas de auditoría. Tiene acceso de solo lectura a los movimientos financieros, listado de clientes y consumos, permitiendo monitorear las métricas de la asociación sin alterar datos.';
+    }
+    
+    const descLines = doc.splitTextToSize(description, 180);
+    doc.text(descLines, 14, yOffset);
+    yOffset += (descLines.length * 6) + 10;
+    
+    doc.setFontSize(14);
+    doc.setTextColor(15, 23, 42);
     doc.text('Módulos Habilitados y Funcionalidades:', 14, yOffset);
     yOffset += 10;
     
-    doc.setFontSize(11);
-    const writeSection = (title: string, desc: string) => {
+    const writeSection = (title: string, desc: string, steps: string[], mockType: 'dashboard' | 'table' | 'form') => {
+      checkPage(30);
+      
+      doc.setFontSize(14);
       doc.setFont(undefined, 'bold');
-      doc.text(`• ${title}`, 14, yOffset);
+      doc.setTextColor(30, 64, 175); // blue-800
+      doc.text(`Módulo: ${title}`, 14, yOffset);
+      yOffset += 7;
+      
+      doc.setFontSize(11);
       doc.setFont(undefined, 'normal');
-      const textLines = doc.splitTextToSize(desc, 170);
-      doc.text(textLines, 20, yOffset + 5);
-      yOffset += 5 + (textLines.length * 5) + 5;
+      doc.setTextColor(50, 50, 50);
+      const textLines = doc.splitTextToSize(desc, 180);
+      doc.text(textLines, 14, yOffset);
+      yOffset += (textLines.length * 6) + 4;
       
-      // Simulate an illustrative image based on section
-      if (yOffset > 240) {
-        doc.addPage();
-        yOffset = 20;
+      if (steps && steps.length > 0) {
+        checkPage(steps.length * 7 + 10);
+        doc.setFontSize(11);
+        doc.setFont(undefined, 'bold');
+        doc.text('Guía Paso a Paso:', 14, yOffset);
+        yOffset += 6;
+        doc.setFontSize(11);
+        doc.setFont(undefined, 'normal');
+        steps.forEach((step, idx) => {
+          const stepLines = doc.splitTextToSize(`Paso ${idx + 1}: ${step}`, 175);
+          doc.text(stepLines, 18, yOffset);
+          yOffset += (stepLines.length * 5) + 2;
+        });
+        yOffset += 7;
       }
       
-      // Draw a mock screenshot wireframe
+      checkPage(75);
+      
+      // Draw a highly detailed mock screenshot
       doc.setDrawColor(200, 200, 200);
-      doc.setFillColor(245, 245, 245);
-      doc.rect(20, yOffset, 170, 40, 'FD');
-      // Mock toolbar
-      doc.setFillColor(220, 220, 220);
-      doc.rect(20, yOffset, 170, 8, 'F');
-      // Mock content
-      doc.setDrawColor(220, 220, 220);
-      for (let i = 0; i < 3; i++) {
-        doc.rect(25, yOffset + 15 + (i * 8), 160, 4, 'S');
+      doc.setFillColor(248, 250, 252); // slate-50 background
+      doc.roundedRect(14, yOffset, 182, 60, 2, 2, 'FD');
+      
+      // Window header (browser like)
+      doc.setFillColor(226, 232, 240);
+      doc.rect(14, yOffset, 182, 8, 'F');
+      doc.setFillColor(241, 245, 249);
+      doc.circle(20, yOffset + 4, 1.5, 'F');
+      doc.circle(25, yOffset + 4, 1.5, 'F');
+      doc.circle(30, yOffset + 4, 1.5, 'F');
+      
+      // Sidebar
+      doc.setFillColor(15, 23, 42);
+      doc.rect(14, yOffset + 8, 30, 52, 'F');
+      
+      doc.setFillColor(51, 65, 85);
+      for(let i=0; i<4; i++) {
+        doc.rect(17, yOffset + 15 + (i * 6), 24, 3, 'F');
+      }
+
+      // Content area
+      if (mockType === 'dashboard') {
+        doc.setFillColor(255, 255, 255);
+        doc.roundedRect(48, yOffset + 12, 40, 20, 1, 1, 'F');
+        doc.roundedRect(92, yOffset + 12, 40, 20, 1, 1, 'F');
+        doc.roundedRect(136, yOffset + 12, 40, 20, 1, 1, 'F');
+        
+        doc.setFillColor(226, 232, 240);
+        doc.roundedRect(48, yOffset + 36, 128, 20, 1, 1, 'F');
+      } else if (mockType === 'table') {
+        doc.setFillColor(255, 255, 255);
+        doc.roundedRect(48, yOffset + 12, 128, 44, 1, 1, 'F');
+        doc.setFillColor(226, 232, 240);
+        doc.rect(48, yOffset + 12, 128, 6, 'F'); // headers
+        for(let i=0; i<4; i++) {
+          doc.rect(50, yOffset + 22 + (i*8), 124, 4, 'F'); // rows
+        }
+      } else if (mockType === 'form') {
+        doc.setFillColor(255, 255, 255);
+        doc.roundedRect(48, yOffset + 12, 128, 44, 1, 1, 'F');
+        doc.setFillColor(226, 232, 240);
+        doc.rect(52, yOffset + 20, 50, 4, 'F'); // label
+        doc.rect(52, yOffset + 26, 120, 6, 'F'); // input
+        doc.rect(52, yOffset + 36, 50, 4, 'F'); // label
+        doc.rect(52, yOffset + 42, 120, 6, 'F'); // input
+        doc.setFillColor(59, 130, 246);
+        doc.roundedRect(142, yOffset + 50, 30, 6, 1, 1, 'F'); // primary button
       }
       
-      yOffset += 45 + 10;
+      doc.setFontSize(8);
+      doc.setTextColor(148, 163, 184); // slate-400
+      doc.text(`Captura ilustrativa: Sistema ERP - ${title}`, 105, yOffset + 65, { align: 'center' });
       
-      if (yOffset > 270) {
-        doc.addPage();
-        yOffset = 20;
-      }
+      yOffset += 75; // 60 for img + padding
     };
 
     if (roleType === 'ADMIN') {
-      writeSection('Dashboard Completo', 'Visualización de finanzas totales, clientes morosos, egresos e ingresos.');
-      writeSection('Clientes', 'Gestión completa de clientes (socios y usuarios). Altas, bajas y gestión de estados.');
-      writeSection('Consumos Anuales', 'Registrar lecturas de medidores mensualmente, generar recibos y procesar pagos en masa.');
-      writeSection('Asistencia de Reuniones', 'Registrar reuniones de asamblea, contabilizar quórum, generar padrones, y asignar multas automáticamente a inasistentes.');
-      writeSection('Finanzas', 'Modulo exclusivo. Control de todos los ingresos automáticos y registro de egresos operativos de la asociación.');
-      writeSection('Usuarios y Roles', 'Creación y gestión de acceso para operadores, tesoreros y fiscalizadores. Restricción de permisos.');
-      writeSection('Configuración', 'Ajuste de tarifas, precios de multas, costo de usuarios y socios, entre otros parámetros. Respaldo de Base de Datos.');
+      writeSection(
+        'Panel Principal (Dashboard)', 
+        'Proporciona una vista rápida de las métricas principales del sistema: ingresos, egresos, balance total, así como la cantidad de clientes morosos y aquellos con reconexiones pendientes.',
+        ['Visualizar un resumen de las métricas en tarjetas superiores.', 'Revisar la tabla de distribución de clientes por sector y tipo.', 'Ver el gráfico de los ingresos del mes.'],
+        'dashboard'
+      );
+      writeSection(
+        'Clientes', 
+        'Gestión completa del padrón de pobladores (Socios y Usuarios). Permite administrar datos, cortes de servicio y verificar deudas.',
+        ['Hacer clic en "Nuevo Cliente" para agregar usuarios o socios.', 'En la tabla, buscar mediante código de suministro o nombre.', 'Seleccionar "D" o "M" en los botones de acción para gestionar Deudas o Multas.', 'Editar la información desde el botón Lápiz o activar CORTADO/ACTIVO.'],
+        'table'
+      );
+      writeSection(
+        'Consumos Anuales', 
+        'Módulo para procesar lecturas de medidores mensualmente. Genera masivamente los comprobantes en base al rango de consumo y la tarifa establecida.',
+        ['Elegir el Mes y Año para habilitar la planilla de registro.', 'Ingresar la lectura actual para cada cliente que no cuente con una.', 'Hacer clic en "Generar Recibo" o "Generar Recibos Faltantes" para emitir la deuda.', 'Usar los botones "PAGAR" para liquidar el recibo generado.'],
+        'form'
+      );
+      writeSection(
+        'Reuniones / Asambleas', 
+        'Registra reuniones comunitarias o asambleas para el control de asistencia. Calcula quórum y asigna multas para quienes no justifiquen su inasistencia.',
+        ['Crear una nueva reunión indicando fecha, hora general y hora límite (Fin de Tolerancia).', 'Marcar la asistencia de cada socio mediante los botones Asistió (Verde) o Justificó.', 'Cerrar el padrón y presionar "Asignar Multas" para que los inasistentes adquieran una deuda automática.', 'Imprimir el reporte de citados.'],
+        'table'
+      );
+      writeSection(
+        'Finanzas', 
+        'Lleva el registro de caja de toda la asociación, consolidando ingresos de multas y consumos. Permite asentar salidas (egresos) monetarias justificadas.',
+        ['Visualizar el listado en tiempo real de transacciones (Cobros y Egresos).', 'Filtrar por tipo (Recibo, Multa, Egreso, Reingreso, Devolución) y mes.', 'Hacer clic en "Generar Detalle de Ingresos PDF" para reportes por operador en fechas elegidas.', 'Ingresar "Nuevo Egreso" con su concepto (p. ej. reparación tuberías) y monto.'],
+        'table'
+      );
+      writeSection(
+        'Usuarios (Gestión de Roles)', 
+        'Administra los perfiles de acceso. Permite dar de alta a miembros de mesa directiva y/o digitadores.',
+        ['Abrir el módulo Usuarios (ícono de Escudo).', 'Crear un usuario nuevo llenando nombres, DNI, correo temporal (opcional), rol a desempeñar y contraseña.', 'Revocar accesos eliminando o editando cuentas existentes.'],
+        'form'
+      );
+      writeSection(
+        'Configuración del Sistema', 
+        'Parámetros centrales de tarifas de agua, costos de multa por defecto y exportación de copias de seguridad de los datos.',
+        ['Revisar "Tarifas de Agua"; cambiar el rango, el costo de las cuotas familiares, y cuotas base de agua.', 'En la sección Bases Administrativas configurar Multa de Asamblea (ej. 50 MXN/PEN), Asignación de Socio y Reconexiones de Servicio.', 'Exportar copia de Sistema (JSON) a escritorio como archivo de respaldo diario.', 'Descargar este manual PDF.'],
+        'form'
+      );
+      
     } else if (roleType === 'TESORERO') {
-      writeSection('Dashboard Financiero', 'Vista limitada a recolección de pagos y balances de caja diaria.');
-      writeSection('Clientes', 'Búsqueda de clientes, vista de deudas pendientes para cobro.');
-      writeSection('Consumos Anuales (Cobros)', 'Capacidad de cobrar recibos de consumos de agua generados previamente y emitir comprobantes.');
-      writeSection('Asistencia de Reuniones', 'Capacidad de cobrar multas de reuniones o asambleas.');
+      writeSection(
+        'Panel Principal', 
+        'Brinda lectura rápida del desempeño de las recaudaciones y nivel de deuda de los clientes.',
+        ['Seleccionar Panel Inferior para ver tarjetas informativas.', 'El sistema detalla el número de morosos para realizar notificaciones físicas.'],
+        'dashboard'
+      );
+      writeSection(
+        'Cobro de Consumos', 
+        'Recaudación por recibos de suministro de agua correspondientes al consumo capturado (mensual).',
+        ['Navegar a Consumos.', 'Seleccionar el Mes activo a liquidar.', 'Hacer clic en el botón verde "PAGAR" al lado del cliente en la lista, lo que transfiere el dinero al sistema contable.', 'Hacer clic en el icono "PDF (Recibo)" para imprimir el comprobante térmico/A4.'],
+        'table'
+      );
+      writeSection(
+        'Cobro de Multas y Asistencia', 
+        'Recaudación por faltas o reuniones de inasistencia, garantizando el control del libro de asambleas.',
+        ['Navegar al apartado Clientes, pulsar en Icono Naranja Escudo (Ver Multas). Alternativamente entrar a padrón.', 'Buscar a un cliente específico, y cobrar las deudas listadas y generadas previamente.', 'El estado cambiará automáticamente a PAGADO.'],
+        'form'
+      );
+      
     } else if (roleType === 'OPERATOR') {
-      writeSection('Clientes', 'Registrar nuevos pobladores, modificar datos de dirección y suministro.');
-      writeSection('Consumos Anuales (Lecturas)', 'Módulo para ingresar en campo las lecturas de los medidores de agua mes a mes y verificar saltos anormales.');
-      writeSection('Asistencia de Reuniones', 'Apoyo en registro en puerta durante asambleas, pasando lista de asistencia.');
+      writeSection(
+        'Clientes', 
+        'Registro digital del libro padrón. Actualización de censos y altas de servicios.',
+        ['Entrar a "Clientes" e ingresar "Crear Cliente".', 'Completar Nombres, DNI, Código de suministro asignado, Sexo, Categoría (Socio/Usuario) y Sector.', 'Hacer clic en guardar. Los datos estarán automáticamente en el sistema para la toma de lecturas diarias.'],
+        'form'
+      );
+      writeSection(
+        'Consumos (Lecturas Médicas)', 
+        'Toma de lecturas mensuales del medidor de agua correspondiente a cada cliente.',
+        ['Ir a Consumos y seleccionar el mes activo.', 'Caminar a los domicilios, e identificar por número de suministro y titular.', 'Digitar en "Lectura Actual" los m3 del hidrómetro y apretar "Enter".', 'El sistema mostrará en amarillo cambios anormalmente altos del consumo anterior.'],
+        'table'
+      );
+      writeSection(
+        'Reuniones (Toma de Lista)', 
+        'Apoyo perimetral para registrar asistencia a la hora del evento general.',
+        ['Para facilitar la entrada al local, dar check a Asistió o Falto en la tabla en el módulo Reuniones para la asamblea ACTIVA.', 'Puede buscar en campo de texto con las primeras letras de los apellidos del socio en la puerta.'],
+        'table'
+      );
+
     } else if (roleType === 'FISCALIZADOR') {
-      writeSection('Dashboard General', 'Lectura de métricas operativas generales y estado moroso.');
-      writeSection('Clientes (Solo Lectura)', 'Consultar datos de pobladores y verificar deudas para emitir reportes u opiniones.');
-      writeSection('Consumos Anuales (Auditoría)', 'Verificar las lecturas tomadas a los clientes sin posibilidad de modificarlas o emitir cobros no autorizados.');
-      writeSection('Reportes Financieros', 'Acceso a los registros de ingresos y egresos, exportación Excel de finanzas, sin capacidad de crear egresos o alterar movimientos.');
+      writeSection(
+        'Panel y Dashboard', 
+        'Vista de métricas operativas del desempeño de Tesoreria y Directiva de Operaciones.',
+        ['Supervisar la recaudación en tiempo real (ingresos vs. egresos).', 'Revisar la alerta de desconexiones pendientes por acumulación.', 'Visualizar evolución mes a mensual en gráficos de barra.'],
+        'dashboard'
+      );
+      writeSection(
+        'Auditoría y Reportes (Finanzas)', 
+        'Extractos y comprobantes consolidados de cada mes emitidos por el secretario.',
+        ['Navegar a la pestaña "Finanzas".', 'Generar Exportación a "Excel" del flujo de caja, o presionar "Exportar a PDF" para imprimir extracto certificado del registro de actividades.', 'Comparar lecturas y cobros para verificar validez y exactitud de información guardada.'],
+        'table'
+      );
     }
 
     doc.save(`Manual_Paccha_${roleType}.pdf`);
