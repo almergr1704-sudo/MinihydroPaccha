@@ -6,7 +6,7 @@ import { formatCurrency, render3DPieChartToDataURL } from '../lib/utils';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { TransactionType, Transaction } from '../store/types';
 import { toast } from 'react-hot-toast';
@@ -117,6 +117,11 @@ export default function Finanzas() {
       .filter(t => selectedMes ? t.fecha.startsWith(selectedMes) : true)
       .sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
 
+    if (txForReport.length === 0) {
+      toast.error('No existen datos disponibles para generar el PDF.');
+      return;
+    }
+
     const totalAmount = txForReport.reduce((acc, t) => acc + t.monto, 0);
 
     tableData = txForReport.map(t => [
@@ -128,7 +133,7 @@ export default function Finanzas() {
     tableData.push(['TOTAL GENERAL', '', '', formatCurrency(totalAmount)]);
     headParams = [['Fecha', 'Categoría', 'Descripción', type === 'INGRESO' ? 'Monto Ingreso' : 'Monto Egreso']];
 
-    (doc as any).autoTable({
+    autoTable(doc, {
       startY: selectedMes ? 35 : 30,
       head: headParams,
       body: tableData,
@@ -140,7 +145,7 @@ export default function Finanzas() {
       }
     });
 
-    const finalY = (doc as any).lastAutoTable.finalY + 10 || 40;
+    const finalY = (doc as any).lastAutoTable?.finalY + 10 || 40;
     doc.setFontSize(12);
     doc.text(`Total ${type === 'INGRESO' ? 'Ingresos' : 'Egresos'}: ${formatCurrency(totalAmount)}`, 14, finalY);
 

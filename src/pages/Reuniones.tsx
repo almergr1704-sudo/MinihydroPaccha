@@ -5,7 +5,7 @@ import { Button, Card, CardContent, Badge, CardHeader, CardTitle, Pagination } f
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import { toast } from 'react-hot-toast';
 
 export default function Reuniones() {
@@ -239,8 +239,13 @@ export default function Reuniones() {
         labelStatus
       ]);
     });
+    
+    if (data.length === 0) {
+      toast.error('No existen datos disponibles para generar el PDF.');
+      return;
+    }
 
-    (doc as any).autoTable({
+    autoTable(doc, {
       startY: 42,
       head: [['Cod.', 'Persona', 'DNI', 'Estado']],
       body: data,

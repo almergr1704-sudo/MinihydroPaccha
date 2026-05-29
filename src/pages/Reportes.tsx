@@ -6,7 +6,7 @@ import { formatCurrency, render3DPieChartToDataURL } from '../lib/utils';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { jsPDF } from 'jspdf';
 import { toast } from 'react-hot-toast';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 
@@ -96,8 +96,13 @@ export default function Reportes() {
       tableData.push(['TOTAL GENERAL', formatCurrency(totalMonto)]);
       headParams = [['Categoría', type === 'INGRESO' ? 'Total Ingresos' : 'Total Egresos']];
     }
+    
+    if (tableData.length === 0 || (tableData.length === 1 && tableData[0][0] === 'TOTAL GENERAL')) {
+       toast.error('No existen datos disponibles para generar el PDF.');
+       return;
+    }
 
-    (doc as any).autoTable({
+    autoTable(doc, {
       startY: 35,
       head: headParams,
       body: tableData,
@@ -109,7 +114,7 @@ export default function Reportes() {
       }
     });
 
-    const afterTableY = (doc as any).lastAutoTable.finalY + 10 || 50;
+    const afterTableY = (doc as any).lastAutoTable?.finalY + 10 || 50;
 
     if (type === 'CONSOLIDADO') {
       const totalIngresos = filteredTransactions.filter(t => t.tipo === 'INGRESO').reduce((acc, t) => acc + t.monto, 0);
@@ -121,7 +126,7 @@ export default function Reportes() {
       doc.setFontSize(14);
       doc.text('Resumen de Morosidad', 14, finalY);
       
-      (doc as any).autoTable({
+      autoTable(doc, {
         startY: finalY + 6,
         head: [['Recibos Vencidos', 'Monto Total en Deuda', 'Índice de Morosidad']],
         body: [[

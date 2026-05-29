@@ -6,7 +6,7 @@ import { formatCurrency } from '../lib/utils';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { Consumption } from '../store/types';
 import { toast } from 'react-hot-toast';
@@ -38,6 +38,8 @@ export default function Consumo() {
   };
 
   const [clientSearch, setClientSearch] = useState('');
+  const [suministroSearch, setSuministroSearch] = useState('');
+  const [showSuministroDropdown, setShowSuministroDropdown] = useState(false);
 
   const [formData, setFormData] = useState({
     clientAndSuministro: '',
@@ -157,7 +159,10 @@ export default function Consumo() {
   };
 
   const handleExportConsumosPDF = (consumptionsList: Consumption[]) => {
-    if (consumptionsList.length === 0) return;
+    if (consumptionsList.length === 0) {
+      toast.error('No existen datos disponibles para generar el PDF.');
+      return;
+    }
     const toastId = toast.loading('Generando PDF...');
     try {
       const doc = new jsPDF();
@@ -175,7 +180,7 @@ export default function Consumo() {
       ];
     });
 
-    (doc as any).autoTable({
+    autoTable(doc, {
       startY: 30,
       head: [['Cliente', 'Suministro', 'kWh', 'Monto', 'Estado']],
       body: tableData,
@@ -217,7 +222,7 @@ export default function Consumo() {
     });
 
     if (suppliesToInvoice.length === 0) {
-      toast.error('No hay recibos para generar.');
+      toast.error('No existen datos disponibles para generar el PDF.');
       return;
     }
 
@@ -255,7 +260,7 @@ export default function Consumo() {
         ]);
       }
       
-      (testDoc as any).autoTable({
+      autoTable(testDoc, {
         startY: 39,
         head: [['Descripción', 'Cantidad (kWh)', 'Precio (S/)', 'Subtotal']],
         body: testTableBody,
@@ -263,7 +268,7 @@ export default function Consumo() {
         styles: { fontSize: 8, cellPadding: 1 },
         margin: { left: 14, right: 14 }
       });
-      const estimatedHeight = ((testDoc as any).lastAutoTable.finalY || 43) + 14; 
+      const estimatedHeight = ((testDoc as any).lastAutoTable?.finalY || 43) + 14; 
       // --------------------------------
 
       if (yOffset + estimatedHeight > maxH - 5) {
@@ -406,7 +411,7 @@ export default function Consumo() {
 
       const totalAPagar = totalMontoCalculado + debtInfo.totalDeuda;
 
-      (doc as any).autoTable({
+      autoTable(doc, {
         startY: yOffset + 39,
         head: [['Descripción', 'Cantidad (kWh)', 'Precio (S/)', 'Subtotal']],
         body: tableBody,
@@ -416,7 +421,7 @@ export default function Consumo() {
         margin: { left: 14, right: 14 }
       });
 
-      const finalY = (doc as any).lastAutoTable.finalY || yOffset + 43;
+      const finalY = (doc as any).lastAutoTable?.finalY || yOffset + 43;
       doc.setFontSize(16);
       doc.text(`Total a Pagar: ${formatCurrencyStr(totalAPagar)}`, 196, finalY + 6, { align: 'right' });
       
@@ -469,7 +474,7 @@ export default function Consumo() {
         calcFormatCurrencyStr(debtInfo.previousUnpaid.reduce((acc: any, unpaid: any) => acc + unpaid.montoCalculado, 0))
       ]);
     }
-    (testDoc as any).autoTable({
+    autoTable(testDoc, {
       startY: 39,
       head: [['Descripción', 'Cantidad (kWh)', 'Precio (S/)', 'Subtotal']],
       body: testTableBody,
@@ -477,7 +482,7 @@ export default function Consumo() {
       styles: { fontSize: 8, cellPadding: 1 },
       margin: { left: 14, right: 14 }
     });
-    const estimatedHeight = ((testDoc as any).lastAutoTable.finalY || 43) + 14; 
+    const estimatedHeight = ((testDoc as any).lastAutoTable?.finalY || 43) + 14; 
     // --------------------------------
 
     const doc = new jsPDF({ format: 'a4' });
@@ -609,7 +614,7 @@ export default function Consumo() {
 
     const totalAPagar = totalMontoCalculado + debtInfo.totalDeuda;
 
-    (doc as any).autoTable({
+    autoTable(doc, {
       startY: yOffset + 39,
       head: [['Descripción', 'Cantidad (kWh)', 'Precio (S/)', 'Subtotal']],
       body: tableBody,
@@ -619,7 +624,7 @@ export default function Consumo() {
       margin: { left: 14, right: 14 }
     });
 
-    const finalY = (doc as any).lastAutoTable.finalY || yOffset + 43;
+    const finalY = (doc as any).lastAutoTable?.finalY || yOffset + 43;
     doc.setFontSize(16);
     doc.text(`Total a Pagar: ${calcFormatCurrencyStr(totalAPagar)}`, 196, finalY + 6, { align: 'right' });
 
@@ -665,10 +670,25 @@ export default function Consumo() {
     if (!clientSearch) return true;
     const searchLower = clientSearch.toLowerCase();
     const fullName = c.nombre ? c.nombre.toLowerCase() : `${c.nombres || ''} ${c.apellidos || ''}`.toLowerCase();
-    return (c.codigoSuministro?.toLowerCase().includes(searchLower) ||
-           c.dni?.includes(searchLower) ||
-           fullName.includes(searchLower)) ?? false;
+    return (c.dni?.includes(searchLower) || fullName.includes(searchLower)) ?? false;
   }).filter(c => c.estado === 'ACTIVO' || c.estado === 'CORTADO');
+
+  const availableSupplies = React.useMemo(() => {
+     let supplies: { id: string, sup: string, label: string }[] = [];
+     searchedClients.forEach(c => {
+        const clientSupplies = c.suministros?.length ? c.suministros : [c.codigoSuministro];
+        clientSupplies.forEach(sup => {
+           if (!sup) return;
+           if (suministroSearch && !sup.toLowerCase().includes(suministroSearch.toLowerCase())) return;
+           supplies.push({
+              id: c.id,
+              sup: sup,
+              label: `${sup} - ${c.nombre ? c.nombre : c.nombres + ' ' + c.apellidos} (${c.tipo}) - DNI: ${c.dni}`
+           });
+        });
+     });
+     return supplies;
+  }, [searchedClients, suministroSearch]);
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
@@ -889,32 +909,53 @@ export default function Consumo() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-300">Buscar Cliente (Suministro, DNI o Nombre)</label>
+                      <label className="block text-sm font-medium text-slate-300">Buscar Cliente (DNI o Nombre)</label>
                       <input 
                         type="text" 
-                        placeholder="Buscar..."
+                        placeholder="Buscar por DNI o Nombre..."
                         value={clientSearch}
                         onChange={(e) => setClientSearch(e.target.value)}
-                        className="mt-1 mb-2 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-slate-800/50 text-slate-100"
+                        className="mt-1 mb-4 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-slate-800/50 text-slate-100"
                       />
                       <label className="block text-sm font-medium text-slate-300">Seleccionar Cliente / Suministro</label>
-                      <select 
-                        required 
-                        size={clientSearch ? 4 : 1}
-                        value={formData.clientAndSuministro} 
-                        onChange={e => setFormData({...formData, clientAndSuministro: e.target.value})} 
-                        className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100"
-                      >
-                        <option value="">Seleccione un suministro...</option>
-                        {searchedClients.flatMap(c => {
-                          const supplies = c.suministros?.length ? c.suministros : [c.codigoSuministro];
-                          return supplies.map(sup => (
-                            <option key={`${c.id}|${sup}`} value={`${c.id}|${sup}`}>
-                              {sup} - {c.nombre ? c.nombre : `${c.nombres} ${c.apellidos}`.trim()} ({c.tipo}) - {c.tipoPersona === 'EMPRESA' ? 'RUC' : 'DNI'}: {c.dni}
-                            </option>
-                          ));
-                        })}
-                      </select>
+                      <div className="relative">
+                        <input 
+                          type="text"
+                          required={!formData.clientAndSuministro}
+                          placeholder="Buscar o ingresar código de suministro..."
+                          value={suministroSearch}
+                          onChange={(e) => {
+                            setSuministroSearch(e.target.value);
+                            setShowSuministroDropdown(true);
+                            if (formData.clientAndSuministro) {
+                              setFormData({ ...formData, clientAndSuministro: '' });
+                            }
+                          }}
+                          onFocus={() => setShowSuministroDropdown(true)}
+                          onBlur={() => {
+                            // Delay hiding so clicks register
+                            setTimeout(() => setShowSuministroDropdown(false), 200);
+                          }}
+                          className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100"
+                        />
+                        {showSuministroDropdown && availableSupplies.length > 0 && (
+                          <ul className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-slate-800 py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm border border-slate-700">
+                            {availableSupplies.map(s => (
+                              <li
+                                key={`${s.id}|${s.sup}`}
+                                className="relative cursor-pointer select-none py-2 pl-3 pr-9 text-slate-100 hover:bg-slate-700 hover:text-white"
+                                onClick={() => {
+                                  setFormData({ ...formData, clientAndSuministro: `${s.id}|${s.sup}` });
+                                  setSuministroSearch(s.sup);
+                                  setShowSuministroDropdown(false);
+                                }}
+                              >
+                                {s.label}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
                       {ultimaLectura && (
                         <div className="mt-2 p-2 bg-slate-800 rounded-md border border-slate-700 text-xs text-slate-300">
                           <strong className="text-emerald-400 block mb-1">Última lectura registrada:</strong>
