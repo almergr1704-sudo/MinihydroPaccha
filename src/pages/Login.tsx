@@ -41,6 +41,12 @@ export default function Login() {
       });
 
       if (userMatched) {
+        if (userMatched.estado === 'INACTIVO') {
+          setError('El usuario se encuentra inactivo. Consulte con un administrador.');
+          setLoading(false);
+          return;
+        }
+        
         // Log in with matched user using email or username
         login(userMatched.email || userMatched.username);
         return;

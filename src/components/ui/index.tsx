@@ -66,3 +66,5 @@ export function Badge({ className, variant = 'default', children }: { className?
     </span>
   );
 }
+
+export { Pagination } from './Pagination';

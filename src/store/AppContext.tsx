@@ -18,6 +18,7 @@ interface AppContextType extends AppState {
   updateSettings: (settings: any) => Promise<void>;
   recordAttendance: (meetingId: string, clientId: string, status: Meeting['asistencia'][string]) => Promise<void>;
   updateAdmin: (id: string, updates: Partial<any>) => Promise<void>;
+  addAdmin: (admin: any) => Promise<void>;
   deleteConsumption: (id: string, reason: string) => Promise<void>;
   login: (email: string) => void;
   logout: () => void;
@@ -118,8 +119,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const generateId = () => Math.random().toString(36).substr(2, 9);
 
   const updateAdmin = async (id: string, updates: Partial<any>) => {
-    const newAdmins = state.admins.map(a => a.id === id ? { ...a, ...updates } : a);
+    // Validate DNI duplicate if updating
+    if (updates.dni) {
+      const existing = state.admins.find(a => a.dni === updates.dni && a.id !== id);
+      if (existing) {
+        throw new Error('El DNI ingresado ya se encuentra registrado en otro usuario.');
+      }
+    }
+    const newAdmins = state.admins.map(a => a.id === id ? { ...a, ...updates, updatedAt: new Date().toISOString(), updatedBy: user?.email || 'Unknown' } : a);
     persistState({ ...state, admins: newAdmins });
+  };
+
+  const addAdmin = async (admin: any) => {
+    if (!admin.dni || !/^\d{8}$/.test(admin.dni)) {
+      throw new Error('El DNI debe tener exactamente 8 dígitos numéricos.');
+    }
+    const existing = state.admins.find(a => a.dni === admin.dni);
+    if (existing) {
+      throw new Error('El DNI ya se encuentra registrado en el sistema.');
+    }
+    
+    const newAdmin = {
+      ...admin,
+      id: generateId(),
+      estado: 'ACTIVO',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      createdBy: user?.email || 'Unknown',
+      updatedBy: user?.email || 'Unknown',
+    };
+    
+    persistState({
+      ...state,
+      admins: [...state.admins, newAdmin]
+    });
   };
 
   const addClient = async (client: Omit<Client, 'id' | 'fechaRegistro'>) => {
@@ -326,6 +359,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updateSettings,
       recordAttendance,
       updateAdmin,
+      addAdmin,
       deleteConsumption,
       login,
       logout

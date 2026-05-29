@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
-import { Shield, ShieldAlert, UserCheck, Plus, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Shield, ShieldAlert, UserCheck, Plus, X, ChevronLeft, ChevronRight, Power, UserX, UserMinus, Search, Filter } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
-import { Card, CardContent, Badge, Button } from '../components/ui';
+import { Card, CardContent, Badge, Button, Pagination } from '../components/ui';
 import { PasswordStrengthIndicator, evaluatePasswordStrength } from '../components/PasswordStrengthIndicator';
 
 import bcrypt from 'bcryptjs';
 import { toast } from 'react-hot-toast';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 export default function Usuarios() {
-  const { admins, updateAdmin, user, userRole } = useAppContext();
+  const { admins, updateAdmin, addAdmin, user, userRole } = useAppContext();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedRole, setSelectedRole] = useState<'ADMIN'|'TESORERO'|'OPERATOR'|'FISCALIZADOR'>('OPERATOR');
   
@@ -20,6 +22,9 @@ export default function Usuarios() {
   const [newDni, setNewDni] = useState('');
   const [newRole, setNewRole] = useState<'ADMIN'|'TESORERO'|'OPERATOR'|'FISCALIZADOR'>('OPERATOR');
   const [creatingUser, setCreatingUser] = useState(false);
+  
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'TODOS' | 'ACTIVO' | 'INACTIVO'>('TODOS');
 
   const handleUpdateRole = (id: string) => {
     updateAdmin(id, { role: selectedRole });
@@ -30,6 +35,11 @@ export default function Usuarios() {
     e.preventDefault();
     if (!newPassword || (!newNombres && !newEmail)) return;
     
+    if (!/^\d{8}$/.test(newDni)) {
+      toast.error('El DNI debe contener exactamente 8 dígitos numéricos y no incluir letras ni espacios.');
+      return;
+    }
+
     const strength = evaluatePasswordStrength(newPassword);
     if (strength.score < 3) {
       toast.error('La contraseña es demasiado débil. Siga las recomendaciones para continuar.');
@@ -39,11 +49,9 @@ export default function Usuarios() {
     setCreatingUser(true);
     
     try {
-      // Local addition
       const newUsername = (newNombres.charAt(0) + (newApellidos.split(' ')[0] || '')).toLowerCase().replace(/[^a-z0-9]/g, '') + (newDni.slice(-2) || '');
       
-      const newAdmin = {
-         id: Math.random().toString(36).substr(2, 9),
+      await addAdmin({
          email: (newEmail || `${newUsername}@paccha.local`).toLowerCase(),
          username: newUsername.toLowerCase(),
          password: bcrypt.hashSync(newPassword, 10),
@@ -52,22 +60,19 @@ export default function Usuarios() {
          dni: newDni,
          role: newRole,
          mustChangePassword: true,
-         createdAt: new Date().toISOString()
-      };
-
-      // Workaround: if updateAdmin acts as "create" if we mock it, or we need to add an addAdmin in context.
-      // But we can just use localStorage hack for now because context is local.
-      const currentData = JSON.parse(localStorage.getItem('erp_data') || '{"admins":[]}');
-      const updatedAdmins = [...(currentData.admins || []), newAdmin];
-      currentData.admins = updatedAdmins;
-      localStorage.setItem('erp_data', JSON.stringify(currentData));
+      });
       
       toast.success(`Usuario creado correctamente.\nUsuario: ${newUsername}\nRol: ${newRole}`, { duration: 5000 });
+      setIsModalOpen(false);
       
-      // Need a full reload to reflect changes in this simple hack
-      window.location.reload();
+      // Cleanup fields
+      setNewNombres('');
+      setNewApellidos('');
+      setNewDni('');
+      setNewEmail('');
+      setNewPassword('');
     } catch (err: any) {
-      console.error(err);
+      toast.error(err.message || 'Error al crear usuario.');
     } finally {
       setCreatingUser(false);
     }
@@ -87,11 +92,34 @@ export default function Usuarios() {
     toast.success(`Contraseña restablecida correctamente.\nNueva Contraseña: ${defaultPassword}`);
   };
 
+  const handleToggleStatus = async (id: string, currentStatus: string) => {
+    if (!window.confirm(`¿Está seguro de querer cambiar el estado de este usuario a ${currentStatus === 'INACTIVO' ? 'ACTIVO' : 'INACTIVO'}?`)) return;
+    
+    try {
+      await updateAdmin(id, { estado: currentStatus === 'INACTIVO' ? 'ACTIVO' : 'INACTIVO' });
+      toast.success('Estado actualizado correctamente.');
+    } catch (err: any) {
+      toast.error(err.message || 'Error al actualizar el estado.');
+    }
+  };
+
+  const filteredAdmins = admins.filter(admin => {
+    const matchesSearch = admin.nombres?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          admin.apellidos?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          admin.dni?.includes(searchTerm) || 
+                          admin.username?.toLowerCase().includes(searchTerm.toLowerCase());
+                          
+    const adminEstado = admin.estado || 'ACTIVO';
+    const matchesStatus = statusFilter === 'TODOS' || adminEstado === statusFilter;
+    
+    return matchesSearch && matchesStatus;
+  });
+
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 15;
-  const totalPages = Math.ceil(admins.length / itemsPerPage);
+  const totalPages = Math.ceil(filteredAdmins.length / itemsPerPage);
   
-  const currentAdmins = admins.slice(
+  const currentAdmins = filteredAdmins.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
@@ -125,6 +153,44 @@ export default function Usuarios() {
                Solo los usuarios con rol <strong className="text-yellow-500">ADMIN</strong> pueden modificar los roles del sistema. (Modo Local).
              </p>
           </div>
+
+          <div className="p-4 border-b border-slate-800 bg-[#0B0E14] sm:flex sm:items-center sm:justify-between space-y-3 sm:space-y-0 sm:space-x-4">
+            <div className="relative flex-1 max-w-sm">
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                <Search className="h-4 w-4 text-slate-500" />
+              </div>
+              <input
+                type="text"
+                placeholder="Buscar por DNI, Nombres o Usuario..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="block w-full rounded-md border-0 py-1.5 pl-9 bg-slate-900/50 text-slate-200 ring-1 ring-inset ring-slate-800 placeholder:text-slate-500 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6"
+              />
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <Filter className="h-4 w-4 text-slate-500" />
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as any)}
+                className="block w-full rounded-md border-0 py-1.5 pl-3 pr-10 bg-slate-900/50 text-slate-200 ring-1 ring-inset ring-slate-800 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6 cursor-pointer"
+              >
+                <option value="TODOS">Todos los Estados</option>
+                <option value="ACTIVO">Activos</option>
+                <option value="INACTIVO">Inactivos</option>
+              </select>
+            </div>
+          </div>
+
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={filteredAdmins.length}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            disableTopBorder={true}
+          />
+
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-800">
               <thead className="bg-slate-800/50">
@@ -135,21 +201,28 @@ export default function Usuarios() {
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
                     Rol Actual
                   </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
+                    Estado
+                  </th>
                   <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">
                     Acciones
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-[#0B0E14] divide-y divide-slate-800">
-                {currentAdmins.map((admin) => (
+                {currentAdmins.map((admin) => {
+                  const estadoActual = admin.estado || 'ACTIVO';
+                  const isActivo = estadoActual === 'ACTIVO';
+                  
+                  return (
                   <tr key={admin.id} className="hover:bg-slate-800/50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
-                        <div className="flex-shrink-0 h-10 w-10 bg-slate-800 flex items-center justify-center rounded-full">
-                          <UserCheck className="h-5 w-5 text-slate-400" />
+                        <div className={`flex-shrink-0 h-10 w-10 flex items-center justify-center rounded-full ${isActivo ? 'bg-slate-800' : 'bg-red-900/40 opacity-70'}`}>
+                          <UserCheck className={`h-5 w-5 ${isActivo ? 'text-slate-400' : 'text-red-400 opacity-70'}`} />
                         </div>
                         <div className="ml-4">
-                          <div className="text-sm font-medium text-slate-100">
+                          <div className={`text-sm font-medium ${isActivo ? 'text-slate-100' : 'text-slate-500 line-through decoration-slate-700'}`}>
                             {admin.nombres ? `${admin.nombres} ${admin.apellidos}` : admin.username || admin.email}
                           </div>
                           <div className="text-xs text-slate-400">
@@ -181,6 +254,12 @@ export default function Usuarios() {
                         </Badge>
                       )}
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <Badge variant={isActivo ? 'success' : 'danger'}>
+                        {estadoActual}
+                      </Badge>
+                      {admin.updatedBy && <div className="text-[10px] text-slate-500 mt-1" title={admin.updatedAt ? format(new Date(admin.updatedAt), "dd MMM yyyy, HH:mm", { locale: es }) : ''}>Por: {admin.updatedBy}</div>}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                       {userRole !== 'FISCALIZADOR' && (
                         <>
@@ -202,7 +281,7 @@ export default function Usuarios() {
                                   setEditingId(admin.id);
                                   setSelectedRole(admin.role);
                                 }}
-                                disabled={admin.email === user?.email}
+                                disabled={admin.email === user?.email || !isActivo}
                               >
                                 Cambiar Rol
                               </Button>
@@ -210,9 +289,18 @@ export default function Usuarios() {
                                 size="sm"
                                 variant="danger"
                                 onClick={() => handleResetPassword(admin.id, admin.username || admin.email.split('@')[0])}
-                                disabled={admin.email === user?.email}
+                                disabled={admin.email === user?.email || !isActivo}
                               >
                                 Restablecer Clave
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant={isActivo ? 'danger' : 'success'}
+                                onClick={() => handleToggleStatus(admin.id, estadoActual)}
+                                disabled={admin.email === user?.email}
+                                title={isActivo ? 'Desactivar usuario' : 'Activar usuario'}
+                              >
+                                {isActivo ? <UserMinus className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
                               </Button>
                             </>
                           )}
@@ -220,11 +308,11 @@ export default function Usuarios() {
                       )}
                     </td>
                   </tr>
-                ))}
+                )})}
                 {currentAdmins.length === 0 && (
                   <tr>
-                    <td colSpan={3} className="px-6 py-10 text-center text-slate-400">
-                      No hay usuarios registrados.
+                    <td colSpan={4} className="px-6 py-10 text-center text-slate-400">
+                      No hay usuarios registrados o no coinciden con la búsqueda.
                     </td>
                   </tr>
                 )}
@@ -232,57 +320,13 @@ export default function Usuarios() {
             </table>
             
             {/* Pagination Controls */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between border-t border-slate-800 bg-[#0B0E14] px-4 py-3 sm:px-6">
-                <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-sm text-slate-400">
-                      Mostrando <span className="font-medium text-slate-200">{((currentPage - 1) * itemsPerPage) + 1}</span> a <span className="font-medium text-slate-200">{Math.min(currentPage * itemsPerPage, admins.length)}</span> de <span className="font-medium text-slate-200">{admins.length}</span> resultados
-                    </p>
-                  </div>
-                  <div>
-                    <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-                      <button
-                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                        disabled={currentPage === 1}
-                        className="relative inline-flex items-center rounded-l-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-800 hover:bg-slate-800 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
-                      >
-                        <span className="sr-only">Anterior</span>
-                        <ChevronLeft className="h-5 w-5" aria-hidden="true" />
-                      </button>
-                      <span className="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-slate-200 ring-1 ring-inset ring-slate-800 focus:z-20 focus:outline-offset-0">
-                        {currentPage} de {totalPages}
-                      </span>
-                      <button
-                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                        disabled={currentPage === totalPages}
-                        className="relative inline-flex items-center rounded-r-md px-2 py-2 text-slate-400 ring-1 ring-inset ring-slate-800 hover:bg-slate-800 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
-                      >
-                        <span className="sr-only">Siguiente</span>
-                        <ChevronRight className="h-5 w-5" aria-hidden="true" />
-                      </button>
-                    </nav>
-                  </div>
-                </div>
-                {/* Mobile version */}
-                <div className="flex flex-1 justify-between sm:hidden">
-                  <button
-                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                    disabled={currentPage === 1}
-                    className="relative inline-flex items-center rounded-md border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-200 hover:bg-slate-700 disabled:opacity-50"
-                  >
-                    Anterior
-                  </button>
-                  <button
-                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                    disabled={currentPage === totalPages}
-                    className="relative ml-3 inline-flex items-center rounded-md border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-200 hover:bg-slate-700 disabled:opacity-50"
-                  >
-                    Siguiente
-                  </button>
-                </div>
-              </div>
-            )}
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={filteredAdmins.length}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+            />
           </div>
         </CardContent>
       </Card>
@@ -339,7 +383,14 @@ export default function Usuarios() {
                         type="text" 
                         required 
                         value={newDni} 
-                        onChange={e => setNewDni(e.target.value)} 
+                        onChange={e => {
+                          const val = e.target.value.replace(/\D/g, '');
+                          if (val.length <= 8) setNewDni(val);
+                        }} 
+                        maxLength={8}
+                        minLength={8}
+                        pattern="\d{8}"
+                        title="Debe contener exactamente 8 dígitos"
                         className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" 
                       />
                     </div>
