@@ -13,6 +13,7 @@ interface AppContextType extends AppState {
   addFine: (fine: Omit<Fine, 'id' | 'estadoPago' | 'fecha'>) => Promise<void>;
   payFine: (fineId: string) => Promise<void>;
   addTransaction: (transaction: Omit<Transaction, 'id' | 'fecha'>) => Promise<void>;
+  toggleTransactionConciliado: (id: string) => Promise<void>;
   addMeeting: (meeting: Omit<Meeting, 'id'>) => Promise<void>;
   updateMeeting: (id: string, meeting: Partial<Meeting>) => Promise<void>;
   updateSettings: (settings: any) => Promise<void>;
@@ -22,6 +23,9 @@ interface AppContextType extends AppState {
   deleteConsumption: (id: string, reason: string) => Promise<void>;
   login: (email: string) => void;
   logout: () => void;
+  setPdfPreview: (url: string | null, name?: string) => void;
+  pdfPreviewUrl: string | null;
+  pdfPreviewName: string;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -59,6 +63,13 @@ const setLocalData = (data: AppState) => {
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<any>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
+  const [pdfPreviewUrl, setPdfPreviewUrlState] = useState<string | null>(null);
+  const [pdfPreviewName, setPdfPreviewName] = useState<string>('');
+
+  const setPdfPreview = (url: string | null, name?: string) => {
+    setPdfPreviewUrlState(url);
+    if (name) setPdfPreviewName(name);
+  };
 
   const [state, setState] = useState<AppState>(() => {
     const data = getLocalData();
@@ -287,6 +298,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  const toggleTransactionConciliado = async (id: string) => {
+    setState(prev => {
+      const newState = { 
+        ...prev, 
+        transactions: prev.transactions.map(t => t.id === id ? { ...t, conciliado: !t.conciliado } : t) 
+      };
+      setLocalData(newState);
+      return newState;
+    });
+  };
+
   const addMeeting = async (meeting: Omit<Meeting, 'id'>) => {
     const newMeeting: Meeting = {
       ...meeting,
@@ -354,6 +376,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addFine,
       payFine,
       addTransaction,
+      toggleTransactionConciliado,
       addMeeting,
       updateMeeting,
       updateSettings,
@@ -362,7 +385,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addAdmin,
       deleteConsumption,
       login,
-      logout
+      logout,
+      setPdfPreview,
+      pdfPreviewUrl,
+      pdfPreviewName
     }}>
       {children}
     </AppContext.Provider>

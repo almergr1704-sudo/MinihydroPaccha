@@ -124,7 +124,7 @@ export default function Usuarios() {
   });
 
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 15;
+  const [itemsPerPage, setItemsPerPage] = useState(15);
   const totalPages = Math.ceil(filteredAdmins.length / itemsPerPage);
   
   const currentAdmins = filteredAdmins.slice(
@@ -196,6 +196,7 @@ export default function Usuarios() {
             totalItems={filteredAdmins.length}
             itemsPerPage={itemsPerPage}
             onPageChange={setCurrentPage}
+            onItemsPerPageChange={(items) => { setItemsPerPage(items); setCurrentPage(1); }}
             disableTopBorder={true}
           />
 
@@ -334,6 +335,7 @@ export default function Usuarios() {
               totalItems={filteredAdmins.length}
               itemsPerPage={itemsPerPage}
               onPageChange={setCurrentPage}
+              onItemsPerPageChange={(items) => { setItemsPerPage(items); setCurrentPage(1); }}
             />
           </div>
         </CardContent>

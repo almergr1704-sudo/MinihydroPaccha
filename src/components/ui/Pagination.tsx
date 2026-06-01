@@ -6,6 +6,7 @@ interface PaginationProps {
   totalItems: number;
   itemsPerPage: number;
   onPageChange: (page: number) => void;
+  onItemsPerPageChange?: (items: number) => void;
   className?: string;
   disableTopBorder?: boolean;
 }
@@ -16,18 +17,35 @@ export function Pagination({
   totalItems,
   itemsPerPage,
   onPageChange,
+  onItemsPerPageChange,
   className = '',
   disableTopBorder = false
 }: PaginationProps) {
-  if (totalPages <= 1) return null;
+  if (totalItems === 0) return null;
 
   return (
     <div className={`flex items-center justify-between bg-[#0B0E14] px-4 py-3 sm:px-6 ${disableTopBorder ? '' : 'border-t border-slate-800'} ${className}`}>
       <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-        <div>
+        <div className="flex items-center space-x-4">
           <p className="text-sm text-slate-400">
             Mostrando <span className="font-medium text-slate-200">{((currentPage - 1) * itemsPerPage) + 1}</span> a <span className="font-medium text-slate-200">{Math.min(currentPage * itemsPerPage, totalItems)}</span> de <span className="font-medium text-slate-200">{totalItems}</span> resultados
           </p>
+          {onItemsPerPageChange && (
+            <div className="flex items-center space-x-2">
+              <label htmlFor="itemsPerPage" className="text-sm text-slate-400">Mostrar:</label>
+              <select
+                id="itemsPerPage"
+                value={itemsPerPage}
+                onChange={(e) => onItemsPerPageChange(Number(e.target.value))}
+                className="bg-slate-900 border border-slate-700 text-slate-200 text-sm rounded-md focus:ring-blue-500 focus:border-blue-500 block p-1.5"
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+          )}
         </div>
         <div>
           <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">

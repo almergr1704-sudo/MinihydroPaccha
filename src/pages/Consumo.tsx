@@ -12,7 +12,8 @@ import { Consumption } from '../store/types';
 import { toast } from 'react-hot-toast';
 
 export default function Consumo() {
-  const { clients, consumptions, addConsumption, deleteConsumption, settings, userRole } = useAppContext();
+  const { clients, consumptions, addConsumption, deleteConsumption, settings, userRole, setPdfPreview } = useAppContext();
+  const [historyClientSuministro, setHistoryClientSuministro] = useState<{ clientId: string, codigoSuministro: string, clientName: string } | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedMes, setSelectedMes] = useState(() => {
     const d = new Date();
@@ -83,6 +84,18 @@ export default function Consumo() {
     if (Number(formData.lecturaActual) < Number(currentLecturaAnterior)) {
       toast.error('La lectura actual no puede ser menor a la lectura anterior.');
       return;
+    }
+
+    if (averageKwh > 0 && currentKwh > averageKwh * 2 && currentKwh > 20) {
+      if (!window.confirm(`El consumo de ${currentKwh} kWh es significativamente mayor al promedio habitual de ${averageKwh.toFixed(1)} kWh. ¿Está seguro que la lectura actual es correcta?`)) {
+        return;
+      }
+    }
+
+    if (isLowConsumption) {
+      if (!window.confirm(`El consumo de ${currentKwh} kWh es inusualmente bajo comparado al promedio habitual de ${averageKwh.toFixed(1)} kWh. ¿Desea continuar con este registro?`)) {
+        return;
+      }
     }
 
     let observacion = undefined;
@@ -203,7 +216,8 @@ export default function Consumo() {
       body: tableData,
     });
 
-      doc.save(`Reporte_Consumos_${selectedMes}.pdf`);
+      const blob = doc.output('blob');
+      setPdfPreview(URL.createObjectURL(blob), `Reporte_Consumos_${selectedMes}.pdf`);
       toast.success('PDF generado con éxito.', { id: toastId });
     } catch (error) {
       console.error('Error generating PDF:', error);
@@ -458,7 +472,8 @@ export default function Consumo() {
       yOffset = currentReceiptBottom + 4;
     });
 
-      doc.save(`Recibos_Masivos_${selectedMes}.pdf`);
+      const blob = doc.output('blob');
+      setPdfPreview(URL.createObjectURL(blob), `Recibos_Masivos_${selectedMes}.pdf`);
       toast.success('Recibos generados con éxito.', { id: toastId });
     } catch (error) {
       console.error('Error generating mass receipts PDF:', error);
@@ -660,7 +675,8 @@ export default function Consumo() {
     doc.setFontSize(16);
     doc.text(`Total a Pagar: ${calcFormatCurrencyStr(totalAPagar)}`, 196, finalY + 6, { align: 'right' });
 
-      doc.save(`Recibo_${clientName.replace(/\s+/g, '_')}_${cons.mes}.pdf`);
+      const blob = doc.output('blob');
+      setPdfPreview(URL.createObjectURL(blob), `Recibo_${clientName.replace(/\s+/g, '_')}_${cons.mes}.pdf`);
       toast.success('Recibo generado con éxito.', { id: toastId });
     } catch (error) {
       console.error('Error generating receipt PDF:', error);
@@ -723,7 +739,7 @@ export default function Consumo() {
   }, [searchedClients, suministroSearch]);
 
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 20;
+  const [itemsPerPage, setItemsPerPage] = useState(20);
 
   const currentList = activeTab === 'LECTURAS' ? filteredConsumptions : pendingDebts;
   const totalPages = Math.ceil(currentList.length / itemsPerPage);
@@ -841,6 +857,7 @@ export default function Consumo() {
             totalItems={currentList.length}
             itemsPerPage={itemsPerPage}
             onPageChange={setCurrentPage}
+            onItemsPerPageChange={(items) => { setItemsPerPage(items); setCurrentPage(1); }}
             disableTopBorder={true}
           />
 
@@ -896,6 +913,10 @@ export default function Consumo() {
                         <Button size="sm" variant="ghost" className="text-blue-600" onClick={() => handleGenerateReceipt(cons)}>
                           <Download className="h-4 w-4 mr-1" /> Imprimir Recibo
                         </Button>
+                        <Button size="sm" variant="outline" className="ml-2 border-slate-700 text-slate-300" 
+                          onClick={() => setHistoryClientSuministro({ clientId: cons.clientId, codigoSuministro: cons.codigoSuministro || (client?.codigoSuministro || ''), clientName })}>
+                          Ver Historial
+                        </Button>
                       </td>
                     </tr>
                   );
@@ -916,6 +937,7 @@ export default function Consumo() {
               totalItems={currentList.length}
               itemsPerPage={itemsPerPage}
               onPageChange={setCurrentPage}
+              onItemsPerPageChange={(items) => { setItemsPerPage(items); setCurrentPage(1); }}
             />
           </div>
         </CardContent>
@@ -1060,6 +1082,69 @@ export default function Consumo() {
                   <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)} className="mt-3 w-full sm:mt-0 sm:w-auto">Cancelar</Button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Historial de Facturación */}
+      {historyClientSuministro && (
+        <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 bg-slate-900 bg-opacity-75 transition-opacity" onClick={() => setHistoryClientSuministro(null)}></div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div className="relative z-10 inline-block align-bottom bg-[#0B0E14] rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full border border-slate-800">
+              <div className="px-4 py-4 border-b border-slate-800 flex justify-between items-center sticky top-0 bg-[#0B0E14] z-20">
+                <div>
+                  <h3 className="text-lg font-medium text-slate-100 flex items-center">
+                    Historial de Facturación
+                  </h3>
+                  <p className="text-sm text-slate-400 mt-1">
+                    Cliente: {historyClientSuministro.clientName} | Suministro: {historyClientSuministro.codigoSuministro}
+                  </p>
+                </div>
+                <Button variant="ghost" size="sm" onClick={() => setHistoryClientSuministro(null)}>
+                  Cerrar
+                </Button>
+              </div>
+              <div className="p-4 max-h-[60vh] overflow-y-auto">
+                <table className="min-w-full divide-y divide-slate-800 border border-slate-800 rounded-lg overflow-hidden">
+                  <thead className="bg-slate-900/50">
+                    <tr>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Período</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Lectura (kWh)</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Consumo</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Monto</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-[#0B0E14] divide-y divide-slate-800">
+                    {consumptions
+                      .filter(c => c.clientId === historyClientSuministro.clientId && c.codigoSuministro === historyClientSuministro.codigoSuministro)
+                      .sort((a,b) => b.mes.localeCompare(a.mes))
+                      .map((hc, idx) => (
+                      <tr key={hc.id} className={idx % 2 === 0 ? 'bg-[#0B0E14]' : 'bg-slate-900/20'}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 font-medium">{hc.mes}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">{hc.lecturaActual || '-'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">{hc.kwh} kWh</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-200 uppercase">{formatCurrency(hc.montoCalculado)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <Badge variant={hc.estadoPago === 'PAGADO' ? 'success' : 'warning'}>
+                            {hc.estadoPago}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))}
+                    {consumptions.filter(c => c.clientId === historyClientSuministro.clientId && c.codigoSuministro === historyClientSuministro.codigoSuministro).length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="px-6 py-8 text-center text-slate-400">
+                          No hay historial de consumos para este suministro.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>

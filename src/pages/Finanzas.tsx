@@ -14,7 +14,7 @@ import { toast } from 'react-hot-toast';
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
 export default function Finanzas() {
-  const { transactions, addTransaction, clients, consumptions, payConsumption, fines, payFine, settings, updateClient, userRole } = useAppContext();
+  const { transactions, addTransaction, clients, consumptions, payConsumption, fines, payFine, settings, updateClient, userRole, setPdfPreview, toggleTransactionConciliado } = useAppContext();
   const [isModalOpen, setIsModalOpen] = useState<false | 'INGRESO' | 'EGRESO' | 'APTOS_CORTE'>(false);
   const [filterType, setFilterType] = useState<TransactionType | 'TODOS'>('INGRESO');
   const [selectedMes, setSelectedMes] = useState(''); // Empty means All time
@@ -31,7 +31,7 @@ export default function Finanzas() {
   });
 
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 15;
+  const [itemsPerPage, setItemsPerPage] = useState(15);
 
   const handleGenerateEgresoPDF = (t: Transaction) => {
     const toastId = toast.loading('Generando PDF...');
@@ -53,7 +53,8 @@ export default function Finanzas() {
     const splitDesc = doc.splitTextToSize(`Concepto / Descripción: ${t.descripcion}`, 180);
     doc.text(splitDesc, 14, 70);
 
-      doc.save(`Egreso_${t.fecha}.pdf`);
+      const blob = doc.output('blob');
+      setPdfPreview(URL.createObjectURL(blob), `Egreso_${t.fecha}.pdf`);
       toast.success('Comprobante generado éxito.', { id: toastId });
     } catch (error) {
       console.error('Error generating PDF:', error);
@@ -173,7 +174,8 @@ export default function Finanzas() {
        }
     }
 
-      doc.save(`Reporte_Detallado_${type}_${selectedMes || 'Historico'}.pdf`);
+      const blob = doc.output('blob');
+      setPdfPreview(URL.createObjectURL(blob), `Reporte_Detallado_${type}_${selectedMes || 'Historico'}.pdf`);
       toast.success('Reporte generado con éxito.', { id: toastId });
     } catch (error) {
       console.error('Error generating PDF:', error);
@@ -397,6 +399,7 @@ export default function Finanzas() {
             totalItems={filteredTransactions.length}
             itemsPerPage={itemsPerPage}
             onPageChange={setCurrentPage}
+            onItemsPerPageChange={(items) => { setItemsPerPage(items); setCurrentPage(1); }}
             disableTopBorder={true}
           />
 
@@ -408,6 +411,7 @@ export default function Finanzas() {
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-200 uppercase tracking-wider">Categoría</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-200 uppercase tracking-wider">Descripción</th>
                   <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-slate-200 uppercase tracking-wider">Monto</th>
+                  <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-slate-200 uppercase tracking-wider">Conciliado</th>
                 </tr>
               </thead>
               <tbody className="bg-[#0B0E14] divide-y divide-slate-800">
@@ -437,10 +441,32 @@ export default function Finanzas() {
                         </Button>
                       )}
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                      <button 
+                        onClick={() => {
+                          if (userRole === 'ADMIN' || userRole === 'TESORERO') {
+                            toggleTransactionConciliado(t.id);
+                            toast.success(`Transacción ${t.conciliado ? 'desmarcada' : 'marcada'} como conciliada.`);
+                          } else {
+                            toast.error('No tiene permisos para conciliar movimientos.');
+                          }
+                        }}
+                        className={`inline-flex items-center justify-center w-8 h-8 rounded-full transition-colors ${
+                          t.conciliado 
+                            ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30' 
+                            : 'bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-slate-200'
+                        }`}
+                        title={t.conciliado ? "Conciliado (haga clic para deshacer)" : "Marcar como conciliado"}
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </button>
+                    </td>
                   </tr>
                 )) : (
                   <tr>
-                    <td colSpan={4} className="px-6 py-10 text-center text-slate-300">
+                    <td colSpan={5} className="px-6 py-10 text-center text-slate-300">
                       No hay transacciones en esta sección.
                     </td>
                   </tr>
@@ -456,6 +482,7 @@ export default function Finanzas() {
               totalItems={filteredTransactions.length}
               itemsPerPage={itemsPerPage}
               onPageChange={setCurrentPage}
+              onItemsPerPageChange={(items) => { setItemsPerPage(items); setCurrentPage(1); }}
             />
           </div>
         </CardContent>

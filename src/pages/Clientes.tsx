@@ -75,7 +75,7 @@ export default function Clientes() {
   });
 
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 20;
+  const [itemsPerPage, setItemsPerPage] = useState(20);
   const totalPages = Math.ceil(filteredClients.length / itemsPerPage);
   
   const currentClients = filteredClients.slice(
@@ -311,6 +311,7 @@ export default function Clientes() {
             totalItems={filteredClients.length}
             itemsPerPage={itemsPerPage}
             onPageChange={setCurrentPage}
+            onItemsPerPageChange={(items) => { setItemsPerPage(items); setCurrentPage(1); }}
             disableTopBorder={true}
           />
 
@@ -460,6 +461,7 @@ export default function Clientes() {
               totalItems={filteredClients.length}
               itemsPerPage={itemsPerPage}
               onPageChange={setCurrentPage}
+              onItemsPerPageChange={(items) => { setItemsPerPage(items); setCurrentPage(1); }}
             />
           </div>
         </CardContent>

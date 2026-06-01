@@ -9,7 +9,7 @@ import autoTable from 'jspdf-autotable';
 import { toast } from 'react-hot-toast';
 
 export default function Reuniones() {
-  const { clients, meetings, addMeeting, updateMeeting, recordAttendance, userRole } = useAppContext();
+  const { clients, meetings, addMeeting, updateMeeting, recordAttendance, userRole, setPdfPreview } = useAppContext();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedMeeting, setSelectedMeeting] = useState<string | null>(null);
   const [attendanceFilter, setAttendanceFilter] = useState<'SOCIO' | 'TODOS'>('SOCIO');
@@ -67,7 +67,7 @@ export default function Reuniones() {
   );
 
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 15;
+  const [itemsPerPage, setItemsPerPage] = useState(15);
   const totalPages = Math.ceil(filteredClientsList.length / itemsPerPage);
   
   const currentClientsList = filteredClientsList.slice(
@@ -166,7 +166,8 @@ export default function Reuniones() {
       yOffset = finalY + 18; // Setup for the next ticket offset
     });
 
-      doc.save(`Citaciones_Reunion_${activeMeeting.fecha.split('T')[0]}.pdf`);
+      const blob = doc.output('blob');
+      setPdfPreview(URL.createObjectURL(blob), `Citaciones_Reunion_${activeMeeting.fecha.split('T')[0]}.pdf`);
       toast.success('Citaciones generadas con éxito.', { id: toastId });
     } catch (error) {
       console.error('Error generating invitations PDF:', error);
@@ -251,7 +252,8 @@ export default function Reuniones() {
       body: data,
     });
 
-      doc.save(`Reporte_Asistencia_${meeting.fecha.split('T')[0]}.pdf`);
+      const blob = doc.output('blob');
+      setPdfPreview(URL.createObjectURL(blob), `Reporte_Asistencia_${meeting.fecha.split('T')[0]}.pdf`);
       toast.success('Reporte de asistencia generado con éxito.', { id: toastId });
     } catch (error) {
       console.error('Error generating attendance PDF:', error);
@@ -391,6 +393,7 @@ export default function Reuniones() {
                   totalItems={filteredClientsList.length}
                   itemsPerPage={itemsPerPage}
                   onPageChange={setCurrentPage}
+                  onItemsPerPageChange={(items) => { setItemsPerPage(items); setCurrentPage(1); }}
                   disableTopBorder={true}
                 />
 
@@ -474,6 +477,7 @@ export default function Reuniones() {
                   totalItems={filteredClientsList.length}
                   itemsPerPage={itemsPerPage}
                   onPageChange={setCurrentPage}
+                  onItemsPerPageChange={(items) => { setItemsPerPage(items); setCurrentPage(1); }}
                 />
               </CardContent>
             </Card>

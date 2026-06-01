@@ -10,7 +10,7 @@ import html2canvas from 'html2canvas';
 import ManualCapture from '../components/ManualCapture';
 
 export default function Configuracion() {
-  const { settings, updateSettings, userRole, user, updateAdmin, admins, mustChangePassword } = useAppContext();
+  const { settings, updateSettings, userRole, user, updateAdmin, admins, mustChangePassword, setPdfPreview } = useAppContext();
   const [isCapturing, setIsCapturing] = useState(false);
   const [formData, setFormData] = useState({
     costoSocio: 0.20,
@@ -177,15 +177,38 @@ export default function Configuracion() {
       doc.setFontSize(22);
       doc.text(`Manual de Usuario - Perfil: ${roleType}`, 105, 20, { align: 'center' });
       
-      // Content
+      // Indice
       yOffset = 45;
-      
-      doc.setFontSize(14);
+      doc.setFontSize(16);
       doc.setTextColor(15, 23, 42);
-      doc.text('Descripción General y Permisos:', 14, yOffset);
-      yOffset += 8;
+      doc.setFont(undefined, 'bold');
+      doc.text('ÍNDICE', 14, yOffset);
+      yOffset += 10;
+      doc.setFontSize(11);
+      doc.setFont(undefined, 'normal');
+      doc.setTextColor(50, 50, 50);
+      const indiceRows = [
+        '1. Descripción General y Permisos',
+        '2. Módulos Habilitados y Accesos Operativos',
+        '3. Guías Paso a Paso de Módulos (con Capturas)',
+        '4. Glosario de Términos',
+        '5. Preguntas Frecuentes (FAQ)'
+      ];
+      indiceRows.forEach((row, i) => {
+        doc.text(row, 18, yOffset + (i * 7));
+      });
+      
+      doc.addPage();
+      yOffset = 20;
+      
+      doc.setFontSize(16);
+      doc.setTextColor(15, 23, 42);
+      doc.setFont(undefined, 'bold');
+      doc.text('1. Descripción General y Permisos:', 14, yOffset);
+      yOffset += 10;
       
       doc.setFontSize(11);
+      doc.setFont(undefined, 'normal');
       doc.setTextColor(50, 50, 50);
       
       let description = '';
@@ -365,8 +388,71 @@ export default function Configuracion() {
           'capture-finanzas'
         );
       }
+      
+      // Glosario
+      doc.addPage();
+      yOffset = 20;
+      doc.setFontSize(16);
+      doc.setTextColor(15, 23, 42);
+      doc.setFont(undefined, 'bold');
+      doc.text('4. Glosario de Términos', 14, yOffset);
+      yOffset += 10;
+      doc.setFontSize(11);
+      
+      const glosario = [
+        { term: 'Suministro', desc: 'Conexión de agua de cada predio. Cada usuario puede tener uno o múltiples.' },
+        { term: 'Socio', desc: 'Participante inscrito en la padrón principal que tiene obligaciones de asistir a reuniones.' },
+        { term: 'Multa por Inasistencia', desc: 'Cargo monetario aplicado automáticamente cuando un socio falta a una reunión.' },
+        { term: 'Lectura', desc: 'Valor numérico (en metros cúbicos) reportado por el medidor en un momento del mes.' },
+        { term: 'Conciliación', desc: 'Verificación de que los ingresos y egresos cuadran con el efectivo físico.' }
+      ];
+      
+      glosario.forEach(item => {
+        if (yOffset > 270) { doc.addPage(); yOffset = 20; }
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(30, 64, 175);
+        doc.text(item.term, 14, yOffset);
+        yOffset += 5;
+        doc.setFont(undefined, 'normal');
+        doc.setTextColor(50, 50, 50);
+        const splitDesc = doc.splitTextToSize(item.desc, 180);
+        doc.text(splitDesc, 14, yOffset);
+        yOffset += (splitDesc.length * 5) + 5;
+      });
+      
+      // FAQ
+      yOffset += 10;
+      if (yOffset > 250) { doc.addPage(); yOffset = 20; }
+      doc.setFontSize(16);
+      doc.setTextColor(15, 23, 42);
+      doc.setFont(undefined, 'bold');
+      doc.text('5. Preguntas Frecuentes (FAQ)', 14, yOffset);
+      yOffset += 10;
+      doc.setFontSize(11);
+      
+      const faqs = [
+        { q: '¿Cómo restablezco un pago por error?', a: 'Comunícate con el Administrador para que anule la transacción ingresando al panel y emitiendo un contra-movimiento de corrección o anulación directa.' },
+        { q: '¿Qué pasa si me equivoco en una lectura?', a: 'Puedes corregirla en el mes activo editando directamente el número y volviendo a guardar con "Enter".' },
+        { q: '¿Dónde veo el balance mensual?', a: 'Se encuentra en la sección Finanzas o en el Dashboard si cuentas con permisos.' }
+      ];
+      
+      faqs.forEach(faq => {
+        if (yOffset > 270) { doc.addPage(); yOffset = 20; }
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(15, 23, 42);
+        const qLines = doc.splitTextToSize(`P: ${faq.q}`, 180);
+        doc.text(qLines, 14, yOffset);
+        yOffset += (qLines.length * 5) + 2;
+        
+        doc.setFont(undefined, 'normal');
+        doc.setTextColor(50, 50, 50);
+        const aLines = doc.splitTextToSize(`R: ${faq.a}`, 180);
+        doc.text(aLines, 14, yOffset);
+        yOffset += (aLines.length * 5) + 6;
+      });
 
-      doc.save(`Manual_Paccha_${roleType}.pdf`);
+      const blob = doc.output('blob');
+      setPdfPreview(URL.createObjectURL(blob), `Manual_Paccha_${roleType}.pdf`);
       toast.success('Manual exportado con éxito.', { id: toastId });
     } catch (error) {
       console.error(error);

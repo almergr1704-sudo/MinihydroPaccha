@@ -25,11 +25,24 @@ export default function Login() {
       setLoading(true);
       setError('');
       
+      const emailLower = email.toLowerCase();
+      const loginAttemptsStr = localStorage.getItem('erp_login_attempts') || '{}';
+      const loginAttempts = JSON.parse(loginAttemptsStr);
+      
+      const userAttemptInfo = loginAttempts[emailLower] || { count: 0, lockedUntil: null };
+      
+      if (userAttemptInfo.lockedUntil && Date.now() < userAttemptInfo.lockedUntil) {
+        const remainingMinutes = Math.ceil((userAttemptInfo.lockedUntil - Date.now()) / 60000);
+        setError(`Cuenta bloqueada temporalmente por demasiados intentos fallidos. Intente nuevamente en ${remainingMinutes} minuto(s).`);
+        setLoading(false);
+        return;
+      }
+      
       // Check local configuration
       const storedData = JSON.parse(localStorage.getItem('erp_data') || '{"admins":[]}');
       const admins = storedData.admins || [];
       const userMatched = admins.find((a: any) => {
-        const isEmailMatch = a.username?.toLowerCase() === email.toLowerCase() || a.email?.toLowerCase() === email.toLowerCase();
+        const isEmailMatch = a.username?.toLowerCase() === emailLower || a.email?.toLowerCase() === emailLower;
         if (!isEmailMatch) return false;
         
         // Ensure backward compatibility with sha256 or plain fallback if not bcrypt
@@ -47,12 +60,30 @@ export default function Login() {
           return;
         }
         
+        // Reset attempts on successful log in
+        loginAttempts[emailLower] = { count: 0, lockedUntil: null };
+        localStorage.setItem('erp_login_attempts', JSON.stringify(loginAttempts));
+        
         // Log in with matched user using email or username
         login(userMatched.email || userMatched.username);
         return;
       }
 
-      setError('Credenciales incorrectas.');
+      // Handle failed attempt
+      userAttemptInfo.count = (userAttemptInfo.count || 0) + 1;
+      let errorMsg = 'Credenciales incorrectas.';
+      
+      if (userAttemptInfo.count >= 5) {
+        userAttemptInfo.lockedUntil = Date.now() + 15 * 60 * 1000; // Lock for 15 minutes
+        errorMsg = 'Cuenta bloqueada temporalmente por demasiados intentos fallidos. Intente nuevamente en 15 minutos.';
+      } else if (userAttemptInfo.count >= 3) {
+        errorMsg = `Credenciales incorrectas. Le quedan ${5 - userAttemptInfo.count} intentos antes de ser bloqueado.`;
+      }
+      
+      loginAttempts[emailLower] = userAttemptInfo;
+      localStorage.setItem('erp_login_attempts', JSON.stringify(loginAttempts));
+
+      setError(errorMsg);
       setLoading(false);
     } catch (err: any) {
       console.error("Login attempt failed:", err);
