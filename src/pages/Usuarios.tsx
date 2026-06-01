@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Shield, ShieldAlert, UserCheck, Plus, X, ChevronLeft, ChevronRight, Power, UserX, UserMinus, Search, Filter } from 'lucide-react';
+import { Shield, ShieldAlert, UserCheck, Plus, X, ChevronLeft, ChevronRight, Power, UserX, UserMinus, Search, Filter, Copy, CheckCircle2 } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Card, CardContent, Badge, Button, Pagination } from '../components/ui';
 import { PasswordStrengthIndicator, evaluatePasswordStrength } from '../components/PasswordStrengthIndicator';
@@ -25,6 +25,10 @@ export default function Usuarios() {
   
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'TODOS' | 'ACTIVO' | 'INACTIVO'>('TODOS');
+  
+  const [resetPasswordModalOpen, setResetPasswordModalOpen] = useState(false);
+  const [resetPasswordData, setResetPasswordData] = useState<{ password: string, username: string }>({ password: '', username: '' });
+  const [isCopied, setIsCopied] = useState(false);
 
   const handleUpdateRole = (id: string) => {
     updateAdmin(id, { role: selectedRole });
@@ -74,18 +78,26 @@ export default function Usuarios() {
     }
   };
 
-  const handleResetPassword = (id: string, username: string) => {
-    if (!window.confirm(`¿Está seguro de querer restablecer la contraseña a "${username}123!"? Esta acción obligará al usuario a cambiar su contraseña en su próximo inicio de sesión.`)) return;
+  const handleResetPassword = async (id: string, username: string) => {
+    if (!window.confirm(`¿Está seguro de querer restablecer la contraseña para "${username}"?`)) return;
 
-    const defaultPassword = `${username}123!`;
-    const hashedPassword = bcrypt.hashSync(defaultPassword, 10);
+    const tempPassword = `temp${Math.floor(1000 + Math.random() * 9000)}`;
+    const hashedPassword = bcrypt.hashSync(tempPassword, 10);
     
-    updateAdmin(id, { 
-      password: hashedPassword, 
-      mustChangePassword: true 
-    });
-    
-    toast.success(`Contraseña restablecida correctamente.\nNueva Contraseña: ${defaultPassword}`);
+    try {
+      await updateAdmin(id, { 
+        password: hashedPassword, 
+        mustChangePassword: true,
+        lastPasswordChangeLog: `Restablecido por administrador ${user?.email || 'Sistema'} el ${new Date().toLocaleString()}`
+      });
+      
+      setResetPasswordData({ password: tempPassword, username: username });
+      setResetPasswordModalOpen(true);
+      setIsCopied(false);
+      
+    } catch (err: any) {
+      toast.error(err.message || 'Error al restablecer la contraseña.');
+    }
   };
 
   const handleToggleStatus = async (id: string, currentStatus: string) => {
@@ -435,6 +447,64 @@ export default function Usuarios() {
                   </Button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Contraseña Restablecida */}
+      {resetPasswordModalOpen && (
+        <div className="fixed inset-0 z-[60] overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" onClick={() => setResetPasswordModalOpen(false)}>
+              <div className="absolute inset-0 bg-slate-900/75 backdrop-blur-sm"></div>
+            </div>
+
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+
+            <div className="inline-block align-bottom bg-[#0B0E14] border border-slate-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full relative z-10">
+              <div className="px-4 py-5 sm:p-6 space-y-4">
+                <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-emerald-500/10 mb-4">
+                  <CheckCircle2 className="h-6 w-6 text-emerald-500" />
+                </div>
+                <div className="text-center">
+                  <h3 className="text-lg leading-6 font-medium text-slate-100 mb-2">Contraseña Restablecida</h3>
+                  <p className="text-sm text-slate-400 mb-4">
+                    La contraseña ha sido restablecida correctamente. El usuario deberá cambiarla en su próximo inicio de sesión.
+                  </p>
+                  
+                  <div className="bg-slate-900 border border-slate-700 rounded-lg p-4 mb-4 flex items-center justify-between">
+                    <div>
+                      <div className="text-xs text-slate-500 uppercase tracking-wider mb-1 text-left">Contraseña Temporal</div>
+                      <div className="text-xl font-mono text-emerald-400 tracking-wider">
+                        {resetPasswordData.password}
+                      </div>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      className="ml-4"
+                      onClick={() => {
+                        navigator.clipboard.writeText(resetPasswordData.password);
+                        setIsCopied(true);
+                        setTimeout(() => setIsCopied(false), 2000);
+                      }}
+                    >
+                      {isCopied ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                      <span className="ml-2">{isCopied ? 'Copiado' : 'Copiar'}</span>
+                    </Button>
+                  </div>
+                  
+                  <p className="text-xs text-yellow-500/80 bg-yellow-500/10 p-2 rounded border border-yellow-500/20 text-left">
+                    ⚠️ Esta contraseña se mostrará una única vez. Asegúrese de copiarla y compartirla con el usuario.
+                  </p>
+                </div>
+              </div>
+              <div className="px-4 py-3 bg-slate-800/30 sm:px-6 flex justify-center border-t border-slate-800">
+                <Button type="button" onClick={() => setResetPasswordModalOpen(false)} className="w-full sm:w-auto">
+                  Aceptar y Cerrar
+                </Button>
+              </div>
             </div>
           </div>
         </div>
