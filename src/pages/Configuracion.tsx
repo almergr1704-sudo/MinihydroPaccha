@@ -18,7 +18,8 @@ export default function Configuracion() {
     costoTrifasico: 0.00,
     multaReunion: 40,
     costoReconexion: 0.00,
-    consumoMinimo: 6.00
+    consumoMinimo: 6.00,
+    toleranciaBajoConsumo: 50
   });
 
   const [passwordForm, setPasswordForm] = useState({
@@ -35,7 +36,8 @@ export default function Configuracion() {
         costoTrifasico: settings.costoTrifasico ?? 0.00,
         multaReunion: settings.multaReunion ?? 40,
         costoReconexion: settings.costoReconexion ?? 0.00,
-        consumoMinimo: settings.consumoMinimo ?? 6.00
+        consumoMinimo: settings.consumoMinimo ?? 6.00,
+        toleranciaBajoConsumo: settings.toleranciaBajoConsumo ?? 50
       });
     }
   }, [settings]);
@@ -86,14 +88,28 @@ export default function Configuracion() {
     }
 
     const strength = evaluatePasswordStrength(passwordForm.newPassword);
-    if (strength.score < 3) {
-      toast.error('La contraseña es demasiado débil. Por favor siga las recomendaciones para mejorar su seguridad.');
+    if (strength.score < 4) {
+      toast.error('La contraseña no cumple con todas las políticas de seguridad requeridas. Siga las recomendaciones debajo del campo.');
       return;
     }
 
+    const isFirstTimeChange = currentAdmin.mustChangePassword;
+
     const hashedPassword = bcrypt.hashSync(passwordForm.newPassword, 10);
-    await updateAdmin(currentAdmin.id, { password: hashedPassword, mustChangePassword: false });
-    toast.success('Contraseña actualizada correctamente.');
+    await updateAdmin(currentAdmin.id, { 
+      password: hashedPassword, 
+      mustChangePassword: false,
+      lastPasswordChangeLog: isFirstTimeChange 
+        ? `Cambio obligatorio de contraseña realizado en primer inicio el ${new Date().toLocaleString()}`
+        : `Cambio voluntario el ${new Date().toLocaleString()}`
+    });
+    
+    if (isFirstTimeChange) {
+      toast.success('Cambio obligatorio de contraseña registrado correctamente en la auditoría.');
+    } else {
+      toast.success('Contraseña actualizada correctamente.');
+    }
+    
     setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
   };
 
@@ -377,12 +393,12 @@ export default function Configuracion() {
       {mustChangePassword && (
         <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-lg">
           <p className="text-red-400 text-sm font-medium">
-            Atención: Por motivos de seguridad, debe cambiar su contraseña predeterminada o antigua para continuar utilizando los demás módulos del sistema.
+            Por seguridad, debe cambiar su contraseña antes de continuar utilizando el sistema.
           </p>
         </div>
       )}
 
-      {userRole === 'ADMIN' && (
+      {(!mustChangePassword && userRole === 'ADMIN') && (
         <Card>
           <CardContent className="p-6">
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -459,6 +475,25 @@ export default function Configuracion() {
                         className="block w-full pl-8 bg-[#0B0E14] border border-slate-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-slate-100" 
                       />
                     </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300">Tolerancia para Aviso de Bajo Consumo (%)</label>
+                    <div className="mt-1 relative rounded-md shadow-sm">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <span className="text-slate-500 sm:text-sm">%</span>
+                      </div>
+                      <input 
+                        type="number" 
+                        name="toleranciaBajoConsumo"
+                        step="1"
+                        min="0"
+                        max="100"
+                        value={formData.toleranciaBajoConsumo} 
+                        onChange={handleChange} 
+                        className="block w-full pl-8 bg-[#0B0E14] border border-slate-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-slate-100" 
+                      />
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500">Avisa si el consumo es menor al promedio en este porcentaje. Deje en 0 para desactivar.</p>
                   </div>
                 </div>
               </div>
@@ -541,38 +576,58 @@ export default function Configuracion() {
                   <input 
                     type="password"
                     required
-                    minLength={6}
+                    minLength={8}
                     value={passwordForm.newPassword}
                     onChange={(e) => setPasswordForm(prev => ({ ...prev, newPassword: e.target.value }))}
                     className="block w-full bg-[#0B0E14] border border-slate-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-slate-100 placeholder-slate-500" 
-                    placeholder="Mínimo 6 caracteres"
+                    placeholder="Mínimo 8 caracteres, alfanuméricos y especiales"
                   />
                 </div>
                 <PasswordStrengthIndicator passwordStr={passwordForm.newPassword} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-300">Confirmar Contraseña</label>
+                <label className="block text-sm font-medium text-slate-300">Confirmar Nueva Contraseña</label>
                 <div className="mt-1">
                   <input 
                     type="password"
                     required
-                    minLength={6}
+                    minLength={8}
                     value={passwordForm.confirmPassword}
                     onChange={(e) => setPasswordForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                    className="block w-full bg-[#0B0E14] border border-slate-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-slate-100 placeholder-slate-500" 
+                    className={`block w-full bg-[#0B0E14] border ${
+                      passwordForm.confirmPassword 
+                        ? (passwordForm.newPassword === passwordForm.confirmPassword 
+                          ? 'border-emerald-500/50 focus:border-emerald-500 focus:ring-emerald-500' 
+                          : 'border-red-500/50 focus:border-red-500 focus:ring-red-500')
+                        : 'border-slate-600 focus:border-blue-500 focus:ring-blue-500'
+                    } rounded-md shadow-sm py-2 px-3 focus:outline-none sm:text-sm text-slate-100 placeholder-slate-500`}
                   />
                 </div>
+                {passwordForm.confirmPassword !== '' && passwordForm.newPassword !== passwordForm.confirmPassword && (
+                    <p className="mt-1 text-sm font-medium text-red-500 flex items-center justify-start">
+                      ✗ Las contraseñas no coinciden
+                    </p>
+                )}
+                {passwordForm.confirmPassword !== '' && passwordForm.newPassword === passwordForm.confirmPassword && (
+                    <p className="mt-1 text-sm font-medium text-emerald-500 flex items-center justify-start">
+                      ✓ Las contraseñas coinciden
+                    </p>
+                )}
               </div>
             </div>
             <div className="flex justify-end pt-4 border-t border-slate-800">
-              <Button type="submit" className="bg-slate-700 hover:bg-slate-600 text-white border-0">
+              <Button 
+                type="submit" 
+                className="bg-slate-700 hover:bg-slate-600 text-white border-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={passwordForm.newPassword !== passwordForm.confirmPassword || !passwordForm.newPassword || !passwordForm.confirmPassword}
+              >
                 Actualizar Contraseña
               </Button>
             </div>
           </form>
         </CardContent>
       </Card>
-      {userRole === 'ADMIN' && (
+      {(!mustChangePassword && userRole === 'ADMIN') && (
         <Card>
           <CardContent className="p-6">
             <div className="space-y-6">
@@ -606,6 +661,7 @@ export default function Configuracion() {
         </CardContent>
       </Card>
       )}
+      {!mustChangePassword && (
       <Card>
         <CardContent className="p-6">
           <div className="space-y-6">
@@ -633,6 +689,7 @@ export default function Configuracion() {
           </div>
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }

@@ -41,10 +41,6 @@ export default function Usuarios() {
     }
 
     const strength = evaluatePasswordStrength(newPassword);
-    if (strength.score < 3) {
-      toast.error('La contraseña es demasiado débil. Siga las recomendaciones para continuar.');
-      return;
-    }
     
     setCreatingUser(true);
     
@@ -419,11 +415,10 @@ export default function Usuarios() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-300">Contraseña</label>
+                    <label className="block text-sm font-medium text-slate-300">Contraseña inicial recomendada (opcional: libre formato)</label>
                     <input 
                       type="password" 
                       required 
-                      minLength={8}
                       value={newPassword} 
                       onChange={e => setNewPassword(e.target.value)} 
                       className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" 

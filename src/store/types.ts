@@ -37,6 +37,7 @@ export interface Consumption {
   lecturaActual?: number;
   montoCalculado: number;
   estadoPago: PaymentStatus;
+  observacion?: string;
   createdBy?: string; // Para trazabilidad/auditoría
 }
 
@@ -84,6 +85,7 @@ export interface AppSettings {
   multaReunion: number;
   costoReconexion: number;
   consumoMinimo: number;
+  toleranciaBajoConsumo?: number;
 }
 
 export interface AppState {

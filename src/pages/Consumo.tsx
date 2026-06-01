@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Check, FileText, Download, Upload } from 'lucide-react';
+import { Plus, Check, FileText, Download, Upload, AlertCircle } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Button, Card, CardContent, Badge, Pagination } from '../components/ui';
 import { formatCurrency } from '../lib/utils';
@@ -63,6 +63,17 @@ export default function Consumo() {
   const currentLecturaAnterior = isFirstReading ? formData.lecturaAnterior : previousAccumulated.toString();
   const currentKwh = Math.max(0, Number(formData.lecturaActual) - Number(currentLecturaAnterior));
 
+  let averageKwh = 0;
+  if (selectedClientConsumptions.length > 0) {
+    const pastKwhs = selectedClientConsumptions.map(c => c.kwh).filter(kwh => kwh != null) as number[];
+    if (pastKwhs.length > 0) {
+      averageKwh = pastKwhs.reduce((a, b) => a + b, 0) / pastKwhs.length;
+    }
+  }
+
+  const tolerancia = settings?.toleranciaBajoConsumo ?? 50;
+  const isLowConsumption = formData.lecturaActual !== '' && averageKwh > 0 && tolerancia > 0 && currentKwh < averageKwh * (1 - (tolerancia / 100));
+
   const ultimaLectura = selectedClientConsumptions.length > 0 ? selectedClientConsumptions[selectedClientConsumptions.length - 1] : null;
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -74,14 +85,19 @@ export default function Consumo() {
       return;
     }
 
+    let observacion = undefined;
     if (selectedClientConsumptions.length > 0) {
-      const pastKwhs = selectedClientConsumptions.map(c => c.kwh).filter(kwh => kwh != null) as number[];
-      if (pastKwhs.length > 0) {
-        const averageKwh = pastKwhs.reduce((a, b) => a + b, 0) / pastKwhs.length;
+      if (averageKwh > 0) {
         if (currentKwh > averageKwh * 2 && currentKwh > 20) { // Consider anomalous if > twice average and > 20kwh
           if(!window.confirm(`⚠️ ALERTA DE CONSUMO EXCESIVO\n\nEl consumo de ${currentKwh} kWh es significativamente mayor a su promedio histórico (${averageKwh.toFixed(1)} kWh).\n\n¿Estás seguro de registrar esta lectura?`)) {
             return;
           }
+          observacion = 'Posible Consumo Excesivo';
+        } else if (isLowConsumption) {
+          if(!window.confirm(`Advertencia: la lectura ingresada es menor al promedio habitual del cliente (${averageKwh.toFixed(1)} kWh). Verifique la información antes de continuar.\n\n¿Desea continuar y registrar esta lectura?`)) {
+            return;
+          }
+          observacion = 'Bajo Consumo';
         }
       }
     }
@@ -109,6 +125,7 @@ export default function Consumo() {
       lecturaActual: Number(formData.lecturaActual),
       fechaLectura: new Date().toISOString(),
       mes: selectedMes,
+      ...(observacion ? { observacion } : {})
     });
     
     setIsModalOpen(false);
@@ -254,9 +271,13 @@ export default function Consumo() {
         ]);
       }
       if (debtInfo.previousUnpaid && debtInfo.previousUnpaid.length > 0) {
+        const numMeses = debtInfo.previousUnpaid.length;
+        const textoDeuda = `Deuda Anterior (${numMeses} mes${numMeses === 1 ? '' : 'es'})`;
         testTableBody.push([
-          'Deuda Anterior', '-', '-', 
-          formatCurrencyStr(debtInfo.previousUnpaid.reduce((acc: any, unpaid: any) => acc + unpaid.montoCalculado, 0))
+          { content: textoDeuda, styles: { fontStyle: 'bold', textColor: [220, 38, 38] } },
+          '-',
+          '-', 
+          { content: formatCurrencyStr(debtInfo.previousUnpaid.reduce((acc: any, unpaid: any) => acc + unpaid.montoCalculado, 0)), styles: { fontStyle: 'bold', textColor: [220, 38, 38] } }
         ]);
       }
       
@@ -401,11 +422,13 @@ export default function Consumo() {
 
       if (debtInfo.previousUnpaid && debtInfo.previousUnpaid.length > 0) {
         const totalDeudaAnterior = debtInfo.previousUnpaid.reduce((acc: any, unpaid: any) => acc + unpaid.montoCalculado, 0);
+        const numMeses = debtInfo.previousUnpaid.length;
+        const textoDeuda = `Deuda Anterior (${numMeses} mes${numMeses === 1 ? '' : 'es'})`;
         tableBody.push([
-          'Deuda Anterior',
+          { content: textoDeuda, styles: { fontStyle: 'bold', textColor: [220, 38, 38] } },
           '-',
           '-',
-          formatCurrencyStr(totalDeudaAnterior)
+          { content: formatCurrencyStr(totalDeudaAnterior), styles: { fontStyle: 'bold', textColor: [220, 38, 38] } }
         ]);
       }
 
@@ -469,9 +492,13 @@ export default function Consumo() {
       testKwh.toString(), testTarifaAplicada.toFixed(2), calcFormatCurrencyStr(cons.montoCalculado)
     ]);
     if (debtInfo.previousUnpaid && debtInfo.previousUnpaid.length > 0) {
+      const numMeses = debtInfo.previousUnpaid.length;
+      const textoDeuda = `Deuda Anterior (${numMeses} mes${numMeses === 1 ? '' : 'es'})`;
       testTableBody.push([
-        'Deuda Anterior', '-', '-', 
-        calcFormatCurrencyStr(debtInfo.previousUnpaid.reduce((acc: any, unpaid: any) => acc + unpaid.montoCalculado, 0))
+        { content: textoDeuda, styles: { fontStyle: 'bold', textColor: [220, 38, 38] } },
+        '-',
+        '-', 
+        { content: calcFormatCurrencyStr(debtInfo.previousUnpaid.reduce((acc: any, unpaid: any) => acc + unpaid.montoCalculado, 0)), styles: { fontStyle: 'bold', textColor: [220, 38, 38] } }
       ]);
     }
     autoTable(testDoc, {
@@ -607,8 +634,13 @@ export default function Consumo() {
 
     if (debtInfo.previousUnpaid && debtInfo.previousUnpaid.length > 0) {
       const totalDeudaAnterior = debtInfo.previousUnpaid.reduce((acc, unpaid) => acc + unpaid.montoCalculado, 0);
+      const numMeses = debtInfo.previousUnpaid.length;
+      const textoDeuda = `Deuda Anterior (${numMeses} mes${numMeses === 1 ? '' : 'es'})`;
       tableBody.push([
-        'Deuda Anterior', '-', '-', calcFormatCurrencyStr(totalDeudaAnterior)
+        { content: textoDeuda, styles: { fontStyle: 'bold', textColor: [220, 38, 38] } },
+        '-',
+        '-',
+        { content: calcFormatCurrencyStr(totalDeudaAnterior), styles: { fontStyle: 'bold', textColor: [220, 38, 38] } }
       ]);
     }
 
@@ -819,6 +851,7 @@ export default function Consumo() {
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Cliente</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Consumo</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Monto Calculado</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Observación</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Estado</th>
                   <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Acciones</th>
                 </tr>
@@ -845,6 +878,9 @@ export default function Consumo() {
                             client?.faseSuministro === 'TRIFASICO' && settings.costoTrifasico > 0 ? settings.costoTrifasico.toFixed(2) : 
                             client?.tipo === 'SOCIO' ? settings.costoSocio.toFixed(2) : settings.costoUsuario.toFixed(2)
                           }/kWh</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-xs text-slate-400 max-w-[150px] truncate" title={cons.observacion || ''}>{cons.observacion || '-'}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <Badge variant={cons.estadoPago === 'PAGADO' ? 'success' : 'warning'}>
@@ -986,8 +1022,24 @@ export default function Consumo() {
                           required 
                           value={formData.lecturaActual} 
                           onChange={e => setFormData({...formData, lecturaActual: e.target.value})} 
-                          className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" 
+                          className={`mt-1 block w-full border rounded-md shadow-sm py-2 px-3 focus:outline-none sm:text-sm bg-[#0B0E14] text-slate-100 transition-colors duration-200 ${
+                            isLowConsumption 
+                              ? 'border-amber-500/50 focus:border-amber-500 focus:ring-amber-500' 
+                              : 'border-slate-700 focus:ring-blue-500 focus:border-blue-500'
+                          }`}
                         />
+                        {isLowConsumption && (
+                          <p className="mt-1 flex items-center text-xs text-amber-500 text-left">
+                            <AlertCircle className="w-3 h-3 mr-1 inline" />
+                            Advertencia: menor al promedio habitual ({averageKwh.toFixed(1)} kWh).
+                          </p>
+                        )}
+                        {currentKwh > averageKwh * 2 && currentKwh > 20 && formData.lecturaActual !== '' && averageKwh > 0 && (
+                          <p className="mt-1 flex items-center text-xs text-amber-500 text-left">
+                            <AlertCircle className="w-3 h-3 mr-1 inline" />
+                            Advertencia: mayor al promedio habitual.
+                          </p>
+                        )}
                       </div>
                     </div>
                     {formData.clientAndSuministro && formData.lecturaActual && (
