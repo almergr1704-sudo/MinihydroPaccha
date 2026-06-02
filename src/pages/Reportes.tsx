@@ -178,8 +178,8 @@ export default function Reportes() {
        }
     }
 
-      const blob = doc.output('blob');
-      setPdfPreview(URL.createObjectURL(blob), `Reporte_${type}.pdf`);
+      const dataUri = doc.output('datauristring');
+      setPdfPreview(dataUri, `Reporte_${type}.pdf`);
       toast.success('Reporte generado con éxito.', { id: toastId });
     } catch (error) {
       console.error('Error generating PDF:', error);

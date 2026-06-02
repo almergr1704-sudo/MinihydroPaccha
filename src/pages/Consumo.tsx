@@ -215,8 +215,8 @@ export default function Consumo() {
       body: tableData,
     });
 
-      const blob = doc.output('blob');
-      setPdfPreview(URL.createObjectURL(blob), `Reporte_Consumos_${selectedMes}.pdf`);
+      const dataUri = doc.output('datauristring');
+      setPdfPreview(dataUri, `Reporte_Consumos_${selectedMes}.pdf`);
       toast.success('PDF generado con éxito.', { id: toastId });
     } catch (error) {
       console.error('Error generating PDF:', error);
@@ -471,8 +471,8 @@ export default function Consumo() {
       yOffset = currentReceiptBottom + 4;
     });
 
-      const blob = doc.output('blob');
-      setPdfPreview(URL.createObjectURL(blob), `Recibos_Masivos_${selectedMes}.pdf`);
+      const dataUri = doc.output('datauristring');
+      setPdfPreview(dataUri, `Recibos_Masivos_${selectedMes}.pdf`);
       toast.success('Recibos generados con éxito.', { id: toastId });
     } catch (error) {
       console.error('Error generating mass receipts PDF:', error);
@@ -674,8 +674,8 @@ export default function Consumo() {
     doc.setFontSize(16);
     doc.text(`Total a Pagar: ${calcFormatCurrencyStr(totalAPagar)}`, 196, finalY + 6, { align: 'right' });
 
-      const blob = doc.output('blob');
-      setPdfPreview(URL.createObjectURL(blob), `Recibo_${clientName.replace(/\s+/g, '_')}_${cons.mes}.pdf`);
+      const dataUri = doc.output('datauristring');
+      setPdfPreview(dataUri, `Recibo_${clientName.replace(/\s+/g, '_')}_${cons.mes}.pdf`);
       toast.success('Recibo generado con éxito.', { id: toastId });
     } catch (error) {
       console.error('Error generating receipt PDF:', error);

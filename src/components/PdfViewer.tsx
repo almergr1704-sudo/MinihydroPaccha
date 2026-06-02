@@ -100,11 +100,12 @@ export function PdfViewer({ url }: PdfViewerProps) {
                 <span className="ml-3 text-slate-700 font-medium tracking-wide">Cargando documento...</span>
               </div>
             }
+            onLoadError={(error) => console.error("PDF Load Error:", error)}
             error={
               <div className="bg-red-50 text-red-600 p-4 rounded-md shadow flex flex-col items-center text-center max-w-sm mt-10">
                 <FileText className="w-12 h-12 mb-2 opacity-50" />
                 <h4 className="font-semibold mb-1">Error al cargar el PDF</h4>
-                <p className="text-sm">El archivo podría estar dañado o la ruta no es accesible.</p>
+                <p className="text-sm">Por favor revisa la consola para más detalles sobre el error.</p>
               </div>
             }
             className="flex flex-col items-center"

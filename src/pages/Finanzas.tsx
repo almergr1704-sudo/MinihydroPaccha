@@ -53,8 +53,8 @@ export default function Finanzas() {
     const splitDesc = doc.splitTextToSize(`Concepto / Descripción: ${t.descripcion}`, 180);
     doc.text(splitDesc, 14, 70);
 
-      const blob = doc.output('blob');
-      setPdfPreview(URL.createObjectURL(blob), `Egreso_${t.fecha}.pdf`);
+      const dataUri = doc.output('datauristring');
+      setPdfPreview(dataUri, `Egreso_${t.fecha}.pdf`);
       toast.success('Comprobante generado éxito.', { id: toastId });
     } catch (error) {
       console.error('Error generating PDF:', error);
@@ -174,8 +174,8 @@ export default function Finanzas() {
        }
     }
 
-      const blob = doc.output('blob');
-      setPdfPreview(URL.createObjectURL(blob), `Reporte_Detallado_${type}_${selectedMes || 'Historico'}.pdf`);
+      const dataUri = doc.output('datauristring');
+      setPdfPreview(dataUri, `Reporte_Detallado_${type}_${selectedMes || 'Historico'}.pdf`);
       toast.success('Reporte generado con éxito.', { id: toastId });
     } catch (error) {
       console.error('Error generating PDF:', error);
