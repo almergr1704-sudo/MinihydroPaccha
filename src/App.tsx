@@ -16,6 +16,7 @@ import Configuracion from './pages/Configuracion';
 import Login from './pages/Login';
 
 import { FileText, Download } from 'lucide-react';
+import { PdfViewer } from './components/PdfViewer';
 
 const GlobalPdfPreview = () => {
   const { pdfPreviewUrl, pdfPreviewName, setPdfPreview } = useAppContext();
@@ -58,8 +59,8 @@ const GlobalPdfPreview = () => {
               </button>
             </div>
           </div>
-          <div className="flex-1 w-full bg-slate-200 relative">
-            <iframe src={`${pdfPreviewUrl}#view=FitH`} className="absolute inset-0 w-full h-full border-0" title="PDF Preview" allowFullScreen />
+          <div className="flex-1 w-full bg-slate-200 relative overflow-hidden">
+            <PdfViewer url={pdfPreviewUrl} />
           </div>
         </div>
       </div>
