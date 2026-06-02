@@ -168,8 +168,8 @@ export default function Reuniones() {
       yOffset = finalY + 18; // Setup for the next ticket offset
     });
 
-      const dataUri = doc.output('datauristring');
-      setPdfPreview(dataUri, `Citaciones_Reunion_${activeMeeting.fecha.split('T')[0]}.pdf`);
+      const blob = doc.output('blob');
+      setPdfPreview(URL.createObjectURL(blob), `Citaciones_Reunion_${activeMeeting.fecha.split('T')[0]}.pdf`);
       toast.success('Citaciones generadas con éxito.', { id: toastId });
     } catch (error) {
       console.error('Error generating invitations PDF:', error);
@@ -254,8 +254,8 @@ export default function Reuniones() {
       body: data,
     });
 
-      const dataUri = doc.output('datauristring');
-      setPdfPreview(dataUri, `Reporte_Asistencia_${meeting.fecha.split('T')[0]}.pdf`);
+      const blob = doc.output('blob');
+      setPdfPreview(URL.createObjectURL(blob), `Reporte_Asistencia_${meeting.fecha.split('T')[0]}.pdf`);
       toast.success('Reporte de asistencia generado con éxito.', { id: toastId });
     } catch (error) {
       console.error('Error generating attendance PDF:', error);
@@ -293,8 +293,8 @@ export default function Reuniones() {
       const lines = doc.splitTextToSize(actaText, 180);
       doc.text(lines, 14, 50);
 
-      const dataUri = doc.output('datauristring');
-      setPdfPreview(dataUri, `Acta_${activeMeeting.fecha.split('T')[0]}.pdf`);
+      const blob = doc.output('blob');
+      setPdfPreview(URL.createObjectURL(blob), `Acta_${activeMeeting.fecha.split('T')[0]}.pdf`);
       toast.success('Acta PDF generada con éxito.', { id: toastId });
     } catch (error) {
       console.error('Error al generar acta:', error);

@@ -121,6 +121,12 @@ export default function Consumo() {
       return;
     }
 
+    const hasLaterReading = consumptions.some(c => c.codigoSuministro === codigoSuministro && c.mes > selectedMes);
+    if (hasLaterReading) {
+      toast.error(`No puede registrar una lectura para ${selectedMes} porque ya existe una lectura registrada en un mes posterior para el suministro ${codigoSuministro}.`);
+      return;
+    }
+
     const exists = consumptions.some(c => c.codigoSuministro === codigoSuministro && c.mes === selectedMes);
     if (exists) {
       toast.error(`Ya existe una lectura para el suministro ${codigoSuministro} en el mes ${selectedMes}.`);
@@ -215,8 +221,8 @@ export default function Consumo() {
       body: tableData,
     });
 
-      const dataUri = doc.output('datauristring');
-      setPdfPreview(dataUri, `Reporte_Consumos_${selectedMes}.pdf`);
+      const blob = doc.output('blob');
+      setPdfPreview(URL.createObjectURL(blob), `Reporte_Consumos_${selectedMes}.pdf`);
       toast.success('PDF generado con éxito.', { id: toastId });
     } catch (error) {
       console.error('Error generating PDF:', error);
@@ -471,8 +477,8 @@ export default function Consumo() {
       yOffset = currentReceiptBottom + 4;
     });
 
-      const dataUri = doc.output('datauristring');
-      setPdfPreview(dataUri, `Recibos_Masivos_${selectedMes}.pdf`);
+      const blob = doc.output('blob');
+      setPdfPreview(URL.createObjectURL(blob), `Recibos_Masivos_${selectedMes}.pdf`);
       toast.success('Recibos generados con éxito.', { id: toastId });
     } catch (error) {
       console.error('Error generating mass receipts PDF:', error);
@@ -674,8 +680,8 @@ export default function Consumo() {
     doc.setFontSize(16);
     doc.text(`Total a Pagar: ${calcFormatCurrencyStr(totalAPagar)}`, 196, finalY + 6, { align: 'right' });
 
-      const dataUri = doc.output('datauristring');
-      setPdfPreview(dataUri, `Recibo_${clientName.replace(/\s+/g, '_')}_${cons.mes}.pdf`);
+      const blob = doc.output('blob');
+      setPdfPreview(URL.createObjectURL(blob), `Recibo_${clientName.replace(/\s+/g, '_')}_${cons.mes}.pdf`);
       toast.success('Recibo generado con éxito.', { id: toastId });
     } catch (error) {
       console.error('Error generating receipt PDF:', error);

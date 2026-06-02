@@ -60,7 +60,7 @@ const GlobalPdfPreview = () => {
             </div>
           </div>
           <div className="flex-1 w-full bg-slate-200 relative overflow-hidden">
-            <iframe src={pdfPreviewUrl} className="absolute inset-0 w-full h-full border-0" title="PDF Preview" allowFullScreen />
+            <PdfViewer url={pdfPreviewUrl} />
           </div>
         </div>
       </div>

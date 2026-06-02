@@ -451,8 +451,8 @@ export default function Configuracion() {
         yOffset += (aLines.length * 5) + 6;
       });
 
-      const dataUri = doc.output('datauristring');
-      setPdfPreview(dataUri, `Manual_Paccha_${roleType}.pdf`);
+      const blob = doc.output('blob');
+      setPdfPreview(URL.createObjectURL(blob), `Manual_Paccha_${roleType}.pdf`);
       toast.success('Manual exportado con éxito.', { id: toastId });
     } catch (error) {
       console.error(error);

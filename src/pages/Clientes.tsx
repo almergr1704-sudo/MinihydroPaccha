@@ -8,10 +8,12 @@ import * as XLSX from 'xlsx';
 import { toast } from 'react-hot-toast';
 
 export default function Clientes() {
-  const { clients, addClient, updateClient, settings, consumptions, fines, addTransaction, userRole, meetings } = useAppContext();
+  const { clients, addClient, updateClient, transferSupply, settings, consumptions, fines, addTransaction, userRole, meetings } = useAppContext();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<ClientType | 'TODOS' | 'CORTADO'>('TODOS');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [transferState, setTransferState] = useState<{ client: Client | null, supplyCode: string, toClientId: string }>({ client: null, supplyCode: '', toClientId: '' });
   const [editingId, setEditingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -443,9 +445,20 @@ export default function Clientes() {
                       {userRole !== 'FISCALIZADOR' && (
                         <button 
                           onClick={() => openEditModal(client)}
-                          className="text-blue-600 hover:text-blue-900"
+                          className="text-blue-600 hover:text-blue-900 mr-3"
                         >
                           Editar
+                        </button>
+                      )}
+                      {userRole !== 'FISCALIZADOR' && client.suministros && client.suministros.length > 0 && (
+                        <button 
+                         onClick={() => {
+                           setTransferState({ client, supplyCode: client.suministros![0], toClientId: '' });
+                           setIsTransferModalOpen(true);
+                         }}
+                         className="text-purple-500 hover:text-purple-700 font-semibold"
+                        >
+                          Transferir
                         </button>
                       )}
                     </td>
@@ -613,6 +626,84 @@ export default function Clientes() {
                     {editingId ? 'Actualizar' : 'Guardar Registro'}
                   </Button>
                   <Button type="button" variant="outline" onClick={closeModal} className="mt-3 w-full sm:mt-0 sm:w-auto">
+                    Cancelar
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal for Transfer Supply */}
+      {isTransferModalOpen && transferState.client && (
+        <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 bg-slate-900 bg-opacity-75 transition-opacity" onClick={() => setIsTransferModalOpen(false)}></div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div className="relative z-10 inline-block align-bottom bg-[#0B0E14] rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full">
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                if (!transferState.toClientId || !transferState.supplyCode) {
+                  return toast.error("Debe seleccionar un suministro y un cliente de destino.");
+                }
+                if (transferState.client?.id === transferState.toClientId) {
+                  return toast.error("El cliente de destino no puede ser el mismo que el actual.");
+                }
+                if (!window.confirm("¿Está seguro de querer transferir la titularidad de este suministro? Todo el historial pasará al nuevo titular.")) {
+                  return;
+                }
+                await transferSupply(transferState.client!.id, transferState.toClientId, transferState.supplyCode);
+                toast.success('Suministro transferido con éxito.');
+                setIsTransferModalOpen(false);
+              }}>
+                <div className="bg-[#0B0E14] px-4 pt-5 pb-4 sm:p-6 sm:pb-4 border-b border-slate-800">
+                  <h3 className="text-lg leading-6 font-medium text-slate-100 mb-4 text-purple-400">
+                    Cambio de Titularidad
+                  </h3>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300">Cliente Original</label>
+                      <input type="text" readOnly disabled className="mt-1 block w-full py-2 px-3 border border-slate-700 bg-slate-800 rounded-md text-slate-300 sm:text-sm" value={transferState.client.nombre || `${transferState.client.nombres} ${transferState.client.apellidos}`} />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300">Suministro a transferir</label>
+                      <select 
+                        className="mt-1 block w-full py-2 px-3 border border-slate-700 bg-[#0B0E14] rounded-md text-slate-100 sm:text-sm focus:ring-purple-500 focus:border-purple-500"
+                        value={transferState.supplyCode}
+                        onChange={(e) => setTransferState({ ...transferState, supplyCode: e.target.value })}
+                        required
+                      >
+                        {transferState.client.suministros?.map(s => (
+                           <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-1">Nuevo Titular de Destino</label>
+                      <select 
+                        className="mt-1 block w-full py-2 px-3 border border-slate-700 bg-[#0B0E14] rounded-md text-slate-100 sm:text-sm focus:ring-purple-500 focus:border-purple-500 max-w-full overflow-hidden text-ellipsis"
+                        value={transferState.toClientId}
+                        onChange={(e) => setTransferState({ ...transferState, toClientId: e.target.value })}
+                        required
+                      >
+                        <option value="">-- Seleccione el cliente destinatario --</option>
+                        {clients.filter(c => c.id !== transferState.client?.id && c.estado !== 'INACTIVO').sort((a,b) => ((a.nombre || a.apellidos || '') < (b.nombre || b.apellidos || '') ? -1 : 1)).map(c => (
+                          <option key={c.id} value={c.id}>{c.nombre || `${c.apellidos}, ${c.nombres}`} ({c.dni})</option>
+                        ))}
+                      </select>
+                      <p className="mt-2 text-xs text-slate-400">Se transferirá todo el historial de lecturas, consumos y facturación asociada al suministro.</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-slate-900/50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse border-t border-slate-800">
+                  <Button type="submit" className="w-full sm:ml-3 sm:w-auto bg-purple-600 hover:bg-purple-700 text-white">
+                    Confirmar Cambio
+                  </Button>
+                  <Button type="button" onClick={() => setIsTransferModalOpen(false)} variant="outline" className="mt-3 w-full sm:mt-0 sm:w-auto text-slate-300 border-slate-600 hover:bg-slate-800">
                     Cancelar
                   </Button>
                 </div>

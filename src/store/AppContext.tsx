@@ -9,6 +9,7 @@ interface AppContextType extends AppState {
   addAuditLog: (accion: AuditLog['accion'], modulo: AuditLog['modulo'], detalles: string) => void;
   addClient: (client: Omit<Client, 'id' | 'fechaRegistro'>) => Promise<void>;
   updateClient: (id: string, client: Partial<Client>) => Promise<void>;
+  transferSupply: (fromClientId: string, toClientId: string, supplyCode: string) => Promise<void>;
   addConsumption: (consumption: Omit<Consumption, 'id' | 'montoCalculado' | 'estadoPago'>) => Promise<void>;
   payConsumption: (consumptionId: string) => Promise<void>;
   addFine: (fine: Omit<Fine, 'id' | 'estadoPago' | 'fecha'>) => Promise<void>;
@@ -219,6 +220,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  const transferSupply = async (fromClientId: string, toClientId: string, supplyCode: string) => {
+    setState(currentState => {
+      const fromClient = currentState.clients.find(c => c.id === fromClientId);
+      const toClient = currentState.clients.find(c => c.id === toClientId);
+      
+      if (!fromClient || !toClient) return currentState;
+
+      const newClients = currentState.clients.map(c => {
+        if (c.id === fromClientId) {
+          const sums = c.suministros || [];
+          return { ...c, suministros: sums.filter(s => s !== supplyCode) };
+        }
+        if (c.id === toClientId) {
+          const sums = c.suministros || [];
+          if (!sums.includes(supplyCode)) {
+             return { ...c, suministros: [...sums, supplyCode] };
+          }
+        }
+        return c;
+      });
+
+      const newConsumptions = currentState.consumptions.map(c => {
+        if (c.clientId === fromClientId && c.codigoSuministro === supplyCode) {
+          return { ...c, clientId: toClientId };
+        }
+        return c;
+      });
+
+      const newState = { ...currentState, clients: newClients, consumptions: newConsumptions };
+      setLocalData(newState);
+      
+      const toName = toClient.nombre || `${toClient.nombres || ''} ${toClient.apellidos || ''}`;
+      setTimeout(() => addAuditLog('ACTUALIZAR', 'SOCIOS', `Transfirió suministro ${supplyCode} a ${toName}`), 0);
+      return newState;
+    });
+  };
+
   const addConsumption = async (consumption: Omit<Consumption, 'id' | 'montoCalculado' | 'estadoPago'>) => {
     // Need to use the current state synchronously here, so we get it from the latest possible
     setState(currentState => {
@@ -405,6 +443,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       loadingAuth,
       addClient,
       updateClient,
+      transferSupply,
       addConsumption,
       payConsumption,
       addFine,
