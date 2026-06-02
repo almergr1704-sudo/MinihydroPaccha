@@ -39,7 +39,6 @@ export default function Consumo() {
   };
 
   const [clientSearch, setClientSearch] = useState('');
-  const [suministroSearch, setSuministroSearch] = useState('');
   const [showSuministroDropdown, setShowSuministroDropdown] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -728,7 +727,10 @@ export default function Consumo() {
     const rawFullName = c.nombre ? c.nombre : `${c.nombres || ''} ${c.apellidos || ''}`;
     const fullName = normalizeSearchText(rawFullName);
     const dni = normalizeSearchText(c.dni || '');
-    return dni.includes(searchNormalized) || fullName.includes(searchNormalized);
+    const clientSupplies = c.suministros?.length ? c.suministros : [c.codigoSuministro];
+    const allSuppliesStr = normalizeSearchText(clientSupplies.join(' '));
+
+    return dni.includes(searchNormalized) || fullName.includes(searchNormalized) || allSuppliesStr.includes(searchNormalized);
   }).filter(c => c.estado === 'ACTIVO' || c.estado === 'CORTADO');
 
   const availableSupplies = React.useMemo(() => {
@@ -737,7 +739,6 @@ export default function Consumo() {
         const clientSupplies = c.suministros?.length ? c.suministros : [c.codigoSuministro];
         clientSupplies.forEach(sup => {
            if (!sup) return;
-           if (suministroSearch && !normalizeSearchText(sup).includes(normalizeSearchText(suministroSearch))) return;
            supplies.push({
               id: c.id,
               sup: sup,
@@ -746,7 +747,7 @@ export default function Consumo() {
         });
      });
      return supplies;
-  }, [searchedClients, suministroSearch]);
+  }, [searchedClients]);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
@@ -977,23 +978,15 @@ export default function Consumo() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-300">Buscar Cliente (DNI o Nombre)</label>
-                      <input 
-                        type="text" 
-                        placeholder="Buscar por DNI o Nombre..."
-                        value={clientSearch}
-                        onChange={(e) => setClientSearch(e.target.value)}
-                        className="mt-1 mb-4 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-slate-800/50 text-slate-100"
-                      />
-                      <label className="block text-sm font-medium text-slate-300">Seleccionar Cliente / Suministro</label>
+                      <label className="block text-sm font-medium text-slate-300">Buscar Cliente o Suministro</label>
                       <div className="relative">
                         <input 
                           type="text"
                           required={!formData.clientAndSuministro}
-                          placeholder="Buscar o ingresar código de suministro..."
-                          value={suministroSearch}
+                          placeholder="Buscar por DNI, Nombre o Código..."
+                          value={clientSearch}
                           onChange={(e) => {
-                            setSuministroSearch(e.target.value);
+                            setClientSearch(e.target.value);
                             setShowSuministroDropdown(true);
                             if (formData.clientAndSuministro) {
                               setFormData({ ...formData, clientAndSuministro: '' });
@@ -1006,21 +999,27 @@ export default function Consumo() {
                           }}
                           className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100"
                         />
-                        {showSuministroDropdown && availableSupplies.length > 0 && (
+                        {showSuministroDropdown && (
                           <ul className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-slate-800 py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm border border-slate-700">
-                            {availableSupplies.map(s => (
-                              <li
-                                key={`${s.id}|${s.sup}`}
-                                className="relative cursor-pointer select-none py-2 pl-3 pr-9 text-slate-100 hover:bg-slate-700 hover:text-white"
-                                onClick={() => {
-                                  setFormData({ ...formData, clientAndSuministro: `${s.id}|${s.sup}` });
-                                  setSuministroSearch(s.sup);
-                                  setShowSuministroDropdown(false);
-                                }}
-                              >
-                                {s.label}
+                            {availableSupplies.length > 0 ? (
+                              availableSupplies.map(s => (
+                                <li
+                                  key={`${s.id}|${s.sup}`}
+                                  className="relative cursor-pointer select-none py-2 pl-3 pr-9 text-slate-100 hover:bg-slate-700 hover:text-white"
+                                  onClick={() => {
+                                    setFormData({ ...formData, clientAndSuministro: `${s.id}|${s.sup}` });
+                                    setClientSearch(s.label);
+                                    setShowSuministroDropdown(false);
+                                  }}
+                                >
+                                  {s.label}
+                                </li>
+                              ))
+                            ) : (
+                              <li className="relative cursor-default select-none py-2 pl-3 pr-9 text-slate-400">
+                                No se encontraron resultados.
                               </li>
-                            ))}
+                            )}
                           </ul>
                         )}
                       </div>
