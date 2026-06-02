@@ -3,6 +3,7 @@ import { Plus, Search, User, Filter, Upload, Download, FileWarning } from 'lucid
 import { useAppContext } from '../store/AppContext';
 import { Button, Card, CardContent, Badge, Pagination } from '../components/ui';
 import { Client, ClientType } from '../store/types';
+import { normalizeSearchText } from '../lib/utils';
 import * as XLSX from 'xlsx';
 import { toast } from 'react-hot-toast';
 
@@ -62,11 +63,16 @@ export default function Clientes() {
   };
 
   const filteredClients = clients.filter(c => {
-    const fullName = c.nombre ? c.nombre.toLowerCase() : `${c.nombres || ''} ${c.apellidos || ''}`.toLowerCase();
-    const allSuministros = [c.codigoSuministro || '', ...(c.suministros || [])].join(' ').toLowerCase();
-    const matchesSearch = fullName.includes(searchTerm.toLowerCase()) || 
-                          c.dni.includes(searchTerm) || 
-                          allSuministros.includes(searchTerm.toLowerCase());
+    const rawFullName = c.nombre ? c.nombre : `${c.nombres || ''} ${c.apellidos || ''}`;
+    const fullName = normalizeSearchText(rawFullName);
+    const dni = normalizeSearchText(c.dni || '');
+    const allSuministros = normalizeSearchText([c.codigoSuministro || '', ...(c.suministros || [])].join(' '));
+    const normalizedSearch = normalizeSearchText(searchTerm);
+    
+    const matchesSearch = !normalizedSearch || 
+                          fullName.includes(normalizedSearch) || 
+                          dni.includes(normalizedSearch) || 
+                          allSuministros.includes(normalizedSearch);
                           
     const matchesType = filterType === 'TODOS' || 
                         (filterType === 'CORTADO' ? c.estado === 'CORTADO' : c.tipo === filterType);
@@ -446,8 +452,8 @@ export default function Clientes() {
                   </tr>
                 )}) : (
                   <tr>
-                    <td colSpan={5} className="px-6 py-10 text-center text-slate-400">
-                      No se encontraron clientes con esos filtros.
+                    <td colSpan={7} className="px-6 py-10 text-center text-slate-400">
+                      No se encontraron registros que coincidan con la búsqueda.
                     </td>
                   </tr>
                 )}

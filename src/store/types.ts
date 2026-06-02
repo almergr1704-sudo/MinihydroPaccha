@@ -62,6 +62,7 @@ export interface Meeting {
   asistencia: Record<string, AttendanceStatus>; // clientId -> status
   lugar?: string;
   temas?: string;
+  acta?: string; // Markdown or plain text for Acta
   invitados?: 'SOCIO' | 'TODOS';
   finalizada?: boolean;
   estado?: 'PROGRAMADA' | 'EN_CURSO' | 'FINALIZADA' | 'CANCELADA';
@@ -89,6 +90,15 @@ export interface AppSettings {
   toleranciaBajoConsumo?: number;
 }
 
+export interface AuditLog {
+  id: string;
+  fecha: string;
+  usuario: string; // The email/username of the user who performed the action
+  accion: 'CREAR' | 'ACTUALIZAR' | 'ELIMINAR' | 'REPORTE' | 'LOGIN' | 'LOGOUT';
+  modulo: 'USUARIOS' | 'SOCIOS' | 'CONSUMOS' | 'FINANZAS' | 'REUNIONES' | 'SISTEMA';
+  detalles: string;
+}
+
 export interface AppState {
   clients: Client[];
   consumptions: Consumption[];
@@ -97,4 +107,5 @@ export interface AppState {
   admins: any[];
   fines: Fine[];
   settings: AppSettings;
+  auditLogs: AuditLog[];
 }

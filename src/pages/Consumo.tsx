@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Plus, Check, FileText, Download, Upload, AlertCircle } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Button, Card, CardContent, Badge, Pagination } from '../components/ui';
-import { formatCurrency } from '../lib/utils';
+import { formatCurrency, normalizeSearchText } from '../lib/utils';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { jsPDF } from 'jspdf';
@@ -694,11 +694,15 @@ export default function Consumo() {
     if (!tableSearch) return true;
     const client = clients.find(cl => cl.id === c.clientId);
     if (!client) return false;
-    const searchLower = tableSearch.toLowerCase();
-    const fullName = client.nombre ? client.nombre.toLowerCase() : `${client.nombres || ''} ${client.apellidos || ''}`.toLowerCase();
-    return (c.codigoSuministro?.toLowerCase().includes(searchLower) ||
-           client.dni?.includes(searchLower) ||
-           fullName.includes(searchLower)) ?? false;
+    const searchNormalized = normalizeSearchText(tableSearch);
+    const rawFullName = client.nombre ? client.nombre : `${client.nombres || ''} ${client.apellidos || ''}`;
+    const fullName = normalizeSearchText(rawFullName);
+    const dni = normalizeSearchText(client.dni || '');
+    const suministro = normalizeSearchText(c.codigoSuministro || '');
+
+    return suministro.includes(searchNormalized) ||
+           dni.includes(searchNormalized) ||
+           fullName.includes(searchNormalized);
   });
   
   // All pending debts
@@ -707,18 +711,24 @@ export default function Consumo() {
     if (!tableSearch) return true;
     const client = clients.find(cl => cl.id === c.clientId);
     if (!client) return false;
-    const searchLower = tableSearch.toLowerCase();
-    const fullName = client.nombre ? client.nombre.toLowerCase() : `${client.nombres || ''} ${client.apellidos || ''}`.toLowerCase();
-    return (c.codigoSuministro?.toLowerCase().includes(searchLower) ||
-           client.dni?.includes(searchLower) ||
-           fullName.includes(searchLower)) ?? false;
+    const searchNormalized = normalizeSearchText(tableSearch);
+    const rawFullName = client.nombre ? client.nombre : `${client.nombres || ''} ${client.apellidos || ''}`;
+    const fullName = normalizeSearchText(rawFullName);
+    const dni = normalizeSearchText(client.dni || '');
+    const suministro = normalizeSearchText(c.codigoSuministro || '');
+    
+    return suministro.includes(searchNormalized) ||
+           dni.includes(searchNormalized) ||
+           fullName.includes(searchNormalized);
   }).sort((a,b) => new Date(b.fechaLectura).getTime() - new Date(a.fechaLectura).getTime());
 
   const searchedClients = clients.filter(c => {
     if (!clientSearch) return true;
-    const searchLower = clientSearch.toLowerCase();
-    const fullName = c.nombre ? c.nombre.toLowerCase() : `${c.nombres || ''} ${c.apellidos || ''}`.toLowerCase();
-    return (c.dni?.includes(searchLower) || fullName.includes(searchLower)) ?? false;
+    const searchNormalized = normalizeSearchText(clientSearch);
+    const rawFullName = c.nombre ? c.nombre : `${c.nombres || ''} ${c.apellidos || ''}`;
+    const fullName = normalizeSearchText(rawFullName);
+    const dni = normalizeSearchText(c.dni || '');
+    return dni.includes(searchNormalized) || fullName.includes(searchNormalized);
   }).filter(c => c.estado === 'ACTIVO' || c.estado === 'CORTADO');
 
   const availableSupplies = React.useMemo(() => {
@@ -727,11 +737,11 @@ export default function Consumo() {
         const clientSupplies = c.suministros?.length ? c.suministros : [c.codigoSuministro];
         clientSupplies.forEach(sup => {
            if (!sup) return;
-           if (suministroSearch && !sup.toLowerCase().includes(suministroSearch.toLowerCase())) return;
+           if (suministroSearch && !normalizeSearchText(sup).includes(normalizeSearchText(suministroSearch))) return;
            supplies.push({
               id: c.id,
               sup: sup,
-              label: `${sup} - ${c.nombre ? c.nombre : c.nombres + ' ' + c.apellidos} (${c.tipo}) - DNI: ${c.dni}`
+              label: `${sup} - ${c.nombre ? c.nombre : `${c.nombres || ''} ${c.apellidos || ''}`} (${c.tipo}) - DNI: ${c.dni}`
            });
         });
      });

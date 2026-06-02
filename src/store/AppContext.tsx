@@ -1,11 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { AppState, Client, Consumption, Transaction, Meeting, ClientType, Fine } from './types';
+import { AppState, Client, Consumption, Transaction, Meeting, ClientType, Fine, AuditLog } from './types';
 
 interface AppContextType extends AppState {
   user: any;
   userRole: string;
   mustChangePassword?: boolean;
   loadingAuth: boolean;
+  addAuditLog: (accion: AuditLog['accion'], modulo: AuditLog['modulo'], detalles: string) => void;
   addClient: (client: Omit<Client, 'id' | 'fechaRegistro'>) => Promise<void>;
   updateClient: (id: string, client: Partial<Client>) => Promise<void>;
   addConsumption: (consumption: Omit<Consumption, 'id' | 'montoCalculado' | 'estadoPago'>) => Promise<void>;
@@ -41,6 +42,7 @@ const initialData: AppState = {
   meetings: [],
   admins: [],
   fines: [],
+  auditLogs: [],
   settings: {
     costoSocio: 0.20,
     costoUsuario: 0.30,
@@ -75,6 +77,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const data = getLocalData();
     if (!data.fines) {
       data.fines = []; // fallback for legacy data
+    }
+    if (!data.auditLogs) {
+      data.auditLogs = []; // fallback
     }
     if (!data.settings) {
       data.settings = initialData.settings;
@@ -116,13 +121,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setLocalData(newState);
   };
 
+  const addAuditLog = (accion: AuditLog['accion'], modulo: AuditLog['modulo'], detalles: string) => {
+    setState(prev => {
+      const newLog: AuditLog = {
+        id: `AL${Date.now()}${Math.floor(1000 + Math.random() * 9000)}`,
+        fecha: new Date().toISOString(),
+        usuario: user?.email || 'Sistema',
+        accion,
+        modulo,
+        detalles
+      };
+      const newState = { ...prev, auditLogs: [newLog, ...(prev.auditLogs || [])] };
+      setLocalData(newState);
+      return newState;
+    });
+  };
+
   const login = (email: string) => {
     const newUser = { email, uid: 'local_uid' };
     setUser(newUser);
     localStorage.setItem('erp_user', JSON.stringify(newUser));
+    // Cannot call addAuditLog yet because user state might not be updated, but we can do it asynchronously
+    setTimeout(() => {
+        addAuditLog('LOGIN', 'SISTEMA', `Inicio de sesión de ${email}`);
+    }, 100);
   };
 
   const logout = () => {
+    addAuditLog('LOGOUT', 'SISTEMA', `Cierra sesión ${user?.email || ''}`);
     setUser(null);
     localStorage.removeItem('erp_user');
   };
@@ -139,6 +165,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     const newAdmins = state.admins.map(a => a.id === id ? { ...a, ...updates, updatedAt: new Date().toISOString(), updatedBy: user?.email || 'Unknown' } : a);
     persistState({ ...state, admins: newAdmins });
+    setTimeout(() => addAuditLog('ACTUALIZAR', 'USUARIOS', `Actualizó usuario administrativo ${id}`), 0);
   };
 
   const addAdmin = async (admin: any) => {
@@ -164,6 +191,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...state,
       admins: [...state.admins, newAdmin]
     });
+    setTimeout(() => addAuditLog('CREAR', 'USUARIOS', `Creó usuario administrativo ${admin.email || admin.username}`), 0);
   };
 
   const addClient = async (client: Omit<Client, 'id' | 'fechaRegistro'>) => {
@@ -176,6 +204,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setState(prev => {
       const newState = { ...prev, clients: [...prev.clients, newClient] };
       setLocalData(newState);
+      setTimeout(() => addAuditLog('CREAR', 'SOCIOS', `Creó socio/usuario: ${client.dni}`), 0);
       return newState;
     });
   };
@@ -185,6 +214,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const newClients = prev.clients.map(c => c.id === id ? { ...c, ...updates } : c);
       const newState = { ...prev, clients: newClients };
       setLocalData(newState);
+      setTimeout(() => addAuditLog('ACTUALIZAR', 'SOCIOS', `Actualizó socio/usuario: ${id}`), 0);
       return newState;
     });
   };
@@ -237,17 +267,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       descripcion: `Pago Consumo ${consumption.mes}`,
       clientId: consumption.clientId,
     });
+    addAuditLog('ACTUALIZAR', 'CONSUMOS', `Pagó recibo de ${consumption.montoCalculado} para suministro ${consumption.codigoSuministro}`);
   };
 
   const deleteConsumption = async (id: string, reason: string) => {
     const consumption = state.consumptions.find(c => c.id === id);
     if (!consumption) return;
     
-    // Simplistic audit log via console since there's no backend
-    console.warn(`[AUDIT] Consumption Deleted: ID ${id}, Reason: ${reason}, By: ${user?.email || 'Unknown'}`);
-    
     const newConsumptions = state.consumptions.filter(c => c.id !== id);
     persistState({ ...state, consumptions: newConsumptions });
+    setTimeout(() => addAuditLog('ELIMINAR', 'CONSUMOS', `Eliminó recibo ${id}. Motivo: ${reason}`), 0);
   };
 
   const addFine = async (fine: Omit<Fine, 'id' | 'estadoPago' | 'fecha'>) => {
@@ -294,6 +323,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setState(prev => {
       const newState = { ...prev, transactions: [...prev.transactions, newTx] };
       setLocalData(newState);
+      setTimeout(() => addAuditLog('CREAR', 'FINANZAS', `Registró ${transaction.tipo} por S/ ${transaction.monto} - ${transaction.categoria}`), 0);
       return newState;
     });
   };
@@ -305,6 +335,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         transactions: prev.transactions.map(t => t.id === id ? { ...t, conciliado: !t.conciliado } : t) 
       };
       setLocalData(newState);
+      setTimeout(() => addAuditLog('ACTUALIZAR', 'FINANZAS', `Alternó conciliación de transacción ${id}`), 0);
       return newState;
     });
   };
@@ -316,6 +347,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdBy: user?.email || 'Unknown'
     };
     persistState({ ...state, meetings: [...state.meetings, newMeeting] });
+    setTimeout(() => addAuditLog('CREAR', 'REUNIONES', `Programó reunión para ${meeting.fecha.split('T')[0]}`), 0);
   };
 
   const updateMeeting = async (id: string, meetingInfo: Partial<Meeting>) => {
@@ -323,6 +355,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...state,
       meetings: state.meetings.map(m => m.id === id ? { ...m, ...meetingInfo } : m)
     });
+    setTimeout(() => addAuditLog('ACTUALIZAR', 'REUNIONES', `Actualizó reunión ${id}`), 0);
   };
 
   const recordAttendance = async (meetingId: string, clientId: string, status: Meeting['asistencia'][string]) => {
@@ -360,6 +393,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...state,
       settings: { ...state.settings, ...settings }
     });
+    setTimeout(() => addAuditLog('ACTUALIZAR', 'SISTEMA', `Actualizó configuración del sistema`), 0);
   };
 
   return (
@@ -386,6 +420,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       deleteConsumption,
       login,
       logout,
+      addAuditLog,
       setPdfPreview,
       pdfPreviewUrl,
       pdfPreviewName

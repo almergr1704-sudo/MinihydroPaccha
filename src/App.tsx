@@ -11,6 +11,7 @@ import Finanzas from './pages/Finanzas';
 import Reuniones from './pages/Reuniones';
 import Reportes from './pages/Reportes';
 import Usuarios from './pages/Usuarios';
+import Auditoria from './pages/Auditoria';
 import Configuracion from './pages/Configuracion';
 import Login from './pages/Login';
 
@@ -30,8 +31,8 @@ const GlobalPdfPreview = () => {
 
         <span className="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
 
-        <div className="inline-block align-bottom bg-[#0B0E14] border border-slate-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full relative z-10 flex flex-col" style={{ height: '80vh' }}>
-          <div className="px-4 py-3 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
+        <div className="inline-block align-bottom bg-[#0B0E14] border border-slate-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle w-full mx-4 sm:max-w-5xl relative z-10 flex flex-col" style={{ height: '90vh', maxHeight: '90vh' }}>
+          <div className="px-4 py-3 border-b border-slate-800 flex justify-between items-center bg-slate-900/50 shrink-0">
             <h3 className="text-lg font-medium text-slate-100 flex items-center">
               <FileText className="w-5 h-5 mr-2 text-blue-400" />
               Vista Previa del Documento
@@ -57,8 +58,8 @@ const GlobalPdfPreview = () => {
               </button>
             </div>
           </div>
-          <div className="flex-1 p-0 overflow-hidden bg-white">
-            <iframe src={pdfPreviewUrl} className="w-full h-full border-0" title="PDF Preview" />
+          <div className="flex-1 w-full bg-slate-200 relative">
+            <iframe src={`${pdfPreviewUrl}#view=FitH`} className="absolute inset-0 w-full h-full border-0" title="PDF Preview" allowFullScreen />
           </div>
         </div>
       </div>
@@ -136,6 +137,7 @@ export default function App() {
             <Route path="reuniones" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><Reuniones /></RoleGuard>} />
             <Route path="reportes" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><Reportes /></RoleGuard>} />
             <Route path="usuarios" element={<RoleGuard allowedRoles={['ADMIN', 'FISCALIZADOR']}><Usuarios /></RoleGuard>} />
+            <Route path="auditoria" element={<RoleGuard allowedRoles={['ADMIN', 'FISCALIZADOR']}><Auditoria /></RoleGuard>} />
             <Route path="config" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR', 'OPERATOR']}><Configuracion /></RoleGuard>} />
             <Route path="*" element={
               <div className="flex flex-col items-center justify-center h-full">

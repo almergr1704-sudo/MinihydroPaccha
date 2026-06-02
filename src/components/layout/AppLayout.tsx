@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { 
-  Menu, X, Home, Users, Zap, DollarSign, Calendar, Settings, FileText, Activity, LogOut
+  Menu, X, Home, Users, Zap, DollarSign, Calendar, Settings, FileText, Activity, LogOut, History
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAppContext } from '../../store/AppContext';
@@ -14,6 +14,7 @@ const baseNavigation = [
   { name: 'Reuniones', href: '/reuniones', icon: Calendar },
   { name: 'Reportes', href: '/reportes', icon: FileText },
   { name: 'Usuarios', href: '/usuarios', icon: Users },
+  { name: 'Auditoría', href: '/auditoria', icon: History },
   { name: 'Configuración', href: '/config', icon: Settings },
 ];
 
@@ -29,7 +30,9 @@ export function AppLayout() {
 
   const baseNavFiltered = userRole === 'OPERATOR' 
     ? baseNavigation.filter(nav => ['Consumo & Facturación', 'Configuración'].includes(nav.name))
-    : userRole === 'TESORERO' || userRole === 'FISCALIZADOR'
+    : userRole === 'TESORERO'
+    ? baseNavigation.filter(nav => nav.name !== 'Usuarios' && nav.name !== 'Auditoría')
+    : userRole === 'FISCALIZADOR'
     ? baseNavigation.filter(nav => nav.name !== 'Usuarios')
     : baseNavigation;
 

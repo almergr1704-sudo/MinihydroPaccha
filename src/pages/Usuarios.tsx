@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Shield, ShieldAlert, UserCheck, Plus, X, ChevronLeft, ChevronRight, Power, UserX, UserMinus, Search, Filter, Copy, CheckCircle2 } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Card, CardContent, Badge, Button, Pagination } from '../components/ui';
+import { normalizeSearchText } from '../lib/utils';
 import { PasswordStrengthIndicator, evaluatePasswordStrength } from '../components/PasswordStrengthIndicator';
 
 import bcrypt from 'bcryptjs';
@@ -112,10 +113,16 @@ export default function Usuarios() {
   };
 
   const filteredAdmins = admins.filter(admin => {
-    const matchesSearch = admin.nombres?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          admin.apellidos?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          admin.dni?.includes(searchTerm) || 
-                          admin.username?.toLowerCase().includes(searchTerm.toLowerCase());
+    const searchNormalized = normalizeSearchText(searchTerm);
+    const rawFullName = `${admin.nombres || ''} ${admin.apellidos || ''}`;
+    const fullName = normalizeSearchText(rawFullName);
+    const dni = normalizeSearchText(admin.dni || '');
+    const username = normalizeSearchText(admin.username || '');
+    
+    const matchesSearch = !searchNormalized || 
+                          fullName.includes(searchNormalized) || 
+                          dni.includes(searchNormalized) || 
+                          username.includes(searchNormalized);
                           
     const adminEstado = admin.estado || 'ACTIVO';
     const matchesStatus = statusFilter === 'TODOS' || adminEstado === statusFilter;

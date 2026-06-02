@@ -12,6 +12,15 @@ export function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
+export function normalizeSearchText(text: string): string {
+  if (!text) return '';
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
 export const render3DPieChartToDataURL = (
   data: { name: string; value: number; color: string }[],
   title: string

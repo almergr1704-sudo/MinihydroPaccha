@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Plus, ArrowUpRight, ArrowDownRight, Filter, Download, FileText, FileWarning, PowerOff, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Button, Card, CardContent, Badge, CardHeader, CardTitle, Pagination } from '../components/ui';
-import { formatCurrency, render3DPieChartToDataURL } from '../lib/utils';
+import { formatCurrency, render3DPieChartToDataURL, normalizeSearchText } from '../lib/utils';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { jsPDF } from 'jspdf';
@@ -270,11 +270,14 @@ export default function Finanzas() {
     }
 
     if (!clientSearch) return true;
-    const searchLower = clientSearch.toLowerCase();
-    const fullName = c.nombre ? c.nombre.toLowerCase() : `${c.nombres || ''} ${c.apellidos || ''}`.toLowerCase();
-    return c.codigoSuministro.toLowerCase().includes(searchLower) ||
-           c.dni.includes(searchLower) ||
-           fullName.includes(searchLower);
+    const searchNormalized = normalizeSearchText(clientSearch);
+    const rawFullName = c.nombre ? c.nombre : `${c.nombres || ''} ${c.apellidos || ''}`;
+    const fullName = normalizeSearchText(rawFullName);
+    const dni = normalizeSearchText(c.dni || '');
+    const suministro = normalizeSearchText(c.codigoSuministro || '');
+    return suministro.includes(searchNormalized) ||
+           dni.includes(searchNormalized) ||
+           fullName.includes(searchNormalized);
   });
 
   const pendingConsumptions = consumptions.filter(c => c.clientId === selectedClientId && c.estadoPago === 'PENDIENTE');
