@@ -9,7 +9,7 @@ import autoTable from 'jspdf-autotable';
 import { toast } from 'react-hot-toast';
 
 export default function Reuniones() {
-  const { clients, meetings, addMeeting, updateMeeting, recordAttendance, userRole, suppliesInfo, setPdfPreview } = useAppContext();
+  const { clients, meetings, addMeeting, updateMeeting, recordAttendance, userRole, suppliesInfo } = useAppContext();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedMeeting, setSelectedMeeting] = useState<string | null>(null);
   const [attendanceFilter, setAttendanceFilter] = useState<'SOCIO' | 'TODOS'>('SOCIO');
@@ -172,9 +172,8 @@ export default function Reuniones() {
       yOffset = finalY + 18; // Setup for the next ticket offset
     });
 
-      const blob = doc.output('blob');
-      setPdfPreview(URL.createObjectURL(blob), `Citaciones_Reunion_${activeMeeting.fecha.split('T')[0]}.pdf`);
-      toast.success('Citaciones generadas con éxito.', { id: toastId });
+      doc.save(`Citaciones_Reunion_${activeMeeting.fecha.split('T')[0]}.pdf`);
+      toast.success('Citaciones generadas y descargadas con éxito.', { id: toastId });
     } catch (error) {
       console.error('Error generating invitations PDF:', error);
       toast.error('Error al generar citaciones.', { id: toastId });
@@ -258,9 +257,8 @@ export default function Reuniones() {
       body: data,
     });
 
-      const blob = doc.output('blob');
-      setPdfPreview(URL.createObjectURL(blob), `Reporte_Asistencia_${meeting.fecha.split('T')[0]}.pdf`);
-      toast.success('Reporte de asistencia generado con éxito.', { id: toastId });
+      doc.save(`Reporte_Asistencia_${meeting.fecha.split('T')[0]}.pdf`);
+      toast.success('Reporte de asistencia generado y descargado con éxito.', { id: toastId });
     } catch (error) {
       console.error('Error generating attendance PDF:', error);
       toast.error('Error al generar el reporte de asistencia.', { id: toastId });

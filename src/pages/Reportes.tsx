@@ -13,7 +13,7 @@ import { format } from 'date-fns';
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
 export default function Reportes() {
-  const { clients, transactions, consumptions, fines, setPdfPreview } = useAppContext();
+  const { clients, transactions, consumptions, fines } = useAppContext();
 
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -178,9 +178,8 @@ export default function Reportes() {
        }
     }
 
-      const blob = doc.output('blob');
-      setPdfPreview(URL.createObjectURL(blob), `Reporte_${type}.pdf`);
-      toast.success('Reporte generado con éxito.', { id: toastId });
+      doc.save(`Reporte_${type}.pdf`);
+      toast.success('Reporte generado y descargado con éxito.', { id: toastId });
     } catch (error) {
       console.error('Error generating PDF:', error);
       toast.error('Error al generar el reporte.', { id: toastId });

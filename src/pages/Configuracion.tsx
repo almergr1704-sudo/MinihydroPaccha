@@ -10,7 +10,7 @@ import html2canvas from 'html2canvas';
 import ManualCapture from '../components/ManualCapture';
 
 export default function Configuracion() {
-  const { settings, updateSettings, userRole, user, updateAdmin, admins, mustChangePassword, setPdfPreview } = useAppContext();
+  const { settings, updateSettings, userRole, user, updateAdmin, admins, mustChangePassword } = useAppContext();
   const [isCapturing, setIsCapturing] = useState(false);
   const [formData, setFormData] = useState({
     costoSocio: 0.20,
@@ -451,8 +451,7 @@ export default function Configuracion() {
         yOffset += (aLines.length * 5) + 6;
       });
 
-      const blob = doc.output('blob');
-      setPdfPreview(URL.createObjectURL(blob), `Manual_Paccha_${roleType}.pdf`);
+      doc.save(`Manual_Paccha_${roleType}.pdf`);
       toast.success('Manual exportado con éxito.', { id: toastId });
     } catch (error) {
       console.error(error);

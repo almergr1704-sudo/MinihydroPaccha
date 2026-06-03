@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Plus, ArrowUpRight, ArrowDownRight, Filter, Download, FileText, FileWarning, PowerOff, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Button, Card, CardContent, Badge, CardHeader, CardTitle, Pagination } from '../components/ui';
@@ -14,7 +14,7 @@ import { toast } from 'react-hot-toast';
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
 export default function Finanzas() {
-  const { transactions, addTransaction, clients, consumptions, payConsumption, fines, payFine, settings, updateClient, userRole, setPdfPreview, toggleTransactionConciliado } = useAppContext();
+  const { transactions, addTransaction, clients, consumptions, payConsumption, fines, payFine, settings, updateClient, userRole, toggleTransactionConciliado } = useAppContext();
   const [isModalOpen, setIsModalOpen] = useState<false | 'INGRESO' | 'EGRESO' | 'APTOS_CORTE'>(false);
   const [filterType, setFilterType] = useState<TransactionType | 'TODOS'>('INGRESO');
   const [selectedMes, setSelectedMes] = useState(''); // Empty means All time
@@ -56,9 +56,8 @@ export default function Finanzas() {
     const splitDesc = doc.splitTextToSize(`Concepto / Descripción: ${t.descripcion}`, 180);
     doc.text(splitDesc, 14, 70);
 
-      const blob = doc.output('blob');
-      setPdfPreview(URL.createObjectURL(blob), `Egreso_${t.fecha}.pdf`);
-      toast.success('Comprobante generado éxito.', { id: toastId });
+      doc.save(`Egreso_${t.fecha}.pdf`);
+      toast.success('Comprobante generado y descargado con éxito.', { id: toastId });
     } catch (error) {
       console.error('Error generating PDF:', error);
       toast.error('Error al generar comprobante.', { id: toastId });
@@ -177,9 +176,8 @@ export default function Finanzas() {
        }
     }
 
-      const blob = doc.output('blob');
-      setPdfPreview(URL.createObjectURL(blob), `Reporte_Detallado_${type}_${selectedMes || 'Historico'}.pdf`);
-      toast.success('Reporte generado con éxito.', { id: toastId });
+      doc.save(`Reporte_Detallado_${type}_${selectedMes || 'Historico'}.pdf`);
+      toast.success('Reporte generado y descargado con éxito.', { id: toastId });
     } catch (error) {
       console.error('Error generating PDF:', error);
       toast.error('Error al generar el PDF.', { id: toastId });

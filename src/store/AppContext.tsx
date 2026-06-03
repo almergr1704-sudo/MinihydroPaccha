@@ -26,9 +26,6 @@ interface AppContextType extends AppState {
   markSupplyAsSocio: (supplyCode: string) => Promise<void>;
   login: (email: string) => void;
   logout: () => void;
-  setPdfPreview: (url: string | null, name?: string) => void;
-  pdfPreviewUrl: string | null;
-  pdfPreviewName: string;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -68,13 +65,6 @@ const setLocalData = (data: AppState) => {
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<any>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
-  const [pdfPreviewUrl, setPdfPreviewUrlState] = useState<string | null>(null);
-  const [pdfPreviewName, setPdfPreviewName] = useState<string>('');
-
-  const setPdfPreview = (url: string | null, name?: string) => {
-    setPdfPreviewUrlState(url);
-    if (name) setPdfPreviewName(name);
-  };
 
   const [state, setState] = useState<AppState>(() => {
     const data = getLocalData();
@@ -505,10 +495,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       markSupplyAsSocio,
       login,
       logout,
-      addAuditLog,
-      setPdfPreview,
-      pdfPreviewUrl,
-      pdfPreviewName
+      addAuditLog
     }}>
       {children}
     </AppContext.Provider>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Plus, Check, FileText, Download, Upload, AlertCircle } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Button, Card, CardContent, Badge, Pagination } from '../components/ui';
@@ -12,7 +12,7 @@ import { Consumption } from '../store/types';
 import { toast } from 'react-hot-toast';
 
 export default function Consumo() {
-  const { clients, consumptions, addConsumption, deleteConsumption, settings, userRole, suppliesInfo, setPdfPreview } = useAppContext();
+  const { clients, consumptions, addConsumption, deleteConsumption, settings, userRole, suppliesInfo } = useAppContext();
   const [historyClientSuministro, setHistoryClientSuministro] = useState<{ clientId: string, codigoSuministro: string, clientName: string } | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedMes, setSelectedMes] = useState(() => {
@@ -230,9 +230,8 @@ export default function Consumo() {
       body: tableData,
     });
 
-      const blob = doc.output('blob');
-      setPdfPreview(URL.createObjectURL(blob), `Reporte_Consumos_${selectedMes}.pdf`);
-      toast.success('PDF generado con éxito.', { id: toastId });
+      doc.save(`Reporte_Consumos_${selectedMes}.pdf`);
+      toast.success('PDF generado y descargado con éxito.', { id: toastId });
     } catch (error) {
       console.error('Error generating PDF:', error);
       toast.error('Error al generar el PDF.', { id: toastId });
@@ -488,9 +487,8 @@ export default function Consumo() {
       yOffset = currentReceiptBottom + 4;
     });
 
-      const blob = doc.output('blob');
-      setPdfPreview(URL.createObjectURL(blob), `Recibos_Masivos_${selectedMes}.pdf`);
-      toast.success('Recibos generados con éxito.', { id: toastId });
+      doc.save(`Recibos_Masivos_${selectedMes}.pdf`);
+      toast.success('Recibos generados y descargados con éxito.', { id: toastId });
     } catch (error) {
       console.error('Error generating mass receipts PDF:', error);
       toast.error('Error al generar los recibos.', { id: toastId });
@@ -692,9 +690,8 @@ export default function Consumo() {
     doc.setFontSize(16);
     doc.text(`Total a Pagar: ${calcFormatCurrencyStr(totalAPagar)}`, 196, finalY + 6, { align: 'right' });
 
-      const blob = doc.output('blob');
-      setPdfPreview(URL.createObjectURL(blob), `Recibo_${clientName.replace(/\s+/g, '_')}_${cons.mes}.pdf`);
-      toast.success('Recibo generado con éxito.', { id: toastId });
+      doc.save(`Recibo_${clientName.replace(/\s+/g, '_')}_${cons.mes}.pdf`);
+      toast.success('Recibo generado y descargado con éxito.', { id: toastId });
     } catch (error) {
       console.error('Error generating receipt PDF:', error);
       toast.error('Error al generar el recibo.', { id: toastId });
