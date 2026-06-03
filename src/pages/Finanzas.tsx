@@ -41,7 +41,7 @@ export default function Finanzas() {
     try {
       const doc = new jsPDF();
     doc.setFontSize(20);
-    doc.text('Central Hidroeléctrica', 14, 22);
+    doc.text('Mini Central Hidroeléctrica Paccha', 14, 22);
     doc.setFontSize(12);
     doc.text('Comprobante de Egreso', 14, 30);
     

@@ -329,7 +329,7 @@ export default function Consumo() {
 
       // Header
       doc.setFontSize(16);
-      doc.text('Mini Central Hidroeléctrica PACCHA', 14, yOffset + 6);
+      doc.text('Mini Central Hidroeléctrica Paccha', 14, yOffset + 6);
 
       if (debtInfo.warning) {
         doc.setFontSize(9);
@@ -374,7 +374,8 @@ export default function Consumo() {
         }
       }
 
-      doc.text(`Lectura actual: ${calcLecturaActual} kWh | Lectura anterior: ${calcLecturaAnterior} kWh | Consumo de kWh: ${currentKwh}`, 14, yOffset + 34);
+      doc.text(`Lectura actual: ${calcLecturaActual} kWh | Lectura anterior: ${calcLecturaAnterior} kWh`, 14, yOffset + 34);
+      doc.text(`Consumo del mes: ${currentKwh} kWh`, 14, yOffset + 39);
 
       // Draw Chart
       const historyCons = consumptions
@@ -386,7 +387,7 @@ export default function Consumo() {
       const chartX = 135;
       const chartY = yOffset + 18;
       const chartW = 60;
-      const chartH = 16;
+      const chartH = 18;
       
       doc.setFontSize(8);
       doc.text('Historial de Pagos (S/)', chartX, chartY - 2);
@@ -464,7 +465,7 @@ export default function Consumo() {
       const totalAPagar = totalMontoCalculado + debtInfo.totalDeuda;
 
       autoTable(doc, {
-        startY: yOffset + 39,
+        startY: yOffset + 44,
         head: [['Descripción', 'Cantidad (kWh)', 'Precio (S/)', 'Subtotal']],
         body: tableBody,
         theme: 'grid',
@@ -564,7 +565,7 @@ export default function Consumo() {
 
     // Header
     doc.setFontSize(16);
-    doc.text('Mini Central Hidroeléctrica PACCHA', 14, yOffset + 6);
+    doc.text('Mini Central Hidroeléctrica Paccha', 14, yOffset + 6);
 
     if (debtInfo.warning) {
       doc.setFontSize(9);
@@ -606,7 +607,8 @@ export default function Consumo() {
       calcLecturaActual = calcLecturaAnterior + currentKwh;
     }
 
-    doc.text(`Lectura actual: ${calcLecturaActual} kWh | Lectura anterior: ${calcLecturaAnterior} kWh | Consumo de kWh: ${currentKwh}`, 14, yOffset + 34);
+    doc.text(`Lectura actual: ${calcLecturaActual} kWh | Lectura anterior: ${calcLecturaAnterior} kWh`, 14, yOffset + 34);
+    doc.text(`Consumo del mes: ${currentKwh} kWh`, 14, yOffset + 39);
 
     // Draw Chart
     const historyCons = consumptions
@@ -618,7 +620,7 @@ export default function Consumo() {
     const chartX = 135;
     const chartY = yOffset + 18;
     const chartW = 60;
-    const chartH = 16;
+    const chartH = 18;
     
     doc.setFontSize(8);
     doc.text('Historial de Pagos (S/)', chartX, chartY - 2);
@@ -687,7 +689,7 @@ export default function Consumo() {
     const totalAPagar = totalMontoCalculado + debtInfo.totalDeuda;
 
     autoTable(doc, {
-      startY: yOffset + 39,
+      startY: yOffset + 44,
       head: [['Descripción', 'Cantidad (kWh)', 'Precio (S/)', 'Subtotal']],
       body: tableBody,
       theme: 'grid',
