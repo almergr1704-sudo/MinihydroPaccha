@@ -349,7 +349,7 @@ export default function Consumo() {
 
       // Client Info
       doc.setFontSize(10);
-      const clientDniText = client.tipoPersona === 'EMPRESA' ? ` (RUC: ${client.dni})` : (client.dni ? ` (DNI: ${client.dni})` : '');
+      const clientDniText = client.tipoPersona === 'EMPRESA' ? ` (RUC: ${client.dni})` : '';
       doc.text(`Cliente: ${clientName}${clientDniText}`, 14, yOffset + 23);
       doc.text(`Dirección: ${client.direccion} ${client.numeroDireccion ? `N° ${client.numeroDireccion}` : ''}`, 14, yOffset + 28);
       
@@ -583,7 +583,7 @@ export default function Consumo() {
 
     // Client Info
     doc.setFontSize(10);
-    const clientDniText = client.tipoPersona === 'EMPRESA' ? ` (RUC: ${client.dni})` : (client.dni ? ` (DNI: ${client.dni})` : '');
+    const clientDniText = client.tipoPersona === 'EMPRESA' ? ` (RUC: ${client.dni})` : '';
     doc.text(`Cliente: ${clientName}${clientDniText}`, 14, yOffset + 23);
     doc.text(`Dirección: ${client.direccion} ${client.numeroDireccion ? `N° ${client.numeroDireccion}` : ''}`, 14, yOffset + 28);
 
