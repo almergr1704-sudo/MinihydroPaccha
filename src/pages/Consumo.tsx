@@ -341,16 +341,16 @@ export default function Consumo() {
       }
 
       doc.setFontSize(10);
-      doc.text(`Recibo de Consumo | Suministro: ${codigoSuministro} | Tipo: ${client.tipo}`, 14, yOffset + 12);
+      doc.text(`Suministro: ${codigoSuministro} | Tipo: ${client.tipo}`, 14, yOffset + 12);
       
       const docState = currentReading ? currentReading.estadoPago : 'PENDIENTE';
       doc.setFontSize(9);
-      doc.text(`Fecha Emisión: ${format(new Date(), 'dd MMM yyyy')} | Periodo: ${selectedMes} | Estado: ${docState} Cliente:`, 14, yOffset + 18);
+      doc.text(`Fecha Emisión: ${format(new Date(), 'dd MMM yyyy')} | Periodo: ${selectedMes} | Estado: ${docState}`, 14, yOffset + 18);
 
       // Client Info
       doc.setFontSize(10);
-      const clientDniText = client.tipoPersona === 'EMPRESA' ? ` (RUC: ${client.dni})` : '';
-      doc.text(`${clientName}${clientDniText}`, 14, yOffset + 23);
+      const clientDniText = client.tipoPersona === 'EMPRESA' ? ` (RUC: ${client.dni})` : (client.dni ? ` (DNI: ${client.dni})` : '');
+      doc.text(`Cliente: ${clientName}${clientDniText}`, 14, yOffset + 23);
       doc.text(`Dirección: ${client.direccion} ${client.numeroDireccion ? `N° ${client.numeroDireccion}` : ''}`, 14, yOffset + 28);
       
       // Consumos
@@ -477,6 +477,16 @@ export default function Consumo() {
       doc.setFontSize(16);
       doc.text(`Total a Pagar: ${formatCurrencyStr(totalAPagar)}`, 196, finalY + 6, { align: 'right' });
       
+      const [yearStr, monthStr] = selectedMes.split('-');
+      const lastDay = new Date(parseInt(yearStr), parseInt(monthStr), 0).getDate();
+      const monthName = new Date(`${selectedMes}-02`).toLocaleDateString('es', { month: 'long' });
+      const fechaVencimiento = `${lastDay} de ${monthName} del ${yearStr}`;
+
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Fecha de Vencimiento: ${fechaVencimiento}`, 14, finalY + 5);
+      doc.setFont('helvetica', 'normal');
+
       const currentReceiptBottom = finalY + 10;
 
       // Draw a cut line
@@ -566,15 +576,15 @@ export default function Consumo() {
     }
 
     doc.setFontSize(10);
-    doc.text(`Recibo de Consumo | Suministro: ${codSuministro} | Tipo: ${client.tipo}`, 14, yOffset + 12);
+    doc.text(`Suministro: ${codSuministro} | Tipo: ${client.tipo}`, 14, yOffset + 12);
     
     doc.setFontSize(9);
-    doc.text(`Fecha Emisión: ${format(new Date(), 'dd MMM yyyy')} | Periodo: ${cons.mes} | Estado: ${cons.estadoPago} Cliente:`, 14, yOffset + 18);
+    doc.text(`Fecha Emisión: ${format(new Date(), 'dd MMM yyyy')} | Periodo: ${cons.mes} | Estado: ${cons.estadoPago}`, 14, yOffset + 18);
 
     // Client Info
     doc.setFontSize(10);
-    const clientDniText = client.tipoPersona === 'EMPRESA' ? ` (RUC: ${client.dni})` : '';
-    doc.text(`${clientName}${clientDniText}`, 14, yOffset + 23);
+    const clientDniText = client.tipoPersona === 'EMPRESA' ? ` (RUC: ${client.dni})` : (client.dni ? ` (DNI: ${client.dni})` : '');
+    doc.text(`Cliente: ${clientName}${clientDniText}`, 14, yOffset + 23);
     doc.text(`Dirección: ${client.direccion} ${client.numeroDireccion ? `N° ${client.numeroDireccion}` : ''}`, 14, yOffset + 28);
 
     // Consumos
@@ -689,6 +699,16 @@ export default function Consumo() {
     const finalY = (doc as any).lastAutoTable?.finalY || yOffset + 43;
     doc.setFontSize(16);
     doc.text(`Total a Pagar: ${calcFormatCurrencyStr(totalAPagar)}`, 196, finalY + 6, { align: 'right' });
+    
+    const [yearStr, monthStr] = cons.mes.split('-');
+    const lastDay = new Date(parseInt(yearStr), parseInt(monthStr), 0).getDate();
+    const monthName = new Date(`${cons.mes}-02`).toLocaleDateString('es', { month: 'long' });
+    const fechaVencimiento = `${lastDay} de ${monthName} del ${yearStr}`;
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Fecha de Vencimiento: ${fechaVencimiento}`, 14, finalY + 5);
+    doc.setFont('helvetica', 'normal');
 
       doc.save(`Recibo_${clientName.replace(/\s+/g, '_')}_${cons.mes}.pdf`);
       toast.success('Recibo generado y descargado con éxito.', { id: toastId });
