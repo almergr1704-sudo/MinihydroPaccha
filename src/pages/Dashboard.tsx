@@ -6,11 +6,17 @@ import { formatCurrency } from '../lib/utils';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 export default function Dashboard() {
-  const { clients, consumptions, transactions, fines } = useAppContext();
+  const { clients, consumptions, transactions, fines, suppliesInfo } = useAppContext();
 
   // Metrics calculations
-  const totalSocios = clients.filter(c => c.tipo === 'SOCIO').length;
-  const totalUsuarios = clients.filter(c => c.tipo === 'USUARIO').length;
+  const isClientSocio = (c: any) => {
+     return (c.suministros?.length ? c.suministros : [c.codigoSuministro]).some((sup: string) => {
+        return suppliesInfo?.find(s => s.codigo === sup)?.isSocio ?? (c.tipo === 'SOCIO');
+     }) || c.tipo === 'SOCIO';
+  };
+
+  const totalSocios = clients.filter(isClientSocio).length;
+  const totalUsuarios = clients.filter(c => !isClientSocio(c)).length;
   
   const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
   

@@ -21,6 +21,9 @@ export default function Finanzas() {
   const [clientSearch, setClientSearch] = useState('');
   const [showOnlyAptForCut, setShowOnlyAptForCut] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState('');
+  const [selectedSupplyCode, setSelectedSupplyCode] = useState('');
+  const [showSuministroDropdown, setShowSuministroDropdown] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   
   const [formData, setFormData] = useState({
     tipo: 'INGRESO' as TransactionType,
@@ -274,13 +277,39 @@ export default function Finanzas() {
     const rawFullName = c.nombre ? c.nombre : `${c.nombres || ''} ${c.apellidos || ''}`;
     const fullName = normalizeSearchText(rawFullName);
     const dni = normalizeSearchText(c.dni || '');
-    const suministro = normalizeSearchText(c.codigoSuministro || '');
-    return suministro.includes(searchNormalized) ||
+    const clientSupplies = c.suministros?.length ? c.suministros : [c.codigoSuministro];
+    const allSuppliesStr = normalizeSearchText(clientSupplies.join(' '));
+    return allSuppliesStr.includes(searchNormalized) ||
            dni.includes(searchNormalized) ||
            fullName.includes(searchNormalized);
   });
 
-  const pendingConsumptions = consumptions.filter(c => c.clientId === selectedClientId && c.estadoPago === 'PENDIENTE');
+  const availableSupplies = React.useMemo(() => {
+     let supplies: { id: string, sup: string, label: string, desc: string }[] = [];
+     searchedClients.forEach(c => {
+        const clientSupplies = c.suministros?.length ? c.suministros : [c.codigoSuministro];
+        clientSupplies.forEach(sup => {
+           if (!sup) return;
+           supplies.push({
+              id: c.id,
+              sup: sup,
+              label: `${sup} - ${c.nombre ? c.nombre : `${c.nombres || ''} ${c.apellidos || ''}`}`,
+              desc: `DNI/RUC: ${c.dni} | Direcc: ${c.direccion || '-'} | Tipo: ${c.tipo} | Est: ${c.estado}`
+           });
+        });
+     });
+     return supplies;
+  }, [searchedClients]);
+
+  useEffect(() => {
+    if (clientSearch && availableSupplies.length === 1 && availableSupplies[0].sup === clientSearch.trim()) {
+       setSelectedClientId(availableSupplies[0].id);
+       setSelectedSupplyCode(availableSupplies[0].sup);
+       setShowSuministroDropdown(false);
+    }
+  }, [clientSearch, availableSupplies]);
+
+  const pendingConsumptions = consumptions.filter(c => c.clientId === selectedClientId && (!selectedSupplyCode || c.codigoSuministro === selectedSupplyCode) && c.estadoPago === 'PENDIENTE');
   const pendingFines = (fines || []).filter(c => c.clientId === selectedClientId && c.estadoPago === 'PENDIENTE');
   
   const selectedClientObj = clients.find(c => c.id === selectedClientId);
@@ -590,28 +619,39 @@ export default function Finanzas() {
                           <div className="relative mt-1 flex gap-2">
                             <div className="relative w-full">
                               <input 
+                                ref={searchInputRef}
                                 type="text" 
-                                placeholder="Ingrese términos de búsqueda..."
+                                placeholder="Ingrese términos de búsqueda por suministro o cliente..."
                                 value={clientSearch}
                                 onChange={(e) => {
                                   setClientSearch(e.target.value);
-                                  setSelectedClientId('');
+                                  setShowSuministroDropdown(true);
+                                  if (selectedClientId) {
+                                    setSelectedClientId('');
+                                    setSelectedSupplyCode('');
+                                  }
+                                }}
+                                onFocus={() => setShowSuministroDropdown(true)}
+                                onBlur={() => {
+                                  setTimeout(() => setShowSuministroDropdown(false), 200);
                                 }}
                                 className="block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100"
                               />
-                              {(clientSearch || showOnlyAptForCut) && !selectedClientId && searchedClients.length > 0 && (
+                              {showSuministroDropdown && availableSupplies.length > 0 && (
                                 <ul className="absolute z-10 mt-1 w-full bg-slate-800 border border-slate-700 rounded-md shadow-lg max-h-48 overflow-auto">
-                                  {searchedClients.map(c => (
+                                  {availableSupplies.map(s => (
                                     <li 
-                                      key={c.id} 
-                                      className="px-3 py-2 text-sm text-slate-200 hover:bg-blue-600 cursor-pointer"
+                                      key={`${s.id}|${s.sup}`} 
+                                      className="px-3 py-2 text-sm text-slate-200 hover:bg-slate-700 cursor-pointer border-b border-slate-700/50"
                                       onClick={() => {
-                                        setSelectedClientId(c.id);
-                                        setClientSearch(c.nombre ? c.nombre : `${c.nombres} ${c.apellidos}`);
+                                        setSelectedClientId(s.id);
+                                        setSelectedSupplyCode(s.sup);
+                                        setClientSearch(s.label);
+                                        setShowSuministroDropdown(false);
                                       }}
                                     >
-                                      <div className="font-medium">{c.codigoSuministro} - {c.nombre ? c.nombre : `${c.nombres} ${c.apellidos}`.trim()}</div>
-                                      <div className="text-xs text-slate-400">{c.tipoPersona === 'EMPRESA' ? 'RUC' : 'DNI'}: {c.dni}</div>
+                                      <div className="font-medium text-purple-300 mb-0.5">{s.label}</div>
+                                      <div className="text-xs text-slate-400">{s.desc}</div>
                                     </li>
                                   ))}
                                 </ul>
@@ -642,12 +682,21 @@ export default function Finanzas() {
                                 <ul className="space-y-2 mb-3">
                                   {pendingConsumptions.map(c => (
                                     <li key={c.id} className="flex justify-between items-center text-sm">
-                                      <span className="text-slate-300">{c.mes} ({c.kwh} kWh)</span>
+                                      <span className="text-slate-300">{c.mes} ({c.kwh} kWh) - Suministro {c.codigoSuministro}</span>
                                       <div className="flex items-center space-x-3">
                                         <span className="text-slate-200 font-medium">{formatCurrency(c.montoCalculado)}</span>
-                                        <Button size="sm" type="button" onClick={() => {
+                                        <Button size="sm" type="button" onClick={async () => {
                                           if (window.confirm('¿Está seguro de cobrar este recibo por consumo?')) {
-                                            payConsumption(c.id);
+                                             try {
+                                                await payConsumption(c.id);
+                                                setClientSearch('');
+                                                setSelectedClientId('');
+                                                setSelectedSupplyCode('');
+                                                if (searchInputRef.current) searchInputRef.current.focus();
+                                                toast.success('Cobro registrado correctamente');
+                                              } catch (err) {
+                                                toast.error('Error al registrar cobro');
+                                              }
                                           }
                                         }}>Cobrar</Button>
                                       </div>
@@ -668,9 +717,18 @@ export default function Finanzas() {
                                       <span className="text-slate-300 flex-1 truncate" title={f.motivo}>{f.motivo}</span>
                                       <div className="flex items-center space-x-3 flex-shrink-0">
                                         <span className="text-slate-200 font-medium">{formatCurrency(f.monto)}</span>
-                                        <Button size="sm" type="button" onClick={() => {
+                                        <Button size="sm" type="button" onClick={async () => {
                                           if (window.confirm('¿Está seguro de cobrar esta multa?')) {
-                                            payFine(f.id);
+                                             try {
+                                                await payFine(f.id);
+                                                setClientSearch('');
+                                                setSelectedClientId('');
+                                                setSelectedSupplyCode('');
+                                                if (searchInputRef.current) searchInputRef.current.focus();
+                                                toast.success('Cobro de multa registrado correctamente');
+                                              } catch (err) {
+                                                toast.error('Error al registrar pago de multa');
+                                              }
                                           }
                                         }}>Cobrar</Button>
                                       </div>

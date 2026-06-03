@@ -8,12 +8,28 @@ import * as XLSX from 'xlsx';
 import { toast } from 'react-hot-toast';
 
 export default function Clientes() {
-  const { clients, addClient, updateClient, transferSupply, settings, consumptions, fines, addTransaction, userRole, meetings } = useAppContext();
+  const { clients, addClient, updateClient, transferSupply, markSupplyAsSocio, suppliesInfo, settings, consumptions, fines, addTransaction, userRole, meetings } = useAppContext();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<ClientType | 'TODOS' | 'CORTADO'>('TODOS');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
-  const [transferState, setTransferState] = useState<{ client: Client | null, supplyCode: string, toClientId: string }>({ client: null, supplyCode: '', toClientId: '' });
+  const [transferState, setTransferState] = useState<{ 
+    client: Client | null; 
+    supplyCode: string; 
+    toClientId: string;
+    mode: 'EXISTING' | 'NEW';
+    newClientData: Omit<Client, 'id' | 'fechaRegistro'>;
+  }>({ 
+    client: null, 
+    supplyCode: '', 
+    toClientId: '', 
+    mode: 'EXISTING',
+    newClientData: { 
+      nombres: '', apellidos: '', tipoPersona: 'PERSONA', dni: '', direccion: '', 
+      numeroDireccion: '', referenciaDireccion: '', telefono: '', correo: '', 
+      codigoSuministro: '', suministros: [], tipo: 'USUARIO', estado: 'ACTIVO' 
+    }
+  });
   const [editingId, setEditingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -76,8 +92,14 @@ export default function Clientes() {
                           dni.includes(normalizedSearch) || 
                           allSuministros.includes(normalizedSearch);
                           
+    const isClientSocio = (c.suministros?.length ? c.suministros : [c.codigoSuministro]).some(sup => {
+       return suppliesInfo?.find(s => s.codigo === sup)?.isSocio ?? (c.tipo === 'SOCIO');
+    }) || c.tipo === 'SOCIO';
+
+    const clientComputedType = isClientSocio ? 'SOCIO' : 'USUARIO';
+
     const matchesType = filterType === 'TODOS' || 
-                        (filterType === 'CORTADO' ? c.estado === 'CORTADO' : c.tipo === filterType);
+                        (filterType === 'CORTADO' ? c.estado === 'CORTADO' : clientComputedType === filterType);
 
     return matchesSearch && matchesType;
   });
@@ -351,10 +373,14 @@ export default function Clientes() {
                 {currentClients.length > 0 ? currentClients.map((client) => {
                   const pendingDebtsCount = consumptions.filter(c => c.clientId === client.id && c.estadoPago === 'PENDIENTE').length;
                   const aptForCut = pendingDebtsCount >= 3 && client.estado !== 'CORTADO';
+                  
+                  const isClientSocio = (client.suministros?.length ? client.suministros : [client.codigoSuministro]).some(sup => {
+                     return suppliesInfo?.find(s => s.codigo === sup)?.isSocio ?? (client.tipo === 'SOCIO');
+                  }) || client.tipo === 'SOCIO';
 
                   // Calculate attendance percentage
                   let asisPercent = 0;
-                  if (client.tipo === 'SOCIO') {
+                  if (isClientSocio) {
                     const asambleas = meetings.filter(m => m.tipo === 'ASAMBLEA' && m.estado === 'FINALIZADA');
                     const asambleasAsistidas = asambleas.filter(m => m.asistencia[client.id] === 'ASISTIO' || m.asistencia[client.id] === 'JUSTIFICO');
                     asisPercent = asambleas.length > 0 ? Math.round((asambleasAsistidas.length / asambleas.length) * 100) : 100;
@@ -368,7 +394,7 @@ export default function Clientes() {
                           <User className="h-5 w-5 text-slate-500" />
                         </div>
                         <div className="ml-4 break-words">
-                          <div className="text-sm font-medium text-slate-100 flex flex-wrap gap-2 items-center">
+                          <div className="text-sm text-slate-100 flex flex-wrap gap-2 items-center">
                              {client.nombre ? client.nombre : `${client.nombres} ${client.apellidos}`.trim()}
                              {aptForCut && (
                                 <span title="Apto para corte: 3 o más deudas pendientes" className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-900/50 text-red-400 border border-red-500/20 whitespace-nowrap">
@@ -376,7 +402,35 @@ export default function Clientes() {
                                 </span>
                              )}
                           </div>
-                          <div className="text-sm text-slate-400">{(client.suministros?.length ? client.suministros.join(', ') : client.codigoSuministro)} ({client.tipoPersona === 'EMPRESA' ? 'RUC' : 'DNI'}: {client.dni})</div>
+                          <div className="text-xs text-slate-400 mt-1 mb-1">
+                             {client.tipoPersona === 'EMPRESA' ? 'RUC' : 'DNI'}: {client.dni}
+                          </div>
+                          <div className="mt-2 flex flex-col gap-1">
+                             {(client.suministros?.length ? client.suministros : [client.codigoSuministro]).filter(Boolean).map(sup => {
+                                const isSocio = suppliesInfo?.find(s => s.codigo === sup)?.isSocio ?? (client.tipo === 'SOCIO');
+                                return (
+                                  <div key={sup} className="flex items-center gap-2">
+                                     <span className="font-mono text-xs bg-slate-800 text-slate-300 px-2 py-1 rounded border border-slate-700">SUM: {sup!}</span>
+                                     <span className={`px-2 py-0.5 text-[10px] font-medium rounded-full ${isSocio ? 'bg-purple-900/50 text-purple-300 border border-purple-500/30' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>
+                                       {isSocio ? 'SOCIO' : 'USUARIO'}
+                                     </span>
+                                     {!isSocio && userRole !== 'FISCALIZADOR' && (
+                                       <button
+                                         onClick={() => {
+                                            if(window.confirm(`¿Convertir el suministro ${sup} a SOCIO permanentemente?`)) {
+                                              markSupplyAsSocio(sup!);
+                                              toast.success(`Suministro ${sup} ahora es SOCIO`);
+                                            }
+                                         }}
+                                         className="text-[10px] text-blue-400 hover:text-blue-300 underline"
+                                       >
+                                         Hacer Socio
+                                       </button>
+                                     )}
+                                  </div>
+                                );
+                             })}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -386,8 +440,8 @@ export default function Clientes() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex flex-col gap-1 items-start">
-                        <Badge variant={client.tipo === 'SOCIO' ? 'success' : 'info'}>
-                          {client.tipo}
+                        <Badge variant={isClientSocio ? 'success' : 'info'}>
+                          {isClientSocio ? 'SOCIO' : 'USUARIO'}
                         </Badge>
                         {client.faseSuministro && (
                           <Badge variant="info" className="text-slate-400 border-slate-700">
@@ -402,7 +456,7 @@ export default function Clientes() {
                       </Badge>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {client.tipo === 'SOCIO' ? (
+                      {isClientSocio ? (
                         <div className="flex items-center">
                           <div className="w-16 bg-slate-700 rounded-full h-2 mr-2">
                             <div className={`h-2 rounded-full ${asisPercent >= 80 ? 'bg-emerald-500' : asisPercent >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${asisPercent}%` }}></div>
@@ -451,9 +505,16 @@ export default function Clientes() {
                         </button>
                       )}
                       {userRole !== 'FISCALIZADOR' && client.suministros && client.suministros.length > 0 && (
-                        <button 
+                         <button 
                          onClick={() => {
-                           setTransferState({ client, supplyCode: client.suministros![0], toClientId: '' });
+                           setTransferState({ 
+                             client, supplyCode: client.suministros![0], toClientId: '', mode: 'EXISTING',
+                             newClientData: { 
+                                nombres: '', apellidos: '', tipoPersona: 'PERSONA', dni: '', direccion: '', 
+                                numeroDireccion: '', referenciaDireccion: '', telefono: '', correo: '', 
+                                codigoSuministro: '', suministros: [], tipo: 'USUARIO', estado: 'ACTIVO' 
+                             }
+                           });
                            setIsTransferModalOpen(true);
                          }}
                          className="text-purple-500 hover:text-purple-700 font-semibold"
@@ -594,9 +655,9 @@ export default function Clientes() {
                             <label className="block text-sm font-medium text-slate-300">Teléfono</label>
                             <input type="text" value={formData.telefono} onChange={e => setFormData({...formData, telefono: e.target.value})} className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" />
                           </div>
-                          <div>
-                            <label className="block text-sm font-medium text-slate-300">Tipo de Cliente</label>
-                            <select value={formData.tipo} onChange={e => setFormData({...formData, tipo: e.target.value as any})} className="mt-1 block w-full bg-[#0B0E14] border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                          <div title={editingId ? "El tipo de cliente general no se puede cambiar aquí. Utilice 'Hacer Socio' en los suministros específicos." : ""}>
+                            <label className="block text-sm font-medium text-slate-300">Tipo de Cliente General</label>
+                            <select disabled={!!editingId} value={formData.tipo} onChange={e => setFormData({...formData, tipo: e.target.value as any})} className="mt-1 block w-full bg-[#0B0E14] border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm disabled:opacity-50">
                               <option value="USUARIO">USUARIO (S/ {settings?.costoUsuario?.toFixed(2) || '0.30'}/kWh)</option>
                               <option value="SOCIO">SOCIO (S/ {settings?.costoSocio?.toFixed(2) || '0.20'}/kWh)</option>
                             </select>
@@ -644,18 +705,53 @@ export default function Clientes() {
             <div className="relative z-10 inline-block align-bottom bg-[#0B0E14] rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full">
               <form onSubmit={async (e) => {
                 e.preventDefault();
-                if (!transferState.toClientId || !transferState.supplyCode) {
-                  return toast.error("Debe seleccionar un suministro y un cliente de destino.");
+                if (!transferState.supplyCode) {
+                  return toast.error("Debe seleccionar un suministro.");
                 }
-                if (transferState.client?.id === transferState.toClientId) {
-                  return toast.error("El cliente de destino no puede ser el mismo que el actual.");
+                
+                let finalToClientId = transferState.toClientId;
+                
+                if (transferState.mode === 'NEW') {
+                   if (!transferState.newClientData.nombres && transferState.newClientData.tipoPersona === 'PERSONA') {
+                      return toast.error("Debe ingresar nombres.");
+                   }
+                   if (!transferState.newClientData.dni) {
+                      return toast.error("Debe ingresar DNI/RUC.");
+                   }
+                   const dniExists = clients.some(c => c.dni === transferState.newClientData.dni);
+                   if (dniExists) {
+                      return toast.error("El DNI/RUC ya se encuentra registrado.");
+                   }
+                } else {
+                  if (!transferState.toClientId) {
+                    return toast.error("Debe seleccionar un cliente de destino.");
+                  }
+                  if (transferState.client?.id === transferState.toClientId) {
+                    return toast.error("El cliente de destino no puede ser el mismo que el actual.");
+                  }
                 }
+
                 if (!window.confirm("¿Está seguro de querer transferir la titularidad de este suministro? Todo el historial pasará al nuevo titular.")) {
                   return;
                 }
-                await transferSupply(transferState.client!.id, transferState.toClientId, transferState.supplyCode);
-                toast.success('Suministro transferido con éxito.');
-                setIsTransferModalOpen(false);
+                
+                try {
+                  if (transferState.mode === 'NEW') {
+                     const createdClient = await addClient({
+                       ...transferState.newClientData,
+                       apellidos: transferState.newClientData.apellidos?.trim() || '',
+                       codigoSuministro: transferState.supplyCode,
+                       suministros: [transferState.supplyCode],
+                     });
+                     finalToClientId = createdClient.id;
+                  }
+                  // Transfer after potentially creating the new client
+                  await transferSupply(transferState.client!.id, finalToClientId, transferState.supplyCode);
+                  toast.success('Suministro transferido con éxito.');
+                  setIsTransferModalOpen(false);
+                } catch(error) {
+                  toast.error("Ocurrió un error en la transferencia.");
+                }
               }}>
                 <div className="bg-[#0B0E14] px-4 pt-5 pb-4 sm:p-6 sm:pb-4 border-b border-slate-800">
                   <h3 className="text-lg leading-6 font-medium text-slate-100 mb-4 text-purple-400">
@@ -682,21 +778,131 @@ export default function Clientes() {
                       </select>
                     </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-1">Nuevo Titular de Destino</label>
-                      <select 
-                        className="mt-1 block w-full py-2 px-3 border border-slate-700 bg-[#0B0E14] rounded-md text-slate-100 sm:text-sm focus:ring-purple-500 focus:border-purple-500 max-w-full overflow-hidden text-ellipsis"
-                        value={transferState.toClientId}
-                        onChange={(e) => setTransferState({ ...transferState, toClientId: e.target.value })}
-                        required
-                      >
-                        <option value="">-- Seleccione el cliente destinatario --</option>
-                        {clients.filter(c => c.id !== transferState.client?.id && c.estado !== 'INACTIVO').sort((a,b) => ((a.nombre || a.apellidos || '') < (b.nombre || b.apellidos || '') ? -1 : 1)).map(c => (
-                          <option key={c.id} value={c.id}>{c.nombre || `${c.apellidos}, ${c.nombres}`} ({c.dni})</option>
-                        ))}
-                      </select>
-                      <p className="mt-2 text-xs text-slate-400">Se transferirá todo el historial de lecturas, consumos y facturación asociada al suministro.</p>
+                    <div className="flex space-x-4 border-b border-slate-800 pb-2">
+                       <label className="inline-flex items-center">
+                         <input type="radio" className="form-radio text-purple-600 focus:ring-purple-500 bg-slate-800 border-slate-600" 
+                           checked={transferState.mode === 'EXISTING'} 
+                           onChange={() => setTransferState({ ...transferState, mode: 'EXISTING', toClientId: '' })} 
+                         />
+                         <span className="ml-2 text-sm text-slate-300">Cliente Existente</span>
+                       </label>
+                       <label className="inline-flex items-center">
+                         <input type="radio" className="form-radio text-purple-600 focus:ring-purple-500 bg-slate-800 border-slate-600" 
+                           checked={transferState.mode === 'NEW'} 
+                           onChange={() => setTransferState({ ...transferState, mode: 'NEW' })} 
+                         />
+                         <span className="ml-2 text-sm text-slate-300">Registrar Nuevo Titular</span>
+                       </label>
                     </div>
+
+                    {transferState.mode === 'EXISTING' ? (
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-1">Buscar y Seleccionar Nuevo Titular</label>
+                        <select 
+                          className="mt-1 block w-full py-2 px-3 border border-slate-700 bg-[#0B0E14] rounded-md text-slate-100 sm:text-sm focus:ring-purple-500 focus:border-purple-500 max-w-full overflow-hidden text-ellipsis"
+                          value={transferState.toClientId}
+                          onChange={(e) => setTransferState({ ...transferState, toClientId: e.target.value })}
+                          required={transferState.mode === 'EXISTING'}
+                        >
+                          <option value="">-- Seleccione el cliente destinatario --</option>
+                          {clients.filter(c => c.id !== transferState.client?.id && c.estado !== 'INACTIVO').sort((a,b) => ((a.nombre || a.apellidos || '') < (b.nombre || b.apellidos || '') ? -1 : 1)).map(c => {
+                             const totalSups = c.suministros?.length || (c.codigoSuministro ? 1 : 0);
+                             return (
+                               <option key={c.id} value={c.id}>
+                                 {c.nombre || `${c.apellidos}, ${c.nombres}`} ({c.dni}) {totalSups > 0 ? ` - Tiene ${totalSups} suministro(s)` : ''}
+                               </option>
+                             );
+                          })}
+                        </select>
+                        {transferState.toClientId && (
+                          <div className="mt-2 text-xs text-slate-400 bg-slate-800/50 p-2 rounded border border-slate-700">
+                             { (() => {
+                                 const dest = clients.find(c => c.id === transferState.toClientId);
+                                 if(!dest) return null;
+                                 const sums = dest.suministros?.length ? dest.suministros.join(', ') : dest.codigoSuministro;
+                                 return dest.suministros?.length || dest.codigoSuministro 
+                                   ? `ℹ️ Atención: Cliente seleccionado tiene suministros registrados: ${sums}` 
+                                   : '✅ Cliente seleccionado no tiene suministros registrados actualmente.';
+                             })() }
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-3 p-3 bg-slate-800/20 border border-slate-700 rounded-md">
+                         <h4 className="text-sm font-medium text-purple-400 mb-2">Datos del Nuevo Titular</h4>
+                         <div className="grid grid-cols-2 gap-3">
+                           <div>
+                             <label className="block text-xs font-medium text-slate-400">Tipo de Persona</label>
+                             <select 
+                               className="mt-1 w-full py-1.5 px-2 bg-slate-900 border border-slate-700 rounded text-slate-200 text-sm focus:ring-purple-500 focus:border-purple-500 outline-none"
+                               value={transferState.newClientData.tipoPersona}
+                               onChange={(e) => setTransferState({ ...transferState, newClientData: { ...transferState.newClientData, tipoPersona: e.target.value as any }})}
+                             >
+                               <option value="PERSONA">Persona Natural</option>
+                               <option value="EMPRESA">Empresa</option>
+                             </select>
+                           </div>
+                           <div>
+                             <label className="block text-xs font-medium text-slate-400">{transferState.newClientData.tipoPersona === 'EMPRESA' ? 'RUC' : 'DNI'}</label>
+                             <input 
+                               type="text" required 
+                               maxLength={transferState.newClientData.tipoPersona === 'EMPRESA' ? 11 : 8}
+                               className="mt-1 w-full py-1.5 px-2 bg-slate-900 border border-slate-700 rounded text-slate-200 text-sm focus:ring-purple-500 focus:border-purple-500 outline-none"
+                               value={transferState.newClientData.dni}
+                               onChange={(e) => setTransferState({ ...transferState, newClientData: { ...transferState.newClientData, dni: e.target.value }})}
+                             />
+                           </div>
+                         </div>
+                         {transferState.newClientData.tipoPersona === 'EMPRESA' ? (
+                           <div>
+                             <label className="block text-xs font-medium text-slate-400">Razón Social</label>
+                             <input type="text" required className="mt-1 w-full py-1.5 px-2 bg-slate-900 border border-slate-700 rounded text-slate-200 text-sm outline-none focus:ring-purple-500 focus:border-purple-500"
+                                    value={transferState.newClientData.nombres}
+                                    onChange={(e) => setTransferState({ ...transferState, newClientData: { ...transferState.newClientData, nombres: e.target.value }})}
+                             />
+                           </div>
+                         ) : (
+                           <div className="grid grid-cols-2 gap-3">
+                             <div>
+                               <label className="block text-xs font-medium text-slate-400">Nombres</label>
+                               <input type="text" required className="mt-1 w-full py-1.5 px-2 bg-slate-900 border border-slate-700 rounded text-slate-200 text-sm outline-none focus:ring-purple-500 focus:border-purple-500"
+                                      value={transferState.newClientData.nombres}
+                                      onChange={(e) => setTransferState({ ...transferState, newClientData: { ...transferState.newClientData, nombres: e.target.value }})}
+                               />
+                             </div>
+                             <div>
+                               <label className="block text-xs font-medium text-slate-400">Apellidos</label>
+                               <input type="text" required className="mt-1 w-full py-1.5 px-2 bg-slate-900 border border-slate-700 rounded text-slate-200 text-sm outline-none focus:ring-purple-500 focus:border-purple-500"
+                                      value={transferState.newClientData.apellidos}
+                                      onChange={(e) => setTransferState({ ...transferState, newClientData: { ...transferState.newClientData, apellidos: e.target.value }})}
+                               />
+                             </div>
+                           </div>
+                         )}
+                         <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium text-slate-400">Teléfono</label>
+                              <input type="tel" className="mt-1 w-full py-1.5 px-2 bg-slate-900 border border-slate-700 rounded text-slate-200 text-sm outline-none focus:ring-purple-500 focus:border-purple-500"
+                                     value={transferState.newClientData.telefono}
+                                     onChange={(e) => setTransferState({ ...transferState, newClientData: { ...transferState.newClientData, telefono: e.target.value }})}
+                              />
+                            </div>
+                            <div>
+                               <label className="block text-xs font-medium text-slate-400">Tipo Usuario</label>
+                               <select 
+                                 className="mt-1 w-full py-1.5 px-2 bg-slate-900 border border-slate-700 rounded text-slate-200 text-sm focus:ring-purple-500 focus:border-purple-500 outline-none"
+                                 value={transferState.newClientData.tipo}
+                                 onChange={(e) => setTransferState({ ...transferState, newClientData: { ...transferState.newClientData, tipo: e.target.value as any }})}
+                               >
+                                 <option value="USUARIO">USUARIO</option>
+                                 <option value="SOCIO">SOCIO (Comunero)</option>
+                               </select>
+                            </div>
+                         </div>
+                      </div>
+                    )}
+                    
+                    <p className="mt-2 text-xs text-amber-500 bg-amber-500/10 p-2 rounded">⚠️ Se transferirá todo el historial de lecturas, consumos y facturación asociada al suministro elegido.</p>
                   </div>
                 </div>
                 <div className="bg-slate-900/50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse border-t border-slate-800">

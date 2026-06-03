@@ -99,6 +99,12 @@ export interface AuditLog {
   detalles: string;
 }
 
+export interface SupplyInfo {
+  codigo: string;
+  isSocio: boolean;
+  fechaSocio?: string;
+}
+
 export interface AppState {
   clients: Client[];
   consumptions: Consumption[];
@@ -108,4 +114,5 @@ export interface AppState {
   fines: Fine[];
   settings: AppSettings;
   auditLogs: AuditLog[];
+  suppliesInfo: SupplyInfo[];
 }

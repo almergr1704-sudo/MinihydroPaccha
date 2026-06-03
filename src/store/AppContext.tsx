@@ -7,7 +7,7 @@ interface AppContextType extends AppState {
   mustChangePassword?: boolean;
   loadingAuth: boolean;
   addAuditLog: (accion: AuditLog['accion'], modulo: AuditLog['modulo'], detalles: string) => void;
-  addClient: (client: Omit<Client, 'id' | 'fechaRegistro'>) => Promise<void>;
+  addClient: (client: Omit<Client, 'id' | 'fechaRegistro'>) => Promise<Client>;
   updateClient: (id: string, client: Partial<Client>) => Promise<void>;
   transferSupply: (fromClientId: string, toClientId: string, supplyCode: string) => Promise<void>;
   addConsumption: (consumption: Omit<Consumption, 'id' | 'montoCalculado' | 'estadoPago'>) => Promise<void>;
@@ -23,6 +23,7 @@ interface AppContextType extends AppState {
   updateAdmin: (id: string, updates: Partial<any>) => Promise<void>;
   addAdmin: (admin: any) => Promise<void>;
   deleteConsumption: (id: string, reason: string) => Promise<void>;
+  markSupplyAsSocio: (supplyCode: string) => Promise<void>;
   login: (email: string) => void;
   logout: () => void;
   setPdfPreview: (url: string | null, name?: string) => void;
@@ -44,6 +45,7 @@ const initialData: AppState = {
   admins: [],
   fines: [],
   auditLogs: [],
+  suppliesInfo: [],
   settings: {
     costoSocio: 0.20,
     costoUsuario: 0.30,
@@ -84,6 +86,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     if (!data.settings) {
       data.settings = initialData.settings;
+    }
+    if (!data.suppliesInfo) {
+      data.suppliesInfo = [];
     }
     
     // Ensure default admin exists
@@ -195,7 +200,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setTimeout(() => addAuditLog('CREAR', 'USUARIOS', `Creó usuario administrativo ${admin.email || admin.username}`), 0);
   };
 
-  const addClient = async (client: Omit<Client, 'id' | 'fechaRegistro'>) => {
+  const markSupplyAsSocio = async (supplyCode: string) => {
+    setState(prev => {
+      if (prev.suppliesInfo.some(s => s.codigo === supplyCode && s.isSocio)) return prev;
+      const newSocioInfo = {
+        codigo: supplyCode,
+        isSocio: true,
+        fechaSocio: new Date().toISOString()
+      };
+      
+      const exists = prev.suppliesInfo.some(s => s.codigo === supplyCode);
+      const newSuppliesInfo = exists ? 
+        prev.suppliesInfo.map(s => s.codigo === supplyCode ? newSocioInfo : s) : 
+        [...prev.suppliesInfo, newSocioInfo];
+        
+      const newState = { ...prev, suppliesInfo: newSuppliesInfo };
+      setLocalData(newState);
+      setTimeout(() => addAuditLog('ACTUALIZAR', 'SOCIOS', `Asignó condición de SOCIO permanente al suministro ${supplyCode}`), 0);
+      return newState;
+    });
+  };
+
+  const addClient = async (client: Omit<Client, 'id' | 'fechaRegistro'>): Promise<Client> => {
     const newClient: Client = {
       ...client,
       id: generateId(),
@@ -203,11 +229,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdBy: user?.email || 'Unknown'
     };
     setState(prev => {
-      const newState = { ...prev, clients: [...prev.clients, newClient] };
+      let newSuppliesInfo = prev.suppliesInfo;
+      if (client.tipo === 'SOCIO') {
+         const suppliesToMark = client.suministros?.length ? client.suministros : [client.codigoSuministro].filter(Boolean);
+         suppliesToMark.forEach(sup => {
+            if (!sup) return;
+            if (!newSuppliesInfo.some(s => s.codigo === sup && s.isSocio)) {
+              newSuppliesInfo = [...newSuppliesInfo.filter(s => s.codigo !== sup), {
+                 codigo: sup,
+                 isSocio: true,
+                 fechaSocio: new Date().toISOString()
+              }];
+            }
+         });
+      }
+
+      const newState = { ...prev, clients: [...prev.clients, newClient], suppliesInfo: newSuppliesInfo };
       setLocalData(newState);
       setTimeout(() => addAuditLog('CREAR', 'SOCIOS', `Creó socio/usuario: ${client.dni}`), 0);
       return newState;
     });
+    return newClient;
   };
 
   const updateClient = async (id: string, updates: Partial<Client>) => {
@@ -230,7 +272,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const newClients = currentState.clients.map(c => {
         if (c.id === fromClientId) {
           const sums = c.suministros || [];
-          return { ...c, suministros: sums.filter(s => s !== supplyCode) };
+          const newSums = sums.filter(s => s !== supplyCode);
+          const newCodigo = c.codigoSuministro === supplyCode && newSums.length === 0 ? '' : (c.codigoSuministro === supplyCode ? newSums[0] : c.codigoSuministro);
+          return { ...c, suministros: newSums, codigoSuministro: newCodigo };
         }
         if (c.id === toClientId) {
           const sums = c.suministros || [];
@@ -264,9 +308,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!client) return currentState;
 
       const settings = currentState.settings || initialData.settings;
+      const isSocio = currentState.suppliesInfo.find(s => s.codigo === consumption.codigoSuministro)?.isSocio ?? (client.tipo === 'SOCIO');
       const tarifa = client.faseSuministro === 'TRIFASICO' && settings.costoTrifasico > 0 
         ? settings.costoTrifasico 
-        : client.tipo === 'SOCIO' ? settings.costoSocio : settings.costoUsuario;
+        : isSocio ? settings.costoSocio : settings.costoUsuario;
         
       const minimoAplica = settings.consumoMinimo !== undefined ? settings.consumoMinimo : 6;
       let montoCalculado = (consumption.kwh || 0) * tarifa;
@@ -457,6 +502,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updateAdmin,
       addAdmin,
       deleteConsumption,
+      markSupplyAsSocio,
       login,
       logout,
       addAuditLog,

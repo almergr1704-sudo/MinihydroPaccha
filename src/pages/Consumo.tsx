@@ -12,7 +12,7 @@ import { Consumption } from '../store/types';
 import { toast } from 'react-hot-toast';
 
 export default function Consumo() {
-  const { clients, consumptions, addConsumption, deleteConsumption, settings, userRole, setPdfPreview } = useAppContext();
+  const { clients, consumptions, addConsumption, deleteConsumption, settings, userRole, suppliesInfo, setPdfPreview } = useAppContext();
   const [historyClientSuministro, setHistoryClientSuministro] = useState<{ clientId: string, codigoSuministro: string, clientName: string } | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedMes, setSelectedMes] = useState(() => {
@@ -76,7 +76,7 @@ export default function Consumo() {
 
   const ultimaLectura = selectedClientConsumptions.length > 0 ? selectedClientConsumptions[selectedClientConsumptions.length - 1] : null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.clientAndSuministro || !formData.lecturaActual || (isFirstReading && !formData.lecturaAnterior)) return;
 
@@ -135,19 +135,28 @@ export default function Consumo() {
 
     if (!window.confirm(`¿Está seguro de guardar la lectura para el periodo ${selectedMes}? \nConsumo calculado: ${currentKwh} kWh`)) return;
 
-    addConsumption({
-      clientId,
-      codigoSuministro,
-      kwh: currentKwh,
-      lecturaAnterior: Number(currentLecturaAnterior),
-      lecturaActual: Number(formData.lecturaActual),
-      fechaLectura: new Date().toISOString(),
-      mes: selectedMes,
-      ...(observacion ? { observacion } : {})
-    });
-    
-    setIsModalOpen(false);
-    setFormData({ clientAndSuministro: '', lecturaAnterior: '', lecturaActual: '' });
+    try {
+      await addConsumption({
+        clientId,
+        codigoSuministro,
+        kwh: currentKwh,
+        lecturaAnterior: Number(currentLecturaAnterior),
+        lecturaActual: Number(formData.lecturaActual),
+        fechaLectura: new Date().toISOString(),
+        mes: selectedMes,
+        ...(observacion ? { observacion } : {})
+      });
+      
+      toast.success('Lectura registrada con éxito.');
+      setFormData({ clientAndSuministro: '', lecturaAnterior: '', lecturaActual: '' });
+      setClientSearch('');
+      setShowSuministroDropdown(false);
+      setTimeout(() => {
+        if (searchInputRef.current) searchInputRef.current.focus();
+      }, 100);
+    } catch(err) {
+      toast.error('Ocurrió un error al registrar la lectura.');
+    }
   };
 
     const getDebtInfo = (clientId: string, codigoSuministro: string, currentMes: string, hasPendingCurrent: boolean = false) => {
@@ -278,9 +287,10 @@ export default function Consumo() {
       const testDoc = new jsPDF({ format: 'a4' });
       const testTableBody: any[][] = [];
       if (currentReading && currentReading.estadoPago === 'PENDIENTE') {
+        const isSocio = suppliesInfo?.find(s => s.codigo === codigoSuministro)?.isSocio ?? (client.tipo === 'SOCIO');
         const tarifaAplicada = client.faseSuministro === 'TRIFASICO' && (settings?.costoTrifasico || 0) > 0 
           ? (settings?.costoTrifasico || 0) 
-          : client.tipo === 'SOCIO' ? (settings?.costoSocio || 0.2) : (settings?.costoUsuario || 0.3);
+          : isSocio ? (settings?.costoSocio || 0.2) : (settings?.costoUsuario || 0.3);
         const kwh = currentReading.kwh || 0;
         const minimoAplica = settings?.consumoMinimo !== undefined ? settings.consumoMinimo : 6;
         const esMinimo = kwh * tarifaAplicada < minimoAplica;
@@ -424,9 +434,10 @@ export default function Consumo() {
       let totalMontoCalculado = 0;
 
       if (currentReading && currentReading.estadoPago === 'PENDIENTE') {
+        const isSocio = suppliesInfo?.find(s => s.codigo === codigoSuministro)?.isSocio ?? (client.tipo === 'SOCIO');
         const tarifaAplicada = client.faseSuministro === 'TRIFASICO' && (settings?.costoTrifasico || 0) > 0 
           ? (settings?.costoTrifasico || 0) 
-          : client.tipo === 'SOCIO' ? (settings?.costoSocio || 0.2) : (settings?.costoUsuario || 0.3);
+          : isSocio ? (settings?.costoSocio || 0.2) : (settings?.costoUsuario || 0.3);
         const kwh = currentReading.kwh || 0;
         const minimoAplica = settings?.consumoMinimo !== undefined ? settings.consumoMinimo : 6;
         const esMinimo = kwh * tarifaAplicada < minimoAplica;
@@ -500,9 +511,10 @@ export default function Consumo() {
     // --- CALCULATE DYNAMIC HEIGHT ---
     const testDoc = new jsPDF({ format: 'a4' });
     const testTableBody: any[][] = [];
+    const isSocio = suppliesInfo?.find(s => s.codigo === cons.codigoSuministro)?.isSocio ?? (client.tipo === 'SOCIO');
     const testTarifaAplicada = client.faseSuministro === 'TRIFASICO' && (settings?.costoTrifasico || 0) > 0 
       ? (settings?.costoTrifasico || 0) 
-      : client.tipo === 'SOCIO' ? (settings?.costoSocio || 0.2) : (settings?.costoUsuario || 0.3);
+      : isSocio ? (settings?.costoSocio || 0.2) : (settings?.costoUsuario || 0.3);
     const testKwh = cons.kwh || 0;
     const testMinimoAplica = settings?.consumoMinimo !== undefined ? settings.consumoMinimo : 6;
     const testEsMinimo = testKwh * testTarifaAplicada < testMinimoAplica;
@@ -740,7 +752,7 @@ export default function Consumo() {
   }).filter(c => c.estado === 'ACTIVO' || c.estado === 'CORTADO');
 
   const availableSupplies = React.useMemo(() => {
-     let supplies: { id: string, sup: string, label: string }[] = [];
+     let supplies: { id: string, sup: string, label: string, desc: string }[] = [];
      searchedClients.forEach(c => {
         const clientSupplies = c.suministros?.length ? c.suministros : [c.codigoSuministro];
         clientSupplies.forEach(sup => {
@@ -748,12 +760,22 @@ export default function Consumo() {
            supplies.push({
               id: c.id,
               sup: sup,
-              label: `${sup} - ${c.nombre ? c.nombre : `${c.nombres || ''} ${c.apellidos || ''}`} (${c.tipo}) - DNI: ${c.dni}`
+              label: `${sup} - ${c.nombre ? c.nombre : `${c.nombres || ''} ${c.apellidos || ''}`}`,
+              desc: `DNI/RUC: ${c.dni} | Direcc: ${c.direccion || '-'} | Tipo: ${c.tipo} | Est: ${c.estado}`
            });
         });
      });
      return supplies;
   }, [searchedClients]);
+
+  useEffect(() => {
+    if (clientSearch && availableSupplies.length === 1 && availableSupplies[0].sup === clientSearch.trim()) {
+       setFormData(prev => ({ ...prev, clientAndSuministro: `${availableSupplies[0].id}|${availableSupplies[0].sup}` }));
+       setShowSuministroDropdown(false);
+    }
+  }, [clientSearch, availableSupplies]);
+
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
@@ -909,8 +931,11 @@ export default function Consumo() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-bold text-slate-100">{formatCurrency(cons.montoCalculado)}</div>
                         <div className="text-xs text-slate-400">Tarifa: S/ {
-                            client?.faseSuministro === 'TRIFASICO' && settings.costoTrifasico > 0 ? settings.costoTrifasico.toFixed(2) : 
-                            client?.tipo === 'SOCIO' ? settings.costoSocio.toFixed(2) : settings.costoUsuario.toFixed(2)
+                            (() => {
+                               const isSocio = suppliesInfo?.find(s => s.codigo === cons.codigoSuministro)?.isSocio ?? (client?.tipo === 'SOCIO');
+                               return client?.faseSuministro === 'TRIFASICO' && settings.costoTrifasico > 0 ? settings.costoTrifasico.toFixed(2) : 
+                               isSocio ? settings.costoSocio.toFixed(2) : settings.costoUsuario.toFixed(2);
+                            })()
                           }/kWh</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -984,12 +1009,13 @@ export default function Consumo() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-300">Buscar Cliente o Suministro</label>
+                      <label className="block text-sm font-medium text-slate-300">Buscar Suministro (Suministro, DNI o Nombre)</label>
                       <div className="relative">
                         <input 
+                          ref={searchInputRef}
                           type="text"
                           required={!formData.clientAndSuministro}
-                          placeholder="Buscar por DNI, Nombre o Código..."
+                          placeholder="Buscar por código de suministro, DNI o Nombre..."
                           value={clientSearch}
                           onChange={(e) => {
                             setClientSearch(e.target.value);
@@ -1011,14 +1037,15 @@ export default function Consumo() {
                               availableSupplies.map(s => (
                                 <li
                                   key={`${s.id}|${s.sup}`}
-                                  className="relative cursor-pointer select-none py-2 pl-3 pr-9 text-slate-100 hover:bg-slate-700 hover:text-white"
+                                  className="relative cursor-pointer select-none py-2 pl-3 pr-9 text-slate-100 hover:bg-slate-700 hover:text-white border-b border-slate-700/50"
                                   onClick={() => {
                                     setFormData({ ...formData, clientAndSuministro: `${s.id}|${s.sup}` });
                                     setClientSearch(s.label);
                                     setShowSuministroDropdown(false);
                                   }}
                                 >
-                                  {s.label}
+                                  <div className="font-medium text-purple-300 mb-0.5">{s.label}</div>
+                                  <div className="text-xs text-slate-400">{s.desc}</div>
                                 </li>
                               ))
                             ) : (
@@ -1082,11 +1109,15 @@ export default function Consumo() {
                     {formData.clientAndSuministro && formData.lecturaActual && (
                       <p className="mt-2 text-sm text-slate-400 font-medium">
                         Consumo: {currentKwh} kWh | Monto: {formatCurrency(Math.max((currentKwh) * (
-                          clients.find(c => c.id === formData.clientAndSuministro.split('|')[0])?.faseSuministro === 'TRIFASICO' && (settings?.costoTrifasico || 0) > 0
-                            ? (settings?.costoTrifasico || 0)
-                            : clients.find(c => c.id === formData.clientAndSuministro.split('|')[0])?.tipo === 'SOCIO' 
-                              ? (settings?.costoSocio || 0.20)
-                              : (settings?.costoUsuario || 0.30)
+                          (() => {
+                             const selClient = clients.find(c => c.id === formData.clientAndSuministro.split('|')[0]);
+                             const isSocio = suppliesInfo?.find(s => s.codigo === formData.clientAndSuministro.split('|')[1])?.isSocio ?? (selClient?.tipo === 'SOCIO');
+                             return selClient?.faseSuministro === 'TRIFASICO' && (settings?.costoTrifasico || 0) > 0
+                               ? (settings?.costoTrifasico || 0)
+                               : isSocio 
+                                 ? (settings?.costoSocio || 0.20)
+                                 : (settings?.costoUsuario || 0.30);
+                          })()
                         ), settings?.consumoMinimo !== undefined ? settings.consumoMinimo : 6))}
                       </p>
                     )}

@@ -9,14 +9,18 @@ import autoTable from 'jspdf-autotable';
 import { toast } from 'react-hot-toast';
 
 export default function Reuniones() {
-  const { clients, meetings, addMeeting, updateMeeting, recordAttendance, userRole, setPdfPreview } = useAppContext();
+  const { clients, meetings, addMeeting, updateMeeting, recordAttendance, userRole, suppliesInfo, setPdfPreview } = useAppContext();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isActaModalOpen, setIsActaModalOpen] = useState(false);
-  const [actaText, setActaText] = useState('');
   const [selectedMeeting, setSelectedMeeting] = useState<string | null>(null);
   const [attendanceFilter, setAttendanceFilter] = useState<'SOCIO' | 'TODOS'>('SOCIO');
+
+  const isClientSocio = (c: any) => {
+     return (c.suministros?.length ? c.suministros : [c.codigoSuministro]).some((sup: string) => {
+        return suppliesInfo?.find(s => s.codigo === sup)?.isSocio ?? (c.tipo === 'SOCIO');
+     }) || c.tipo === 'SOCIO';
+  };
   
-  const socios = clients.filter(c => c.tipo === 'SOCIO' && c.estado === 'ACTIVO');
+  const socios = clients.filter(c => isClientSocio(c) && c.estado === 'ACTIVO');
 
   const [formData, setFormData] = useState<{
     fecha: string;
@@ -61,9 +65,9 @@ export default function Reuniones() {
   
   const filteredClientsList = clients.filter(c => {
     if (c.estado !== 'ACTIVO') return false;
-    if (!activeMeeting) return c.tipo === 'SOCIO';
+    if (!activeMeeting) return isClientSocio(c);
     if (activeMeeting.invitados === 'TODOS') return true;
-    return c.tipo === 'SOCIO';
+    return isClientSocio(c);
   }).sort((a, b) => 
     (a.codigoSuministro || '').localeCompare(b.codigoSuministro || '', undefined, { numeric: true, sensitivity: 'base' })
   );
@@ -263,44 +267,6 @@ export default function Reuniones() {
     }
   };
 
-  const openActaModal = (meeting: typeof activeMeeting) => {
-    if (!meeting) return;
-    setActaText(meeting.acta || '');
-    setIsActaModalOpen(true);
-  };
-
-  const handleSaveActa = () => {
-    if (!activeMeeting) return;
-    updateMeeting(activeMeeting.id, { acta: actaText });
-    setIsActaModalOpen(false);
-    toast.success('Acta guardada exitosamente.');
-  };
-
-  const handleGenerarActaPDF = () => {
-    if (!activeMeeting || !actaText) {
-      toast.error('No hay contenido en el acta para generar el PDF.');
-      return;
-    }
-    const toastId = toast.loading('Generando Acta en PDF...');
-    try {
-      const doc = new jsPDF();
-      doc.setFontSize(16);
-      doc.text('Acta de Reunión', 105, 20, { align: 'center' });
-      doc.setFontSize(12);
-      doc.text(`Fecha: ${format(parseISO(activeMeeting.fecha), 'eeee, dd MMM yyyy, HH:mm', { locale: es })}`, 14, 30);
-      doc.text(`Motivo: ${activeMeeting.motivo}`, 14, 38);
-      
-      const lines = doc.splitTextToSize(actaText, 180);
-      doc.text(lines, 14, 50);
-
-      const blob = doc.output('blob');
-      setPdfPreview(URL.createObjectURL(blob), `Acta_${activeMeeting.fecha.split('T')[0]}.pdf`);
-      toast.success('Acta PDF generada con éxito.', { id: toastId });
-    } catch (error) {
-      console.error('Error al generar acta:', error);
-      toast.error('Ocurrió un error al generar el Acta.', { id: toastId });
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -375,11 +341,6 @@ export default function Reuniones() {
                            <Button variant="outline" onClick={() => handleGenerarReporteAsistencia(activeMeeting)}>
                              <Download className="w-4 h-4 mr-2"/> Reporte
                            </Button>
-                           {userRole !== 'FISCALIZADOR' && (
-                             <Button variant="outline" className="border-emerald-700 text-emerald-400 hover:bg-emerald-900/30" onClick={() => openActaModal(activeMeeting)}>
-                               <FileText className="w-4 h-4 mr-2"/> Acta
-                             </Button>
-                           )}
                          </>
                        ) : (
                          userRole !== 'FISCALIZADOR' && (
@@ -623,40 +584,6 @@ export default function Reuniones() {
                   <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)} className="mt-3 w-full sm:mt-0 sm:w-auto">Cancelar</Button>
                 </div>
               </form>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* Modal for Edit/View Acta */}
-      {isActaModalOpen && (
-        <div className="fixed inset-0 z-[100] overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 bg-slate-900 bg-opacity-75 transition-opacity" onClick={() => setIsActaModalOpen(false)}></div>
-            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            <div className="relative z-[110] inline-block align-bottom bg-[#0B0E14] rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full border border-slate-700">
-              <div className="bg-[#0B0E14] px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <h3 className="text-lg leading-6 font-medium text-slate-100" id="modal-title">
-                  Acta de Reunión
-                </h3>
-                <div className="mt-4 space-y-4">
-                  <textarea
-                    rows={12}
-                    placeholder="Escriba aquí los detalles y acuerdos de la asamblea..."
-                    value={actaText} 
-                    onChange={e => setActaText(e.target.value)} 
-                    className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100 placeholder-slate-500 font-mono text-xs whitespace-pre-wrap"
-                  ></textarea>
-                </div>
-              </div>
-              <div className="bg-slate-800/50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse justify-between items-center">
-                <div className="flex gap-2">
-                  <Button type="button" className="w-full sm:w-auto" onClick={handleSaveActa}>Guardar Acta</Button>
-                  <Button type="button" variant="outline" onClick={() => setIsActaModalOpen(false)} className="w-full sm:w-auto">Cerrar</Button>
-                </div>
-                <Button type="button" variant="outline" className="border-blue-700 text-blue-400 hover:bg-blue-900/30 font-medium" onClick={handleGenerarActaPDF}>
-                  <FileText className="w-4 h-4 mr-2"/> Previsualizar PDF
-                </Button>
-              </div>
             </div>
           </div>
         </div>
