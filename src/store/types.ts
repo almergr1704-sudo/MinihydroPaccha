@@ -88,7 +88,7 @@ export interface AppSettings {
   multaReunion: number;
   costoReconexion: number;
   consumoMinimo: number;
-  toleranciaBajoConsumo?: number;
+  ventaNuevoServicio?: number;
 }
 
 export interface AuditLog {

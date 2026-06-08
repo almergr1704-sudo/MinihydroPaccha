@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { 
-  Menu, X, Home, Users, Zap, DollarSign, Calendar, Settings, FileText, Activity, LogOut, History
+  Menu, X, Home, Users, Zap, DollarSign, Calendar, Settings, FileText, Activity, LogOut, History, PlusCircle
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAppContext } from '../../store/AppContext';
@@ -9,6 +9,7 @@ import { useAppContext } from '../../store/AppContext';
 const baseNavigation = [
   { name: 'Dashboard', href: '/', icon: Home },
   { name: 'Socios & Usuarios', href: '/clientes', icon: Users },
+  { name: 'Venta de Nuevo Servicio', href: '/servicios', icon: PlusCircle },
   { name: 'Consumo & Facturación', href: '/consumo', icon: Zap },
   { name: 'Finanzas', href: '/finanzas', icon: DollarSign },
   { name: 'Reuniones', href: '/reuniones', icon: Calendar },

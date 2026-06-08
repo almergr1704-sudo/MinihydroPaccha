@@ -6,6 +6,7 @@ import { AppLayout } from './components/layout/AppLayout';
 
 import Dashboard from './pages/Dashboard';
 import Clientes from './pages/Clientes';
+import VentaServicios from './pages/VentaServicios';
 import Consumo from './pages/Consumo';
 import Finanzas from './pages/Finanzas';
 import Reuniones from './pages/Reuniones';
@@ -82,6 +83,7 @@ export default function App() {
           <Route path="/" element={<AuthGuard><AppLayout /></AuthGuard>}>
             <Route index element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><Dashboard /></RoleGuard>} />
             <Route path="clientes" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><Clientes /></RoleGuard>} />
+            <Route path="servicios" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><VentaServicios /></RoleGuard>} />
             <Route path="consumo" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR', 'OPERATOR']}><Consumo /></RoleGuard>} />
             <Route path="finanzas" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><Finanzas /></RoleGuard>} />
             <Route path="reuniones" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><Reuniones /></RoleGuard>} />

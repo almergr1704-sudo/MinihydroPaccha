@@ -19,7 +19,7 @@ export default function Configuracion() {
     multaReunion: 40,
     costoReconexion: 0.00,
     consumoMinimo: 6.00,
-    toleranciaBajoConsumo: 50
+    ventaNuevoServicio: 0.00
   });
 
   const [passwordForm, setPasswordForm] = useState({
@@ -37,7 +37,7 @@ export default function Configuracion() {
         multaReunion: settings.multaReunion ?? 40,
         costoReconexion: settings.costoReconexion ?? 0.00,
         consumoMinimo: settings.consumoMinimo ?? 6.00,
-        toleranciaBajoConsumo: settings.toleranciaBajoConsumo ?? 50
+        ventaNuevoServicio: settings.ventaNuevoServicio ?? 0.00
       });
     }
   }, [settings]);
@@ -562,23 +562,22 @@ export default function Configuracion() {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-300">Tolerancia para Aviso de Bajo Consumo (%)</label>
+                    <label className="block text-sm font-medium text-slate-300">Venta de Nuevo Servicio</label>
                     <div className="mt-1 relative rounded-md shadow-sm">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <span className="text-slate-500 sm:text-sm">%</span>
+                        <span className="text-slate-500 sm:text-sm">S/</span>
                       </div>
                       <input 
                         type="number" 
-                        name="toleranciaBajoConsumo"
-                        step="1"
+                        name="ventaNuevoServicio"
+                        step="0.10"
                         min="0"
-                        max="100"
-                        value={formData.toleranciaBajoConsumo} 
+                        value={formData.ventaNuevoServicio} 
                         onChange={handleChange} 
                         className="block w-full pl-8 bg-[#0B0E14] border border-slate-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-slate-100" 
                       />
                     </div>
-                    <p className="mt-1 text-xs text-slate-500">Avisa si el consumo es menor al promedio en este porcentaje. Deje en 0 para desactivar.</p>
+                    <p className="mt-1 text-xs text-slate-500">Costo base asociado a la instalación de un nuevo suministro.</p>
                   </div>
                 </div>
               </div>

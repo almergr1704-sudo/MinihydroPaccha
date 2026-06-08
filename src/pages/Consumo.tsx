@@ -71,9 +71,6 @@ export default function Consumo() {
     }
   }
 
-  const tolerancia = settings?.toleranciaBajoConsumo ?? 50;
-  const isLowConsumption = formData.lecturaActual !== '' && averageKwh > 0 && tolerancia > 0 && currentKwh < averageKwh * (1 - (tolerancia / 100));
-
   const ultimaLectura = selectedClientConsumptions.length > 0 ? selectedClientConsumptions[selectedClientConsumptions.length - 1] : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -91,12 +88,6 @@ export default function Consumo() {
       }
     }
 
-    if (isLowConsumption) {
-      if (!window.confirm(`El consumo de ${currentKwh} kWh es inusualmente bajo comparado al promedio habitual de ${averageKwh.toFixed(1)} kWh. ¿Desea continuar con este registro?`)) {
-        return;
-      }
-    }
-
     let observacion = undefined;
     if (selectedClientConsumptions.length > 0) {
       if (averageKwh > 0) {
@@ -105,11 +96,6 @@ export default function Consumo() {
             return;
           }
           observacion = 'Posible Consumo Excesivo';
-        } else if (isLowConsumption) {
-          if(!window.confirm(`Advertencia: la lectura ingresada es menor al promedio habitual del cliente (${averageKwh.toFixed(1)} kWh). Verifique la información antes de continuar.\n\n¿Desea continuar y registrar esta lectura?`)) {
-            return;
-          }
-          observacion = 'Bajo Consumo';
         }
       }
     }
@@ -1105,18 +1091,8 @@ export default function Consumo() {
                           required 
                           value={formData.lecturaActual} 
                           onChange={e => setFormData({...formData, lecturaActual: e.target.value})} 
-                          className={`mt-1 block w-full border rounded-md shadow-sm py-2 px-3 focus:outline-none sm:text-sm bg-[#0B0E14] text-slate-100 transition-colors duration-200 ${
-                            isLowConsumption 
-                              ? 'border-amber-500/50 focus:border-amber-500 focus:ring-amber-500' 
-                              : 'border-slate-700 focus:ring-blue-500 focus:border-blue-500'
-                          }`}
+                          className={`mt-1 block w-full border rounded-md shadow-sm py-2 px-3 focus:outline-none sm:text-sm bg-[#0B0E14] text-slate-100 transition-colors duration-200 border-slate-700 focus:ring-blue-500 focus:border-blue-500`}
                         />
-                        {isLowConsumption && (
-                          <p className="mt-1 flex items-center text-xs text-amber-500 text-left">
-                            <AlertCircle className="w-3 h-3 mr-1 inline" />
-                            Advertencia: menor al promedio habitual ({averageKwh.toFixed(1)} kWh).
-                          </p>
-                        )}
                         {currentKwh > averageKwh * 2 && currentKwh > 20 && formData.lecturaActual !== '' && averageKwh > 0 && (
                           <p className="mt-1 flex items-center text-xs text-amber-500 text-left">
                             <AlertCircle className="w-3 h-3 mr-1 inline" />
