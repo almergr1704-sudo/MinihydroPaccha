@@ -53,6 +53,9 @@ export interface Transaction {
   clientId?: string; // If associated with a specific client (e.g. payment, fine)
   createdBy?: string; // Para trazabilidad/auditoría
   conciliado?: boolean; // Para conciliación bancaria/caja
+  referencia?: string;
+  comprobante?: string;
+  metodoPago?: 'EFECTIVO' | 'TRANSFERENCIA' | 'TARJETA';
 }
 
 export interface Meeting {

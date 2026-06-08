@@ -104,8 +104,9 @@ export default function VentaServicios() {
       if (formData.montoPagado > 0) {
         await addTransaction({
           tipo: 'INGRESO',
+          categoria: 'OTROS',
           monto: Number(formData.montoPagado),
-          concepto: formData.observacionPago,
+          descripcion: formData.observacionPago,
           fecha: new Date().toISOString(),
           clientId: finalClientId,
           referencia: `Venta Suministro: ${normalizeSupplyCode(formData.codigoSuministro)}`,
@@ -195,7 +196,7 @@ export default function VentaServicios() {
       doc.text('TOTAL', 60, 71);
       
       doc.setFont('helvetica', 'normal');
-      const textLines = doc.splitTextToSize(sale.concepto || sale.referencia || 'Venta', 50);
+      const textLines = doc.splitTextToSize(sale.descripcion || sale.referencia || 'Venta', 50);
       doc.text(textLines, 5, 77);
       doc.text(`S/ ${sale.monto.toFixed(2)}`, 60, 77);
       
