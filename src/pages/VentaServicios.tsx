@@ -24,12 +24,14 @@ export default function VentaServicios() {
     apellidos: '',
     dni: '',
     direccion: '',
+    sector: '',
     referenciaDireccion: '',
     telefono: '',
     codigoSuministro: '',
     numeroMedidor: '',
     tipo: 'USUARIO' as 'USUARIO' | 'SOCIO',
-    montoPagado: settings.ventaNuevoServicio || 0,
+    categoria: 'MONOFASICO' as 'MONOFASICO' | 'TRIFASICO',
+    montoPagado: settings?.ventaNuevoServicio || 0,
     observacionPago: 'Venta de Nuevo Servicio de Energía',
   });
 
@@ -75,13 +77,14 @@ export default function VentaServicios() {
           dni: formData.dni,
           direccion: formData.direccion,
           numeroDireccion: '',
-          referenciaDireccion: formData.referenciaDireccion,
+          referenciaDireccion: formData.sector ? `Sector: ${formData.sector} - ${formData.referenciaDireccion}` : formData.referenciaDireccion,
           telefono: formData.telefono,
           correo: '',
           codigoSuministro: formData.codigoSuministro,
           suministros: [formData.codigoSuministro],
           numeroMedidor: formData.numeroMedidor || undefined,
           tipo: formData.tipo,
+          faseSuministro: formData.categoria,
           estado: 'ACTIVO'
         });
         finalClientId = newClient.id;
@@ -125,12 +128,14 @@ export default function VentaServicios() {
       apellidos: '',
       dni: '',
       direccion: '',
+      sector: '',
       referenciaDireccion: '',
       telefono: '',
       codigoSuministro: '',
       numeroMedidor: '',
       tipo: 'USUARIO',
-      montoPagado: settings.ventaNuevoServicio || 0,
+      categoria: 'MONOFASICO',
+      montoPagado: settings?.ventaNuevoServicio || 0,
       observacionPago: 'Venta de Nuevo Servicio de Energía',
     });
     setSaleType('NEW_CLIENT');
@@ -296,7 +301,7 @@ export default function VentaServicios() {
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
             <div className="fixed inset-0 transition-opacity bg-slate-900/80 backdrop-blur-sm" onClick={() => setModalOpen(false)}></div>
-            <div className="inline-block w-full max-w-2xl text-left align-middle transition-all transform bg-[#0B0E14] border border-slate-800 rounded-lg shadow-xl sm:my-8 text-slate-200">
+            <div className="relative z-10 inline-block w-full max-w-2xl text-left align-middle transition-all transform bg-[#0B0E14] border border-slate-800 rounded-lg shadow-xl sm:my-8 text-slate-200">
               <form onSubmit={handleSubmit}>
                 <div className="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
                   <h3 className="text-lg font-medium text-white flex items-center gap-2">
@@ -362,6 +367,14 @@ export default function VentaServicios() {
                         <label className="block text-xs font-medium text-slate-400">Dirección</label>
                         <input type="text" value={formData.direccion} onChange={e => setFormData({...formData, direccion: e.target.value})} className="mt-1 block w-full bg-[#0B0E14] border border-slate-700 rounded-md py-1.5 px-3 text-sm focus:outline-none focus:ring-blue-500" />
                       </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-400">Sector / Barrio</label>
+                        <input type="text" value={formData.sector} onChange={e => setFormData({...formData, sector: e.target.value})} className="mt-1 block w-full bg-[#0B0E14] border border-slate-700 rounded-md py-1.5 px-3 text-sm focus:outline-none focus:ring-blue-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-400">Referencia de Dirección</label>
+                        <input type="text" value={formData.referenciaDireccion} onChange={e => setFormData({...formData, referenciaDireccion: e.target.value})} className="mt-1 block w-full bg-[#0B0E14] border border-slate-700 rounded-md py-1.5 px-3 text-sm focus:outline-none focus:ring-blue-500" />
+                      </div>
                     </div>
                   )}
 
@@ -389,11 +402,20 @@ export default function VentaServicios() {
                       <input type="text" value={formData.numeroMedidor} onChange={e => setFormData({...formData, numeroMedidor: e.target.value})} placeholder="Opcional" className="mt-1 block w-full bg-[#0B0E14] border border-slate-700 rounded-md py-2 px-3 focus:outline-none focus:ring-blue-500 placeholder:text-slate-600" />
                     </div>
                     {saleType === 'NEW_CLIENT' && (
-                       <div className="sm:col-span-2 pt-2">
+                       <div className="pt-2">
                          <label className="block text-sm font-medium text-slate-300 mb-2">Condición Inicial</label>
                          <select value={formData.tipo} onChange={e => setFormData({...formData, tipo: e.target.value as any})} className="block w-full bg-[#0B0E14] border border-slate-700 rounded-md py-2 px-3 focus:outline-none focus:ring-blue-500">
                            <option value="USUARIO">Solo Usuario (Regular)</option>
                            <option value="SOCIO">Socio (Con Derechos)</option>
+                         </select>
+                       </div>
+                    )}
+                    {saleType === 'NEW_CLIENT' && (
+                       <div className="pt-2">
+                         <label className="block text-sm font-medium text-slate-300 mb-2">Categoría (Fase)</label>
+                         <select value={formData.categoria} onChange={e => setFormData({...formData, categoria: e.target.value as any})} className="block w-full bg-[#0B0E14] border border-slate-700 rounded-md py-2 px-3 focus:outline-none focus:ring-blue-500">
+                           <option value="MONOFASICO">Monofásico (Doméstico)</option>
+                           <option value="TRIFASICO">Trifásico (Comercial/Industrial)</option>
                          </select>
                        </div>
                     )}
