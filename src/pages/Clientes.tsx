@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Plus, Search, User, Filter, Upload, Download, FileWarning } from 'lucide-react';
+import { Plus, Search, User, Filter, Upload, Download, FileWarning, AlertCircle } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Button, Card, CardContent, Badge, Pagination } from '../components/ui';
 import { Client, ClientType } from '../store/types';
@@ -49,6 +49,7 @@ export default function Clientes() {
     correo: '',
     codigoSuministro: '',
     suministros: [],
+    numeroMedidor: '',
     tipo: 'USUARIO',
     estado: 'ACTIVO'
   };
@@ -73,6 +74,7 @@ export default function Clientes() {
       correo: client.correo || '',
       codigoSuministro: client.codigoSuministro || '',
       suministros: client.suministros || [],
+      numeroMedidor: client.numeroMedidor || '',
       tipo: client.tipo || 'USUARIO',
       estado: client.estado || 'ACTIVO'
     });
@@ -164,12 +166,17 @@ export default function Clientes() {
       codigoSuministro: suministrosArray[0] || ensurePrefix(formData.codigoSuministro)
     };
 
-    if (editingId) {
-      await updateClient(editingId, clientData);
-    } else {
-      await addClient(clientData);
+    try {
+      if (editingId) {
+        await updateClient(editingId, clientData);
+      } else {
+        await addClient(clientData);
+      }
+      closeModal();
+      toast.success(editingId ? 'Cliente actualizado con éxito.' : 'Cliente registrado con éxito.');
+    } catch (error: any) {
+      toast.error(error.message || 'Error al guardar el cliente.');
     }
-    closeModal();
   };
 
   const closeModal = () => {
@@ -196,46 +203,64 @@ export default function Clientes() {
         
         // Process records
         let processed = 0;
-        data.forEach((row: any) => {
-          // Identify fields loosely based on possible naming
-          const nombres = row.Nombres || row.nombres || row.Nombre || row.nombre || '';
-          
-          let apellidos = '';
-          if (row['Apellido Paterno'] || row['Apellido Materno']) {
-            apellidos = `${row['Apellido Paterno'] || ''} ${row['Apellido Materno'] || ''}`.trim();
-          } else {
-            apellidos = row.Apellidos || row.apellidos || row.Apellido || row.apellido || '';
-          }
-          
-          const dni = (row['DNI/RUC'] || row.DNI || row.dni || row.RUC || row.ruc || row.Documento || '').toString();
-          const tipoPersonaRaw = (row['Tipo Persona'] || row.tipoPersona || row.TipoPersona || '').toString().toUpperCase();
-          const tipoPersona = tipoPersonaRaw === 'EMPRESA' ? 'EMPRESA' : 'PERSONA';
-          const tipo = (row.Tipo || row.tipo || 'USUARIO').toString().toUpperCase() === 'SOCIO' ? 'SOCIO' as const : 'USUARIO' as const;
-          const suministroStr = (row.Suministro || row.suministro || row.Suministros || '').toString();
-          
-          if (nombres || apellidos || dni) {
-            const suministrosArray = suministroStr.split(',').map((s: string) => ensurePrefix(s)).filter((s: string) => s);
-            addClient({
-              nombres,
-              apellidos,
-              tipoPersona,
-              dni,
-              tipo,
-              estado: 'ACTIVO',
-              direccion: row.Direccion || row.direccion || '',
-              numeroDireccion: (row.Numero || row.numero || '').toString(),
-              referenciaDireccion: row.Referencia || row.referencia || '',
-              telefono: (row.Telefono || row.telefono || '').toString(),
-              correo: row.Correo || row.correo || row.Email || row.email || '',
-              codigoSuministro: suministrosArray[0] || '',
-              suministros: suministrosArray
-            });
-            processed++;
-          }
-        });
+        let errors = 0;
         
-        toast.success(`Se importaron ${processed} registros correctamente.`);
-        setTimeout(() => window.location.reload(), 1000); // Wait for toast to display briefly
+        const processRows = async () => {
+          for (const row of data) {
+            // Identify fields loosely based on possible naming
+            const nombres = row.Nombres || row.nombres || row.Nombre || row.nombre || '';
+            
+            let apellidos = '';
+            if (row['Apellido Paterno'] || row['Apellido Materno']) {
+              apellidos = `${row['Apellido Paterno'] || ''} ${row['Apellido Materno'] || ''}`.trim();
+            } else {
+              apellidos = row.Apellidos || row.apellidos || row.Apellido || row.apellido || '';
+            }
+            
+            const dni = (row['DNI/RUC'] || row.DNI || row.dni || row.RUC || row.ruc || row.Documento || '').toString();
+            const tipoPersonaRaw = (row['Tipo Persona'] || row.tipoPersona || row.TipoPersona || '').toString().toUpperCase();
+            const tipoPersona = tipoPersonaRaw === 'EMPRESA' ? 'EMPRESA' : 'PERSONA';
+            const tipo = (row.Tipo || row.tipo || 'USUARIO').toString().toUpperCase() === 'SOCIO' ? 'SOCIO' as const : 'USUARIO' as const;
+            const suministroStr = (row.Suministro || row.suministro || row.Suministros || '').toString();
+            const numeroMedidor = (row.Medidor || row.medidor || row['Numero de Medidor'] || row['Número de Medidor'] || row.numeroMedidor || '').toString();
+            
+            if (nombres || apellidos || dni) {
+              const suministrosArray = suministroStr.split(',').map((s: string) => ensurePrefix(s)).filter((s: string) => s);
+              try {
+                await addClient({
+                  nombres,
+                  apellidos,
+                  tipoPersona,
+                  dni,
+                  tipo,
+                  estado: 'ACTIVO',
+                  direccion: row.Direccion || row.direccion || '',
+                  numeroDireccion: (row.Numero || row.numero || '').toString(),
+                  referenciaDireccion: row.Referencia || row.referencia || '',
+                  telefono: (row.Telefono || row.telefono || '').toString(),
+                  correo: row.Correo || row.correo || row.Email || row.email || '',
+                  codigoSuministro: suministrosArray[0] || '',
+                  suministros: suministrosArray,
+                  numeroMedidor: numeroMedidor || undefined
+                });
+                processed++;
+              } catch (err: any) {
+                console.error('Error importing row:', err);
+                toast.error(`Error en fila (${dni || nombres}): ${err.message}`);
+                errors++;
+              }
+            }
+          }
+          
+          if (processed > 0) {
+            toast.success(`Se importaron ${processed} registros correctamente.` + (errors > 0 ? ` Hubo ${errors} errores.` : ''));
+            setTimeout(() => window.location.reload(), 2000); // Wait for toast to display briefly
+          } else if (errors > 0) {
+            toast.error(`No se importaron registros. Hubo ${errors} errores.`);
+          }
+        };
+        
+        processRows();
       } catch (err) {
         console.error(err);
         toast.error('Hubo un error importando el archivo.');
@@ -254,6 +279,7 @@ export default function Clientes() {
       'DNI/RUC': '12345678',
       Tipo: 'SOCIO o USUARIO',
       Suministro: '001, 002',
+      Medidor: 'MED-123',
       Direccion: 'Av. Principal',
       Numero: '123',
       Referencia: 'Frente al parque',
@@ -302,6 +328,43 @@ export default function Clientes() {
           )}
         </div>
       </div>
+
+      {React.useMemo(() => {
+        const supplySet: Record<string, string[]> = {};
+        const meterSet: Record<string, string[]> = {};
+        clients.forEach(c => {
+           const sups = c.suministros?.length ? c.suministros : [c.codigoSuministro].filter(Boolean);
+           sups.forEach(s => {
+             if (!s) return;
+             if (!supplySet[s]) supplySet[s] = [];
+             supplySet[s].push(c.id);
+           });
+           if (c.numeroMedidor) {
+             if (!meterSet[c.numeroMedidor]) meterSet[c.numeroMedidor] = [];
+             meterSet[c.numeroMedidor].push(c.id);
+           }
+        });
+        const duplicatesS = Object.entries(supplySet).filter(([_, ids]) => ids.length > 1);
+        const duplicatesM = Object.entries(meterSet).filter(([_, ids]) => ids.length > 1);
+        if (duplicatesS.length === 0 && duplicatesM.length === 0) return null;
+        
+        return (
+          <div className="bg-amber-900/40 border border-amber-600/50 p-4 rounded-md">
+             <h3 className="text-amber-400 font-semibold text-sm mb-2 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4" />
+                Advertencia: Se encontraron registros duplicados en el sistema
+             </h3>
+             <ul className="text-sm text-amber-200 list-disc pl-5 mt-2 space-y-1">
+                {duplicatesS.map(([sup, ids]) => (
+                   <li key={`sup-${sup}`}>El suministro <strong>{sup}</strong> está asignado a {ids.length} clientes. Verifique y corrija los registros.</li>
+                ))}
+                {duplicatesM.map(([med, ids]) => (
+                   <li key={`med-${med}`}>El medidor <strong>{med}</strong> está asignado a {ids.length} clientes. Verifique y corrija los registros.</li>
+                ))}
+             </ul>
+          </div>
+        );
+      }, [clients])}
 
       <Card>
         <CardContent className="p-0">
@@ -403,7 +466,10 @@ export default function Clientes() {
                              )}
                           </div>
                           <div className="text-xs text-slate-400 mt-1 mb-1">
-                             {client.tipoPersona === 'EMPRESA' ? 'RUC' : 'DNI'}: {client.dni}
+                             {client.tipoPersona === 'EMPRESA' ? 'RUC' : 'DNI'}: {client.dni} 
+                             {client.numeroMedidor && (
+                                <span className="ml-2">| Medidor: {client.numeroMedidor}</span>
+                             )}
                           </div>
                           <div className="mt-2 flex flex-col gap-1">
                              {(client.suministros?.length ? client.suministros : [client.codigoSuministro]).filter(Boolean).map(sup => {
@@ -655,6 +721,10 @@ export default function Clientes() {
                             <label className="block text-sm font-medium text-slate-300">Teléfono</label>
                             <input type="text" value={formData.telefono} onChange={e => setFormData({...formData, telefono: e.target.value})} className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" />
                           </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-300" title="Número del medidor asociado">N° Medidor (Opcional)</label>
+                            <input type="text" value={formData.numeroMedidor || ''} onChange={e => setFormData({...formData, numeroMedidor: e.target.value})} placeholder="Ej: MED-123" className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" />
+                          </div>
                           <div title={editingId ? "El tipo de cliente general no se puede cambiar aquí. Utilice 'Hacer Socio' en los suministros específicos." : ""}>
                             <label className="block text-sm font-medium text-slate-300">Tipo de Cliente General</label>
                             <select disabled={!!editingId} value={formData.tipo} onChange={e => setFormData({...formData, tipo: e.target.value as any})} className="mt-1 block w-full bg-[#0B0E14] border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm disabled:opacity-50">
@@ -740,8 +810,8 @@ export default function Clientes() {
                      const createdClient = await addClient({
                        ...transferState.newClientData,
                        apellidos: transferState.newClientData.apellidos?.trim() || '',
-                       codigoSuministro: transferState.supplyCode,
-                       suministros: [transferState.supplyCode],
+                       codigoSuministro: '',
+                       suministros: [],
                      });
                      finalToClientId = createdClient.id;
                   }
@@ -749,8 +819,8 @@ export default function Clientes() {
                   await transferSupply(transferState.client!.id, finalToClientId, transferState.supplyCode);
                   toast.success('Suministro transferido con éxito.');
                   setIsTransferModalOpen(false);
-                } catch(error) {
-                  toast.error("Ocurrió un error en la transferencia.");
+                } catch(error: any) {
+                  toast.error(error.message || "Ocurrió un error en la transferencia.");
                 }
               }}>
                 <div className="bg-[#0B0E14] px-4 pt-5 pb-4 sm:p-6 sm:pb-4 border-b border-slate-800">

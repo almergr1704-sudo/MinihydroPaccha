@@ -212,6 +212,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addClient = async (client: Omit<Client, 'id' | 'fechaRegistro'>): Promise<Client> => {
+    const suppliesToCheck = client.suministros?.length ? client.suministros : [client.codigoSuministro].filter(Boolean);
+    for (const sup of (suppliesToCheck as string[])) {
+      if (!sup) continue;
+      for (const c of state.clients) {
+        const cSupplies = c.suministros?.length ? c.suministros : [c.codigoSuministro].filter(Boolean);
+        if (cSupplies.includes(sup)) {
+          throw new Error(`El suministro ${sup} ya se encuentra registrado.`);
+        }
+      }
+    }
+    if (client.numeroMedidor) {
+     for (const c of state.clients) {
+       if (c.numeroMedidor === client.numeroMedidor) {
+          throw new Error(`El número de medidor ${client.numeroMedidor} ya se encuentra asignado a otro cliente.`);
+       }
+     }
+    }
+
     const newClient: Client = {
       ...client,
       id: generateId(),
@@ -243,6 +261,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateClient = async (id: string, updates: Partial<Client>) => {
+    if (updates.suministros || updates.codigoSuministro) {
+       const clientBeingUpdated = state.clients.find(c => c.id === id);
+       const suppliesToCheck = updates.suministros?.length ? updates.suministros : (updates.codigoSuministro ? [updates.codigoSuministro] : (clientBeingUpdated?.suministros || [clientBeingUpdated?.codigoSuministro]).filter(Boolean));
+       for (const sup of (suppliesToCheck as string[])) {
+         if (!sup) continue;
+         for (const c of state.clients) {
+           if (c.id === id) continue;
+           const cSupplies = c.suministros?.length ? c.suministros : [c.codigoSuministro].filter(Boolean);
+           if (cSupplies.includes(sup)) {
+             throw new Error(`El suministro ${sup} ya se encuentra registrado.`);
+           }
+         }
+       }
+    }
+    if (updates.numeroMedidor) {
+       for (const c of state.clients) {
+         if (c.id === id) continue;
+         if (c.numeroMedidor === updates.numeroMedidor) {
+            throw new Error(`El número de medidor ${updates.numeroMedidor} ya se encuentra asignado a otro cliente.`);
+         }
+       }
+    }
+
     setState(prev => {
       const newClients = prev.clients.map(c => c.id === id ? { ...c, ...updates } : c);
       const newState = { ...prev, clients: newClients };
@@ -269,7 +310,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (c.id === toClientId) {
           const sums = c.suministros || [];
           if (!sums.includes(supplyCode)) {
-             return { ...c, suministros: [...sums, supplyCode] };
+             return { 
+                ...c, 
+                suministros: [...sums, supplyCode],
+                codigoSuministro: c.codigoSuministro ? c.codigoSuministro : supplyCode 
+             };
           }
         }
         return c;

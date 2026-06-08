@@ -18,6 +18,7 @@ export interface Client {
   correo: string;
   codigoSuministro?: string;
   suministros?: string[];
+  numeroMedidor?: string;
   tipo: ClientType;
   faseSuministro?: 'MONOFASICO' | 'TRIFASICO';
   estado: 'ACTIVO' | 'INACTIVO' | 'CORTADO';
