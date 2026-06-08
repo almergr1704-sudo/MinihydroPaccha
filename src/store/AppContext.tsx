@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { AppState, Client, Consumption, Transaction, Meeting, ClientType, Fine, AuditLog } from './types';
+import { normalizeSupplyCode } from '../lib/utils';
 
 interface AppContextType extends AppState {
   user: any;
@@ -212,11 +213,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addClient = async (client: Omit<Client, 'id' | 'fechaRegistro'>): Promise<Client> => {
-    const suppliesToCheck = client.suministros?.length ? client.suministros : [client.codigoSuministro].filter(Boolean);
-    for (const sup of (suppliesToCheck as string[])) {
+    const rawSupplies = client.suministros?.length ? client.suministros : [client.codigoSuministro].filter(Boolean);
+    const suppliesToCheck = (rawSupplies as string[]).map(normalizeSupplyCode).filter(Boolean);
+    for (const sup of suppliesToCheck) {
       if (!sup) continue;
       for (const c of state.clients) {
-        const cSupplies = c.suministros?.length ? c.suministros : [c.codigoSuministro].filter(Boolean);
+        const cSupplies = (c.suministros?.length ? c.suministros : [c.codigoSuministro].filter(Boolean)).map(s => normalizeSupplyCode(s as string));
         if (cSupplies.includes(sup)) {
           throw new Error(`El suministro ${sup} ya se encuentra registrado.`);
         }
@@ -232,6 +234,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const newClient: Client = {
       ...client,
+      codigoSuministro: client.codigoSuministro ? normalizeSupplyCode(client.codigoSuministro) : undefined,
+      suministros: client.suministros?.map(normalizeSupplyCode),
       id: generateId(),
       fechaRegistro: new Date().toISOString(),
       createdBy: user?.email || 'Unknown'
@@ -263,12 +267,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateClient = async (id: string, updates: Partial<Client>) => {
     if (updates.suministros || updates.codigoSuministro) {
        const clientBeingUpdated = state.clients.find(c => c.id === id);
-       const suppliesToCheck = updates.suministros?.length ? updates.suministros : (updates.codigoSuministro ? [updates.codigoSuministro] : (clientBeingUpdated?.suministros || [clientBeingUpdated?.codigoSuministro]).filter(Boolean));
-       for (const sup of (suppliesToCheck as string[])) {
+       const rawSupplies = updates.suministros?.length ? updates.suministros : (updates.codigoSuministro ? [updates.codigoSuministro] : (clientBeingUpdated?.suministros || [clientBeingUpdated?.codigoSuministro]).filter(Boolean));
+       const suppliesToCheck = (rawSupplies as string[]).map(normalizeSupplyCode).filter(Boolean);
+       for (const sup of suppliesToCheck) {
          if (!sup) continue;
          for (const c of state.clients) {
            if (c.id === id) continue;
-           const cSupplies = c.suministros?.length ? c.suministros : [c.codigoSuministro].filter(Boolean);
+           const cSupplies = (c.suministros?.length ? c.suministros : [c.codigoSuministro].filter(Boolean)).map(s => normalizeSupplyCode(s as string));
            if (cSupplies.includes(sup)) {
              throw new Error(`El suministro ${sup} ya se encuentra registrado.`);
            }
@@ -284,6 +289,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
        }
     }
 
+    if (updates.codigoSuministro !== undefined) {
+       updates.codigoSuministro = updates.codigoSuministro ? normalizeSupplyCode(updates.codigoSuministro) : '';
+    }
+    if (updates.suministros !== undefined) {
+       updates.suministros = updates.suministros.map(s => normalizeSupplyCode(s));
+    }
+
     setState(prev => {
       const newClients = prev.clients.map(c => c.id === id ? { ...c, ...updates } : c);
       const newState = { ...prev, clients: newClients };
@@ -293,7 +305,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const transferSupply = async (fromClientId: string, toClientId: string, supplyCode: string) => {
+  const transferSupply = async (fromClientId: string, toClientId: string, supplyCodeRaw: string) => {
+    const supplyCode = normalizeSupplyCode(supplyCodeRaw);
     setState(currentState => {
       const fromClient = currentState.clients.find(c => c.id === fromClientId);
       const toClient = currentState.clients.find(c => c.id === toClientId);
@@ -303,13 +316,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const newClients = currentState.clients.map(c => {
         if (c.id === fromClientId) {
           const sums = c.suministros || [];
-          const newSums = sums.filter(s => s !== supplyCode);
-          const newCodigo = c.codigoSuministro === supplyCode && newSums.length === 0 ? '' : (c.codigoSuministro === supplyCode ? newSums[0] : c.codigoSuministro);
+          const newSums = sums.filter(s => normalizeSupplyCode(s) !== supplyCode);
+          const oldCodigoNorm = normalizeSupplyCode(c.codigoSuministro || '');
+          const newCodigo = oldCodigoNorm === supplyCode && newSums.length === 0 ? '' : (oldCodigoNorm === supplyCode ? newSums[0] : c.codigoSuministro);
           return { ...c, suministros: newSums, codigoSuministro: newCodigo };
         }
         if (c.id === toClientId) {
           const sums = c.suministros || [];
-          if (!sums.includes(supplyCode)) {
+          if (!sums.map(s => normalizeSupplyCode(s)).includes(supplyCode)) {
              return { 
                 ...c, 
                 suministros: [...sums, supplyCode],
@@ -321,7 +335,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
 
       const newConsumptions = currentState.consumptions.map(c => {
-        if (c.clientId === fromClientId && c.codigoSuministro === supplyCode) {
+        if (c.clientId === fromClientId && normalizeSupplyCode(c.codigoSuministro) === supplyCode) {
           return { ...c, clientId: toClientId };
         }
         return c;

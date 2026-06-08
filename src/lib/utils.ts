@@ -21,6 +21,17 @@ export function normalizeSearchText(text: string): string {
     .trim();
 }
 
+export function normalizeSupplyCode(s: string): string {
+  let trimmed = s.trim().toUpperCase();
+  if (!trimmed) return "";
+  if (trimmed.startsWith('SUM-')) {
+    trimmed = trimmed.substring(4);
+  }
+  // Remove leading zeros as long as the string has something left
+  trimmed = trimmed.replace(/^0+(?!$)/, '');
+  return `SUM-${trimmed}`;
+}
+
 export const render3DPieChartToDataURL = (
   data: { name: string; value: number; color: string }[],
   title: string

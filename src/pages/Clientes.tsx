@@ -3,7 +3,7 @@ import { Plus, Search, User, Filter, Upload, Download, FileWarning, AlertCircle 
 import { useAppContext } from '../store/AppContext';
 import { Button, Card, CardContent, Badge, Pagination } from '../components/ui';
 import { Client, ClientType } from '../store/types';
-import { normalizeSearchText } from '../lib/utils';
+import { normalizeSearchText, normalizeSupplyCode } from '../lib/utils';
 import * as XLSX from 'xlsx';
 import { toast } from 'react-hot-toast';
 
@@ -120,12 +120,6 @@ export default function Clientes() {
     setCurrentPage(1);
   }, [searchTerm, filterType]);
 
-  const ensurePrefix = (s: string) => {
-    const trimmed = s.trim();
-    if (!trimmed) return "";
-    return trimmed.toUpperCase().startsWith('SUM-') ? trimmed.toUpperCase() : `SUM-${trimmed}`;
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!window.confirm('¿Está seguro de guardar este registro?')) return;
@@ -158,12 +152,12 @@ export default function Clientes() {
       }
     }
 
-    const suministrosArray = suministrosStr.split(',').map(s => ensurePrefix(s)).filter(s => s);
+    const suministrosArray = suministrosStr.split(',').map(s => normalizeSupplyCode(s)).filter(s => s);
     const clientData = {
       ...formData,
       apellidos: `${apellidoPaterno} ${apellidoMaterno}`.trim(),
       suministros: suministrosArray,
-      codigoSuministro: suministrosArray[0] || ensurePrefix(formData.codigoSuministro)
+      codigoSuministro: suministrosArray[0] || normalizeSupplyCode(formData.codigoSuministro)
     };
 
     try {
@@ -225,7 +219,7 @@ export default function Clientes() {
             const numeroMedidor = (row.Medidor || row.medidor || row['Numero de Medidor'] || row['Número de Medidor'] || row.numeroMedidor || '').toString();
             
             if (nombres || apellidos || dni) {
-              const suministrosArray = suministroStr.split(',').map((s: string) => ensurePrefix(s)).filter((s: string) => s);
+              const suministrosArray = suministroStr.split(',').map((s: string) => normalizeSupplyCode(s)).filter((s: string) => s);
               try {
                 await addClient({
                   nombres,
@@ -336,8 +330,9 @@ export default function Clientes() {
            const sups = c.suministros?.length ? c.suministros : [c.codigoSuministro].filter(Boolean);
            sups.forEach(s => {
              if (!s) return;
-             if (!supplySet[s]) supplySet[s] = [];
-             supplySet[s].push(c.id);
+             const normalizedSup = normalizeSupplyCode(s as string);
+             if (!supplySet[normalizedSup]) supplySet[normalizedSup] = [];
+             supplySet[normalizedSup].push(c.id);
            });
            if (c.numeroMedidor) {
              if (!meterSet[c.numeroMedidor]) meterSet[c.numeroMedidor] = [];
