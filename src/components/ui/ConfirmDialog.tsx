@@ -56,18 +56,40 @@ export const ConfirmProvider = ({ children }: { children: ReactNode }) => {
       {children}
       <AnimatePresence>
         {currentConfirm && (
-          <ConfirmModal
-            options={currentConfirm}
-            onConfirm={handleConfirm}
-            onCancel={handleCancel}
-          />
+          <div key="confirm-modal-wrapper" className="fixed inset-0 z-[100] flex items-center justify-center px-4 pt-4 pb-20 text-center sm:block sm:p-0 pointer-events-auto">
+            <motion.div
+              key="backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="fixed inset-0 z-0 transition-opacity bg-[#0B0E14]/80 backdrop-blur-[2px]"
+              onClick={handleCancel}
+            />
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+            
+            <motion.div
+              key="dialog"
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="relative z-10 inline-block px-4 pt-5 pb-4 overflow-hidden text-left align-bottom transition-all transform bg-slate-900 border border-slate-700/50 rounded-xl shadow-2xl sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6 pointer-events-auto"
+            >
+              <ConfirmModalContent
+                options={currentConfirm}
+                onConfirm={handleConfirm}
+                onCancel={handleCancel}
+              />
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </ConfirmContext.Provider>
   );
 };
 
-const ConfirmModal = ({ options, onConfirm, onCancel }: { options: ConfirmOptions, onConfirm: () => void, onCancel: () => void }) => {
+const ConfirmModalContent = ({ options, onConfirm, onCancel }: { options: ConfirmOptions, onConfirm: () => void, onCancel: () => void }) => {
   const { title, message, type = 'confirm', confirmLabel = 'Confirmar', cancelLabel = 'Cancelar' } = options;
 
   const iconMap = {
@@ -109,57 +131,47 @@ const ConfirmModal = ({ options, onConfirm, onCancel }: { options: ConfirmOption
   const displayTitle = title || defaultTitleMap[type];
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.15 }}
-        className="fixed inset-0 transition-opacity bg-[#0B0E14]/80 backdrop-blur-[2px]"
-        onClick={onCancel}
-      />
-      <span className="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
-      
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 10 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 10 }}
-        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-        className="inline-block px-4 pt-5 pb-4 overflow-hidden text-left align-bottom transition-all transform bg-slate-900 border border-slate-700/50 rounded-xl shadow-2xl sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6"
-      >
-        <div className="sm:flex sm:items-start text-center sm:text-left">
-          <div className={cn("flex flex-shrink-0 items-center justify-center w-12 h-12 mx-auto sm:mx-0 sm:h-16 sm:w-16 rounded-full border", colorMap[type])}>
-            {iconMap[type]}
-          </div>
-          <div className="mt-3 sm:mt-0 sm:ml-5 flex-1">
-            <h3 className="text-xl font-medium leading-6 text-slate-100 mb-2 mt-1">
-              {displayTitle}
-            </h3>
-            <div className="mt-3">
-              <p className="text-sm text-slate-300 max-h-48 overflow-y-auto whitespace-pre-wrap leading-relaxed">
-                {message}
-              </p>
-            </div>
+    <>
+      <div className="sm:flex sm:items-start text-center sm:text-left">
+        <div className={cn("flex flex-shrink-0 items-center justify-center w-12 h-12 mx-auto sm:mx-0 sm:h-16 sm:w-16 rounded-full border", colorMap[type])}>
+          {iconMap[type]}
+        </div>
+        <div className="mt-3 sm:mt-0 sm:ml-5 flex-1">
+          <h3 className="text-xl font-medium leading-6 text-slate-100 mb-2 mt-1">
+            {displayTitle}
+          </h3>
+          <div className="mt-3">
+            <p className="text-sm text-slate-300 max-h-48 overflow-y-auto whitespace-pre-wrap leading-relaxed">
+              {message}
+            </p>
           </div>
         </div>
-        <div className="mt-6 sm:mt-8 sm:flex sm:flex-row-reverse gap-3 flex-col-reverse justify-start">
-          <button
-            type="button"
-            className={cn("w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-6 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 sm:w-auto transition-all", confirmBtnClasses[type])}
-            onClick={onConfirm}
-          >
-            {confirmLabel}
-          </button>
-          <Button
-            type="button"
-            variant="ghost"
-            className="w-full mt-3 sm:mt-0 sm:w-auto text-sm bg-transparent hover:bg-slate-800"
-            onClick={onCancel}
-          >
-            {cancelLabel}
-          </Button>
-        </div>
-      </motion.div>
-    </div>
+      </div>
+      <div className="mt-6 sm:mt-8 sm:flex sm:flex-row-reverse gap-3 flex-col-reverse justify-start">
+        <button
+          type="button"
+          className={cn("w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-6 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 sm:w-auto transition-all", confirmBtnClasses[type])}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onConfirm();
+          }}
+        >
+          {confirmLabel}
+        </button>
+        <Button
+          type="button"
+          variant="ghost"
+          className="w-full mt-3 sm:mt-0 sm:w-auto text-sm bg-transparent hover:bg-slate-800"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onCancel();
+          }}
+        >
+          {cancelLabel}
+        </Button>
+      </div>
+    </>
   );
 };
