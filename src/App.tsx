@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { Toaster } from 'react-hot-toast';
 import { AppProvider, useAppContext } from './store/AppContext';
 import { AppLayout } from './components/layout/AppLayout';
+import { ConfirmProvider } from './components/ui/ConfirmDialog';
 
 import Dashboard from './pages/Dashboard';
 import Clientes from './pages/Clientes';
@@ -76,30 +77,32 @@ const RoleGuard = ({ children, allowedRoles }: { children: React.ReactNode, allo
 export default function App() {
   return (
     <AppProvider>
-      <Toaster position="bottom-right" toastOptions={{ className: 'bg-slate-800 text-slate-100 border border-slate-700' }} />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/" element={<AuthGuard><AppLayout /></AuthGuard>}>
-            <Route index element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><Dashboard /></RoleGuard>} />
-            <Route path="clientes" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><Clientes /></RoleGuard>} />
-            <Route path="servicios" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><VentaServicios /></RoleGuard>} />
-            <Route path="consumo" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR', 'OPERATOR']}><Consumo /></RoleGuard>} />
-            <Route path="finanzas" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><Finanzas /></RoleGuard>} />
-            <Route path="reuniones" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><Reuniones /></RoleGuard>} />
-            <Route path="reportes" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><Reportes /></RoleGuard>} />
-            <Route path="usuarios" element={<RoleGuard allowedRoles={['ADMIN', 'FISCALIZADOR']}><Usuarios /></RoleGuard>} />
-            <Route path="auditoria" element={<RoleGuard allowedRoles={['ADMIN', 'FISCALIZADOR']}><Auditoria /></RoleGuard>} />
-            <Route path="config" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR', 'OPERATOR']}><Configuracion /></RoleGuard>} />
-            <Route path="*" element={
-              <div className="flex flex-col items-center justify-center h-full">
-                <h2 className="text-2xl font-bold text-slate-100">Módulo no encontrado</h2>
-                <p className="text-slate-400 mt-2">La ruta solicitada no existe o no tiene permisos para acceder.</p>
-              </div>
-            } />
-          </Route>
-        </Routes>
-      </BrowserRouter>
+      <ConfirmProvider>
+        <Toaster position="bottom-right" toastOptions={{ className: 'bg-slate-800 text-slate-100 border border-slate-700' }} />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/" element={<AuthGuard><AppLayout /></AuthGuard>}>
+              <Route index element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><Dashboard /></RoleGuard>} />
+              <Route path="clientes" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><Clientes /></RoleGuard>} />
+              <Route path="servicios" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><VentaServicios /></RoleGuard>} />
+              <Route path="consumo" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR', 'OPERATOR']}><Consumo /></RoleGuard>} />
+              <Route path="finanzas" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><Finanzas /></RoleGuard>} />
+              <Route path="reuniones" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><Reuniones /></RoleGuard>} />
+              <Route path="reportes" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><Reportes /></RoleGuard>} />
+              <Route path="usuarios" element={<RoleGuard allowedRoles={['ADMIN', 'FISCALIZADOR']}><Usuarios /></RoleGuard>} />
+              <Route path="auditoria" element={<RoleGuard allowedRoles={['ADMIN', 'FISCALIZADOR']}><Auditoria /></RoleGuard>} />
+              <Route path="config" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR', 'OPERATOR']}><Configuracion /></RoleGuard>} />
+              <Route path="*" element={
+                <div className="flex flex-col items-center justify-center h-full">
+                  <h2 className="text-2xl font-bold text-slate-100">Módulo no encontrado</h2>
+                  <p className="text-slate-400 mt-2">La ruta solicitada no existe o no tiene permisos para acceder.</p>
+                </div>
+              } />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </ConfirmProvider>
     </AppProvider>
   );
 }

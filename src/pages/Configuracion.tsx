@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Settings, Save, KeyRound, Database, BookOpen, Download } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Card, CardContent, CardTitle, Button } from '../components/ui';
+import { useConfirm } from '../components/ui/ConfirmDialog';
 import bcrypt from 'bcryptjs';
 import { toast } from 'react-hot-toast';
 import { jsPDF } from 'jspdf';
@@ -11,6 +12,7 @@ import ManualCapture from '../components/ManualCapture';
 
 export default function Configuracion() {
   const { settings, updateSettings, userRole, user, updateAdmin, admins, mustChangePassword } = useAppContext();
+  const { confirm } = useConfirm();
   const [isCapturing, setIsCapturing] = useState(false);
   const [formData, setFormData] = useState({
     costoSocio: 0.20,
@@ -131,11 +133,19 @@ export default function Configuracion() {
     toast.success('Copia de seguridad descargada.');
   };
 
-  const handleImportBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!window.confirm('¿ESTÁS SEGURO? Importar una copia de seguridad sobrescribirá TODOS los datos actuales del sistema. Esta acción no se puede deshacer.')) {
+    const isConfirmed = await confirm({
+      title: 'Restaurar Copia de Seguridad',
+      message: '¿ESTÁS SEGURO? Importar una copia de seguridad sobrescribirá TODOS los datos actuales del sistema. Esta acción no se puede deshacer.',
+      type: 'danger',
+      confirmLabel: 'Restaurar',
+      cancelLabel: 'Cancelar'
+    });
+
+    if (!isConfirmed) {
       if(backupInputRef.current) backupInputRef.current.value = '';
       return;
     }

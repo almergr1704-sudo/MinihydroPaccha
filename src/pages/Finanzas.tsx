@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Plus, ArrowUpRight, ArrowDownRight, Filter, Download, FileText, FileWarning, PowerOff, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Button, Card, CardContent, Badge, CardHeader, CardTitle, Pagination } from '../components/ui';
+import { useConfirm } from '../components/ui/ConfirmDialog';
 import { formatCurrency, render3DPieChartToDataURL, normalizeSearchText } from '../lib/utils';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -14,6 +15,7 @@ import { toast } from 'react-hot-toast';
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
 export default function Finanzas() {
+  const { confirm } = useConfirm();
   const { transactions, addTransaction, clients, consumptions, payConsumption, fines, payFine, settings, updateClient, userRole, toggleTransactionConciliado } = useAppContext();
   const [isModalOpen, setIsModalOpen] = useState<false | 'INGRESO' | 'EGRESO' | 'APTOS_CORTE'>(false);
   const [filterType, setFilterType] = useState<TransactionType | 'TODOS'>('INGRESO');
@@ -79,7 +81,14 @@ export default function Finanzas() {
     }
     
     if (!formData.monto) return;
-    if (!window.confirm('¿Está seguro de registrar esta transacción?')) return;
+    const confirmTx = await confirm({
+      title: 'Registrar Transacción',
+      message: '¿Está seguro de registrar esta transacción?',
+      type: 'confirm',
+      confirmLabel: 'Registrar',
+      cancelLabel: 'Cancelar'
+    });
+    if (!confirmTx) return;
     
     const newTx = {
       tipo: formData.tipo,
@@ -548,8 +557,14 @@ export default function Finanzas() {
                               <div className="text-xs font-semibold text-red-500 mt-1">{consumptions.filter(cons => cons.clientId === c.id && cons.estadoPago === 'PENDIENTE').length} meses adeudados</div>
                             </div>
                             {userRole !== 'FISCALIZADOR' && (
-                              <Button size="sm" variant="destructive" className="bg-red-600 hover:bg-red-700 font-semibold" type="button" onClick={() => {
-                                if (window.confirm(`¿Está seguro de cambiar el estado de ${c.codigoSuministro} a CORTADO?`)) {
+                              <Button size="sm" variant="destructive" className="bg-red-600 hover:bg-red-700 font-semibold" type="button" onClick={async () => {
+                                const confirmChange = await confirm({
+                                  title: 'Cortar Servicio',
+                                  message: `¿Está seguro de cambiar el estado de ${c.codigoSuministro} a CORTADO?`,
+                                  type: 'danger',
+                                  confirmLabel: 'Sí, cortar'
+                                });
+                                if (confirmChange) {
                                   updateClient(c.id, { estado: 'CORTADO' });
                                 }
                               }}>
@@ -684,7 +699,13 @@ export default function Finanzas() {
                                       <div className="flex items-center space-x-3">
                                         <span className="text-slate-200 font-medium">{formatCurrency(c.montoCalculado)}</span>
                                         <Button size="sm" type="button" onClick={async () => {
-                                          if (window.confirm('¿Está seguro de cobrar este recibo por consumo?')) {
+                                          const confirmCobro = await confirm({
+                                            title: 'Cobrar Recibo',
+                                            message: '¿Está seguro de cobrar este recibo por consumo?',
+                                            type: 'confirm',
+                                            confirmLabel: 'Cobrar'
+                                          });
+                                          if (confirmCobro) {
                                              try {
                                                 await payConsumption(c.id);
                                                 setClientSearch('');
@@ -716,7 +737,13 @@ export default function Finanzas() {
                                       <div className="flex items-center space-x-3 flex-shrink-0">
                                         <span className="text-slate-200 font-medium">{formatCurrency(f.monto)}</span>
                                         <Button size="sm" type="button" onClick={async () => {
-                                          if (window.confirm('¿Está seguro de cobrar esta multa?')) {
+                                          const confirmMulta = await confirm({
+                                            title: 'Cobrar Multa',
+                                            message: '¿Está seguro de cobrar esta multa?',
+                                            type: 'confirm',
+                                            confirmLabel: 'Cobrar'
+                                          });
+                                          if (confirmMulta) {
                                              try {
                                                 await payFine(f.id);
                                                 setClientSearch('');
@@ -752,7 +779,13 @@ export default function Finanzas() {
                                         toast.error('No se puede reconectar el servicio. El cliente tiene deuda de 3 o más recibos pendientes. Debe regularizar la deuda de consumo primero.');
                                         return;
                                       }
-                                      if (window.confirm(`¿Está seguro de cobrar S/ ${reconexionFee.toFixed(2)} por reconexión y reactivar el servicio?`)) {
+                                      const confirmReconexion = await confirm({
+                                        title: 'Cobrar Reconexión',
+                                        message: `¿Está seguro de cobrar S/ ${reconexionFee.toFixed(2)} por reconexión y reactivar el servicio?`,
+                                        type: 'confirm',
+                                        confirmLabel: 'Recaudar y Reactivar'
+                                      });
+                                      if (confirmReconexion) {
                                         await addTransaction({
                                           tipo: 'INGRESO',
                                           categoria: 'RECONEXION',

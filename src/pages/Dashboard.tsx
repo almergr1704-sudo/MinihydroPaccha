@@ -31,9 +31,13 @@ export default function Dashboard() {
   const balance = ingresosMes - egresosMes;
 
   const pendingDebtsConsumptions = consumptions.filter(c => c.estadoPago === 'PENDIENTE').map(c => ({...c, type: 'CONSUMO' as const}));
-  const pendingDebtsFines = (fines || []).filter(c => c.estadoPago === 'PENDIENTE').map(f => ({...f, type: 'MULTA' as const, montoCalculado: f.monto, kwh: null, mes: f.fecha.split('-').slice(0,2).join('-')}));
+  const pendingDebtsFines = (fines || []).filter(c => c.estadoPago === 'PENDIENTE').map(f => ({...f, type: 'MULTA' as const, montoCalculado: f.monto, kwh: null, mes: f.fecha ? f.fecha.split('-').slice(0,2).join('-') : new Date().toISOString().slice(0, 7)}));
   
-  const pendingDebts = [...pendingDebtsConsumptions, ...pendingDebtsFines].sort((a,b) => new Date(b.mes).getTime() - new Date(a.mes).getTime());
+  const pendingDebts = [...pendingDebtsConsumptions, ...pendingDebtsFines].sort((a,b) => {
+    const timeA = new Date(a.mes || 0).getTime();
+    const timeB = new Date(b.mes || 0).getTime();
+    return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA);
+  });
 
   const balancesByClient = new Set(pendingDebts.map(d => d.clientId));
   const totalMorosos = balancesByClient.size;

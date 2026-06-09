@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAppContext } from '../../store/AppContext';
+import { ErrorBoundary } from '../ErrorBoundary';
 
 const baseNavigation = [
   { name: 'Dashboard', href: '/', icon: Home },
@@ -190,7 +191,9 @@ export function AppLayout() {
         </div>
         <main className="flex-1 relative z-0 overflow-y-auto focus:outline-none bg-[#0B0E14]">
           <div className="py-6 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto min-h-full">
-            <Outlet />
+            <ErrorBoundary>
+              <Outlet />
+            </ErrorBoundary>
           </div>
         </main>
       </div>

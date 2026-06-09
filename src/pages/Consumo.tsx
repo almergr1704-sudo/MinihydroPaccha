@@ -3,6 +3,7 @@ import { Plus, Check, FileText, Download, Upload, AlertCircle } from 'lucide-rea
 import { useAppContext } from '../store/AppContext';
 import { Button, Card, CardContent, Badge, Pagination } from '../components/ui';
 import { formatCurrency, normalizeSearchText } from '../lib/utils';
+import { useConfirm } from '../components/ui/ConfirmDialog';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { jsPDF } from 'jspdf';
@@ -12,6 +13,7 @@ import { Consumption } from '../store/types';
 import { toast } from 'react-hot-toast';
 
 export default function Consumo() {
+  const { confirm } = useConfirm();
   const { clients, consumptions, addConsumption, deleteConsumption, settings, userRole, suppliesInfo } = useAppContext();
   const [historyClientSuministro, setHistoryClientSuministro] = useState<{ clientId: string, codigoSuministro: string, clientName: string } | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -82,24 +84,18 @@ export default function Consumo() {
       return;
     }
 
+    let observacion = undefined;
     if (averageKwh > 0 && currentKwh > averageKwh * 2 && currentKwh > 20) {
-      if (!window.confirm(`El consumo de ${currentKwh} kWh es significativamente mayor al promedio habitual de ${averageKwh.toFixed(1)} kWh. ¿Está seguro que la lectura actual es correcta?`)) {
-        return;
-      }
+      const isConfirmed = await confirm({
+        title: 'Alerta de Consumo Excesivo',
+        message: `El consumo calculado de ${currentKwh} kWh es significativamente mayor a su promedio histórico (${averageKwh.toFixed(1)} kWh).\n\n¿Estás seguro de registrar esta lectura?`,
+        type: 'warning',
+        confirmLabel: 'Registrar Lectura'
+      });
+      if (!isConfirmed) return;
+      observacion = 'Posible Consumo Excesivo';
     }
 
-    let observacion = undefined;
-    if (selectedClientConsumptions.length > 0) {
-      if (averageKwh > 0) {
-        if (currentKwh > averageKwh * 2 && currentKwh > 20) { // Consider anomalous if > twice average and > 20kwh
-          if(!window.confirm(`⚠️ ALERTA DE CONSUMO EXCESIVO\n\nEl consumo de ${currentKwh} kWh es significativamente mayor a su promedio histórico (${averageKwh.toFixed(1)} kWh).\n\n¿Estás seguro de registrar esta lectura?`)) {
-            return;
-          }
-          observacion = 'Posible Consumo Excesivo';
-        }
-      }
-    }
-    
     const [clientId, codigoSuministro] = formData.clientAndSuministro.split('|');
 
     if (selectedMes >= new Date().toISOString().slice(0, 7)) {
@@ -119,7 +115,13 @@ export default function Consumo() {
       return;
     }
 
-    if (!window.confirm(`¿Está seguro de guardar la lectura para el periodo ${selectedMes}? \nConsumo calculado: ${currentKwh} kWh`)) return;
+    const saveConfirmed = await confirm({
+      title: 'Guardar Lectura',
+      message: `¿Está seguro de guardar la lectura para el periodo ${selectedMes}?\nConsumo calculado: ${currentKwh} kWh`,
+      type: 'confirm',
+      confirmLabel: 'Guardar'
+    });
+    if (!saveConfirmed) return;
 
     try {
       await addConsumption({

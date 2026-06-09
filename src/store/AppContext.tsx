@@ -25,6 +25,7 @@ interface AppContextType extends AppState {
   addAdmin: (admin: any) => Promise<void>;
   deleteConsumption: (id: string, reason: string) => Promise<void>;
   markSupplyAsSocio: (supplyCode: string) => Promise<void>;
+  setSupplySocioStatus: (supplyCode: string, isSocio: boolean) => Promise<void>;
   login: (email: string) => void;
   logout: () => void;
 }
@@ -56,7 +57,25 @@ const initialData: AppState = {
 
 const getLocalData = (): AppState => {
   const data = localStorage.getItem('erp_data');
-  return data ? JSON.parse(data) : initialData;
+  if (data) {
+    try {
+      const parsed = JSON.parse(data);
+      return {
+        clients: parsed.clients || initialData.clients,
+        consumptions: parsed.consumptions || initialData.consumptions,
+        transactions: parsed.transactions || initialData.transactions,
+        meetings: parsed.meetings || initialData.meetings,
+        admins: parsed.admins || initialData.admins,
+        fines: parsed.fines || initialData.fines,
+        auditLogs: parsed.auditLogs || initialData.auditLogs,
+        suppliesInfo: parsed.suppliesInfo || initialData.suppliesInfo,
+        settings: { ...initialData.settings, ...(parsed.settings || {}) },
+      };
+    } catch (e) {
+      console.error('Failed to parse local data', e);
+    }
+  }
+  return initialData;
 };
 
 const setLocalData = (data: AppState) => {
@@ -208,6 +227,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const newState = { ...prev, suppliesInfo: newSuppliesInfo };
       setLocalData(newState);
       setTimeout(() => addAuditLog('ACTUALIZAR', 'SOCIOS', `Asignó condición de SOCIO permanente al suministro ${supplyCode}`), 0);
+      return newState;
+    });
+  };
+
+  const setSupplySocioStatus = async (supplyCode: string, isSocio: boolean) => {
+    setState(prev => {
+      if (prev.suppliesInfo.some(s => s.codigo === supplyCode && s.isSocio === isSocio)) return prev;
+      const newSocioInfo = {
+        codigo: supplyCode,
+        isSocio,
+        fechaSocio: isSocio ? new Date().toISOString() : undefined
+      };
+      
+      const exists = prev.suppliesInfo.some(s => s.codigo === supplyCode);
+      const newSuppliesInfo = exists ? 
+        prev.suppliesInfo.map(s => s.codigo === supplyCode ? { ...s, ...newSocioInfo } : s) : 
+        [...prev.suppliesInfo, newSocioInfo];
+        
+      const newState = { ...prev, suppliesInfo: newSuppliesInfo };
+      setLocalData(newState);
+      setTimeout(() => addAuditLog('ACTUALIZAR', 'SOCIOS', `Definió condición de ${isSocio ? 'SOCIO' : 'USUARIO'} al suministro ${supplyCode}`), 0);
       return newState;
     });
   };
@@ -552,6 +592,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addAdmin,
       deleteConsumption,
       markSupplyAsSocio,
+      setSupplySocioStatus,
       login,
       logout,
       addAuditLog

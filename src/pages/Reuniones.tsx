@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Plus, Users, Calendar, AlertCircle, FileText, CheckCircle, Download, XCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Button, Card, CardContent, Badge, CardHeader, CardTitle, Pagination } from '../components/ui';
+import { useConfirm } from '../components/ui/ConfirmDialog';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { jsPDF } from 'jspdf';
@@ -9,6 +10,7 @@ import autoTable from 'jspdf-autotable';
 import { toast } from 'react-hot-toast';
 
 export default function Reuniones() {
+  const { confirm } = useConfirm();
   const { clients, meetings, addMeeting, updateMeeting, recordAttendance, userRole, suppliesInfo } = useAppContext();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedMeeting, setSelectedMeeting] = useState<string | null>(null);
@@ -180,7 +182,7 @@ export default function Reuniones() {
     }
   };
 
-  const handleFinalizarReunion = () => {
+  const handleFinalizarReunion = async () => {
     if (!activeMeeting) return;
     
     // Check if current time is before the scheduled end time
@@ -196,7 +198,14 @@ export default function Reuniones() {
       return;
     }
 
-    if (window.confirm('¿Desea finalizar la reunión? Una vez finalizada no podrá modificar la asistencia.')) {
+    const confirmFin = await confirm({
+      title: 'Finalizar Reunión',
+      message: '¿Desea finalizar la reunión? Una vez finalizada no podrá modificar la asistencia y se emitirán multas automáticas.',
+      type: 'warning',
+      confirmLabel: 'Finalizar',
+      cancelLabel: 'Cancelar'
+    });
+    if (confirmFin) {
         updateMeeting(activeMeeting.id, { estado: 'FINALIZADA', finalizada: true });
     }
   };
@@ -210,13 +219,20 @@ export default function Reuniones() {
     updateMeeting(activeMeeting.id, { estado: 'EN_CURSO' });
   };
 
-  const handleCancelarReunion = () => {
+  const handleCancelarReunion = async () => {
     if (!activeMeeting) return;
     if (activeMeeting.estado && activeMeeting.estado !== 'PROGRAMADA') {
       toast.error('Solo se puede cancelar una reunión antes de que haya iniciado.');
       return;
     }
-    if (window.confirm('¿Desea cancelar la reunión? Esta acción no se puede deshacer.')) {
+    const confirmCancel = await confirm({
+      title: 'Cancelar Reunión',
+      message: '¿Desea cancelar la reunión? Esta acción no se puede deshacer.',
+      type: 'danger',
+      confirmLabel: 'Sí, cancelar',
+      cancelLabel: 'Atrás'
+    });
+    if (confirmCancel) {
       updateMeeting(activeMeeting.id, { estado: 'CANCELADA', finalizada: true });
     }
   };

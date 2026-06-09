@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 export default function VentaServicios() {
-  const { clients, settings, addClient, updateClient, addTransaction, generateId, transactions } = useAppContext();
+  const { clients, settings, addClient, updateClient, addTransaction, generateId, transactions, setSupplySocioStatus } = useAppContext();
   const [modalOpen, setModalOpen] = useState(false);
   
   // Sale Type: new client vs existing client
@@ -97,8 +97,12 @@ export default function VentaServicios() {
           suministros: [...(clients.find(c => c.id === selectedClientId)?.suministros || []), formData.codigoSuministro] as string[],
           numeroMedidor: formData.numeroMedidor || undefined
         });
+        await setSupplySocioStatus(formData.codigoSuministro, formData.tipo === 'SOCIO');
         finalClientId = selectedClientId;
       }
+
+      // Ensure the new supply has its own socio/usuario status
+      await setSupplySocioStatus(formData.codigoSuministro, formData.tipo === 'SOCIO');
 
       // Add a transaction for the sale
       if (formData.montoPagado > 0) {
@@ -402,16 +406,13 @@ export default function VentaServicios() {
                       <label className="block text-sm font-medium text-slate-300">Número de Medidor</label>
                       <input type="text" value={formData.numeroMedidor} onChange={e => setFormData({...formData, numeroMedidor: e.target.value})} placeholder="Opcional" className="mt-1 block w-full bg-[#0B0E14] border border-slate-700 rounded-md py-2 px-3 focus:outline-none focus:ring-blue-500 placeholder:text-slate-600" />
                     </div>
-                    {saleType === 'NEW_CLIENT' && (
                        <div className="pt-2">
-                         <label className="block text-sm font-medium text-slate-300 mb-2">Condición Inicial</label>
+                         <label className="block text-sm font-medium text-slate-300 mb-2">Condición del Servicio</label>
                          <select value={formData.tipo} onChange={e => setFormData({...formData, tipo: e.target.value as any})} className="block w-full bg-[#0B0E14] border border-slate-700 rounded-md py-2 px-3 focus:outline-none focus:ring-blue-500">
                            <option value="USUARIO">Solo Usuario (Regular)</option>
                            <option value="SOCIO">Socio (Con Derechos)</option>
                          </select>
                        </div>
-                    )}
-                    {saleType === 'NEW_CLIENT' && (
                        <div className="pt-2">
                          <label className="block text-sm font-medium text-slate-300 mb-2">Categoría (Fase)</label>
                          <select value={formData.categoria} onChange={e => setFormData({...formData, categoria: e.target.value as any})} className="block w-full bg-[#0B0E14] border border-slate-700 rounded-md py-2 px-3 focus:outline-none focus:ring-blue-500">
@@ -419,7 +420,6 @@ export default function VentaServicios() {
                            <option value="TRIFASICO">Trifásico (Comercial/Industrial)</option>
                          </select>
                        </div>
-                    )}
                   </div>
 
                   {/* Cobro */}

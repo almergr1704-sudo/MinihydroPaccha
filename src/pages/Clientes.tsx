@@ -2,12 +2,14 @@ import React, { useState, useRef } from 'react';
 import { Plus, Search, User, Filter, Upload, Download, FileWarning, AlertCircle } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Button, Card, CardContent, Badge, Pagination } from '../components/ui';
+import { useConfirm } from '../components/ui/ConfirmDialog';
 import { Client, ClientType } from '../store/types';
 import { normalizeSearchText, normalizeSupplyCode } from '../lib/utils';
 import * as XLSX from 'xlsx';
 import { toast } from 'react-hot-toast';
 
 export default function Clientes() {
+  const { confirm } = useConfirm();
   const { clients, addClient, updateClient, transferSupply, markSupplyAsSocio, suppliesInfo, settings, consumptions, fines, addTransaction, userRole, meetings } = useAppContext();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<ClientType | 'TODOS' | 'CORTADO'>('TODOS');
@@ -122,7 +124,13 @@ export default function Clientes() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!window.confirm('¿Está seguro de guardar este registro?')) return;
+    const saveConfirmed = await confirm({
+      title: 'Guardar Cliente',
+      message: '¿Está seguro de guardar este registro?',
+      type: 'confirm',
+      confirmLabel: 'Guardar'
+    });
+    if (!saveConfirmed) return;
 
     if (editingId && formData.estado === 'ACTIVO') {
       const client = clients.find(c => c.id === editingId);
@@ -136,7 +144,13 @@ export default function Clientes() {
         }
 
         if (settings?.costoReconexion > 0) {
-          const confirmReconexion = window.confirm(`Para reactivar el servicio se requiere el pago de reconexión (S/ ${settings.costoReconexion.toFixed(2)}).\n\n¿El cliente ya realizó este pago?\nAl aceptar, se registrará el ingreso automáticamente y el estado cambiará a ACTIVO.`);
+          const confirmReconexion = await confirm({
+            title: 'Reactivación de Servicio',
+            message: `Para reactivar el servicio se requiere el pago de reconexión (S/ ${settings.costoReconexion.toFixed(2)}).\n\n¿El cliente ya realizó este pago?\nAl confirmar, se registrará el ingreso automáticamente y el estado cambiará a ACTIVO.`,
+            type: 'info',
+            confirmLabel: 'Sí, registrar pago',
+            cancelLabel: 'No'
+          });
           if (!confirmReconexion) {
             return;
           }
@@ -477,8 +491,14 @@ export default function Clientes() {
                                      </span>
                                      {!isSocio && userRole !== 'FISCALIZADOR' && (
                                        <button
-                                         onClick={() => {
-                                            if(window.confirm(`¿Convertir el suministro ${sup} a SOCIO permanentemente?`)) {
+                                         onClick={async () => {
+                                            const confirmSocio = await confirm({
+                                              title: 'Convertir a Socio',
+                                              message: `¿Convertir el suministro ${sup} a SOCIO permanentemente?`,
+                                              type: 'confirm',
+                                              confirmLabel: 'Sí, convertir'
+                                            });
+                                            if (confirmSocio) {
                                               markSupplyAsSocio(sup!);
                                               toast.success(`Suministro ${sup} ahora es SOCIO`);
                                             }
@@ -531,8 +551,15 @@ export default function Clientes() {
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                        {userRole !== 'FISCALIZADOR' && aptForCut && (
                           <button 
-                            onClick={() => {
-                              if(window.confirm('¿Desea marcar el servicio como EN CORTE?')) {
+                            onClick={async () => {
+                              const confirmCut = await confirm({
+                                title: 'Corte de Servicio',
+                                message: '¿Desea marcar el servicio como EN CORTE?',
+                                type: 'danger',
+                                confirmLabel: 'Sí, cortar',
+                                cancelLabel: 'Cancelar'
+                              });
+                              if(confirmCut) {
                                 updateClient(client.id, { estado: 'CORTADO' });
                               }
                             }}
@@ -543,11 +570,18 @@ export default function Clientes() {
                        )}
                        {userRole !== 'FISCALIZADOR' && client.estado === 'CORTADO' && (
                          <button 
-                           onClick={() => {
+                           onClick={async () => {
                              if(pendingDebtsCount > 0) {
                                toast.error('El cliente no puede ser reactivado porque tiene deudas pendientes.');
                              } else {
-                               if(window.confirm('¿Desea REACTIVAR el servicio del cliente?')) {
+                               const confirmReact = await confirm({
+                                 title: 'Reactivar Servicio',
+                                 message: '¿Desea REACTIVAR el servicio del cliente?',
+                                 type: 'info',
+                                 confirmLabel: 'Reactivar',
+                                 cancelLabel: 'Cancelar'
+                               });
+                               if(confirmReact) {
                                  updateClient(client.id, { estado: 'ACTIVO' });
                                }
                              }
@@ -796,7 +830,13 @@ export default function Clientes() {
                   }
                 }
 
-                if (!window.confirm("¿Está seguro de querer transferir la titularidad de este suministro? Todo el historial pasará al nuevo titular.")) {
+                const confirmTransfer = await confirm({
+                  title: 'Transferir Suministro',
+                  message: '¿Está seguro de querer transferir la titularidad de este suministro? Todo el historial pasará al nuevo titular.',
+                  type: 'warning',
+                  confirmLabel: 'Transferir'
+                });
+                if (!confirmTransfer) {
                   return;
                 }
                 

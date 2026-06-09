@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Shield, ShieldAlert, UserCheck, Plus, X, ChevronLeft, ChevronRight, Power, UserX, UserMinus, Search, Filter, Copy, CheckCircle2 } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Card, CardContent, Badge, Button, Pagination } from '../components/ui';
+import { useConfirm } from '../components/ui/ConfirmDialog';
 import { normalizeSearchText } from '../lib/utils';
 import { PasswordStrengthIndicator, evaluatePasswordStrength } from '../components/PasswordStrengthIndicator';
 
@@ -12,6 +13,7 @@ import { es } from 'date-fns/locale';
 
 export default function Usuarios() {
   const { admins, updateAdmin, addAdmin, user, userRole } = useAppContext();
+  const { confirm } = useConfirm();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedRole, setSelectedRole] = useState<'ADMIN'|'TESORERO'|'OPERATOR'|'FISCALIZADOR'>('OPERATOR');
   
@@ -80,7 +82,13 @@ export default function Usuarios() {
   };
 
   const handleResetPassword = async (id: string, username: string) => {
-    if (!window.confirm(`¿Está seguro de querer restablecer la contraseña para "${username}"?`)) return;
+    const isConfirmed = await confirm({
+      title: 'Restablecer Contraseña',
+      message: `¿Está seguro de querer restablecer la contraseña para el usuario "${username}"?\nSe generará una contraseña temporal.`,
+      type: 'warning',
+      confirmLabel: 'Restablecer'
+    });
+    if (!isConfirmed) return;
 
     const tempPassword = `temp${Math.floor(1000 + Math.random() * 9000)}`;
     const hashedPassword = bcrypt.hashSync(tempPassword, 10);
@@ -102,7 +110,14 @@ export default function Usuarios() {
   };
 
   const handleToggleStatus = async (id: string, currentStatus: string) => {
-    if (!window.confirm(`¿Está seguro de querer cambiar el estado de este usuario a ${currentStatus === 'INACTIVO' ? 'ACTIVO' : 'INACTIVO'}?`)) return;
+    const isActivating = currentStatus === 'INACTIVO';
+    const isConfirmed = await confirm({
+      title: isActivating ? 'Activar Usuario' : 'Desactivar Usuario',
+      message: `¿Está seguro de querer cambiar el estado de este usuario a ${isActivating ? 'ACTIVO' : 'INACTIVO'}?`,
+      type: isActivating ? 'info' : 'danger',
+      confirmLabel: isActivating ? 'Activar' : 'Desactivar'
+    });
+    if (!isConfirmed) return;
     
     try {
       await updateAdmin(id, { estado: currentStatus === 'INACTIVO' ? 'ACTIVO' : 'INACTIVO' });
