@@ -7,6 +7,7 @@ import { Client, ClientType } from '../store/types';
 import { normalizeSearchText, normalizeSupplyCode } from '../lib/utils';
 import * as XLSX from 'xlsx';
 import { toast } from 'react-hot-toast';
+import { generateGeneralPaymentReceiptPDF } from '../lib/receipts';
 
 export default function Clientes() {
   const { confirm } = useConfirm();
@@ -21,6 +22,8 @@ export default function Clientes() {
     toClientId: string;
     mode: 'EXISTING' | 'NEW';
     newClientData: Omit<Client, 'id' | 'fechaRegistro'>;
+    monto: number;
+    observacion: string;
   }>({ 
     client: null, 
     supplyCode: '', 
@@ -30,7 +33,9 @@ export default function Clientes() {
       nombres: '', apellidos: '', tipoPersona: 'PERSONA', dni: '', direccion: '', 
       numeroDireccion: '', referenciaDireccion: '', telefono: '', correo: '', 
       codigoSuministro: '', suministros: [], tipo: 'USUARIO', estado: 'ACTIVO' 
-    }
+    },
+    monto: 0,
+    observacion: ''
   });
   const [editingId, setEditingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -603,7 +608,7 @@ export default function Clientes() {
                          <button 
                          onClick={() => {
                            setTransferState({ 
-                             client, supplyCode: client.suministros![0], toClientId: '', mode: 'EXISTING',
+                             client, supplyCode: client.suministros![0], toClientId: '', mode: 'EXISTING', monto: 0, observacion: `CAMBIO DE TITULARIDAD - SUMINISTRO: ${normalizeSupplyCode(client.suministros![0])}`,
                              newClientData: { 
                                 nombres: '', apellidos: '', tipoPersona: 'PERSONA', dni: '', direccion: '', 
                                 numeroDireccion: '', referenciaDireccion: '', telefono: '', correo: '', 
@@ -852,6 +857,46 @@ export default function Clientes() {
                   }
                   // Transfer after potentially creating the new client
                   await transferSupply(transferState.client!.id, finalToClientId, transferState.supplyCode);
+
+                  // Standardize transaction tracking & receipts integration
+                  const selectedClientRaw = clients.find(c => c.id === finalToClientId);
+                  const destClientInfo = selectedClientRaw || {
+                    id: finalToClientId,
+                    nombres: transferState.newClientData.nombres,
+                    apellidos: transferState.newClientData.apellidos?.trim() || '',
+                    dni: transferState.newClientData.dni,
+                    tipo: transferState.newClientData.tipo,
+                    direccion: transferState.newClientData.direccion,
+                    suministros: [transferState.supplyCode]
+                  };
+
+                  const compNo = `TR-${Date.now().toString().slice(-6)}`;
+                  const txRaw = {
+                    id: `TX-${Date.now().toString().slice(-6)}`,
+                    tipo: 'INGRESO' as const,
+                    categoria: 'TRANSFERENCIA' as const,
+                    monto: Number(transferState.monto || 0),
+                    descripcion: transferState.observacion || `Cambio de Titularidad - Suministro ${normalizeSupplyCode(transferState.supplyCode)}`,
+                    clientId: finalToClientId,
+                    comprobante: compNo,
+                    referencia: `Transferencia Suministro: ${normalizeSupplyCode(transferState.supplyCode)}`,
+                    fecha: new Date().toISOString(),
+                    createdBy: 'Caja Central',
+                    metodoPago: 'EFECTIVO' as const
+                  };
+
+                  await addTransaction({
+                    tipo: 'INGRESO',
+                    categoria: 'TRANSFERENCIA',
+                    monto: Number(transferState.monto || 0),
+                    descripcion: txRaw.descripcion,
+                    clientId: finalToClientId,
+                    comprobante: compNo,
+                    referencia: txRaw.referencia,
+                    metodoPago: 'EFECTIVO'
+                  });
+
+                  generateGeneralPaymentReceiptPDF(txRaw, destClientInfo as any);
                   toast.success('Suministro transferido con éxito.');
                   setIsTransferModalOpen(false);
                 } catch(error: any) {
@@ -874,7 +919,7 @@ export default function Clientes() {
                       <select 
                         className="mt-1 block w-full py-2 px-3 border border-slate-700 bg-[#0B0E14] rounded-md text-slate-100 sm:text-sm focus:ring-purple-500 focus:border-purple-500"
                         value={transferState.supplyCode}
-                        onChange={(e) => setTransferState({ ...transferState, supplyCode: e.target.value })}
+                        onChange={(e) => setTransferState({ ...transferState, supplyCode: e.target.value, observacion: `CAMBIO DE TITULARIDAD - SUMINISTRO: ${normalizeSupplyCode(e.target.value)}` })}
                         required
                       >
                         {transferState.client.suministros?.map(s => (
@@ -1007,7 +1052,35 @@ export default function Clientes() {
                       </div>
                     )}
                     
-                    <p className="mt-2 text-xs text-amber-500 bg-amber-500/10 p-2 rounded">⚠️ Se transferirá todo el historial de lecturas, consumos y facturación asociada al suministro elegido.</p>
+                     {/* Detalles de Cobro por Transferencia */}
+                     <div className="bg-slate-800/30 p-3 rounded-md border border-slate-800/50 space-y-3 mt-3">
+                       <div className="text-xs font-semibold text-slate-300 border-b border-slate-800 pb-1">Cobro por Trámite de Transferencia</div>
+                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                         <div>
+                           <label className="block text-xs font-medium text-slate-400">Monto del Trámite (S/)</label>
+                           <input 
+                             type="number" 
+                             step="0.10" 
+                             min="0" 
+                             className="mt-1 w-full py-1.5 px-2 bg-[#0B0E14] border border-slate-700 rounded text-emerald-400 font-bold text-sm outline-none focus:ring-purple-500 focus:border-purple-500"
+                             value={transferState.monto || 0}
+                             onChange={(e) => setTransferState({ ...transferState, monto: Number(e.target.value) })}
+                           />
+                         </div>
+                         <div>
+                           <label className="block text-xs font-medium text-slate-400">Detalle / Concepto</label>
+                           <input 
+                             type="text" 
+                             required
+                             className="mt-1 w-full py-1.5 px-2 bg-[#0B0E14] border border-slate-700 rounded text-slate-200 text-xs outline-none focus:ring-purple-500 focus:border-purple-500"
+                             value={transferState.observacion || ''}
+                             onChange={(e) => setTransferState({ ...transferState, observacion: e.target.value })}
+                           />
+                         </div>
+                       </div>
+                     </div>
+
+                     <p className="mt-2 text-xs text-amber-500 bg-amber-500/10 p-2 rounded">⚠️ Se transferirá todo el historial de lecturas, consumos y facturación asociada al suministro elegido.</p>
                   </div>
                 </div>
                 <div className="bg-slate-900/50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse border-t border-slate-800">
