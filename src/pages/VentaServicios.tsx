@@ -2,11 +2,10 @@ import React, { useState, useMemo } from 'react';
 import { PlusCircle, Search, UserCheck, UserPlus, CreditCard, CheckCircle, Receipt, Download } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Button, Card, CardContent } from '../components/ui';
-import { normalizeSupplyCode } from '../lib/utils';
+import { normalizeSupplyCode, normalizeSearchText } from '../lib/utils';
 import { Client, Transaction } from '../store/types';
 import { toast } from 'react-hot-toast';
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import { generateGeneralPaymentReceiptPDF } from '../lib/receipts';
 
 export default function VentaServicios() {
   const { clients, settings, addClient, updateClient, addTransaction, generateId, transactions, setSupplySocioStatus } = useAppContext();
@@ -17,6 +16,8 @@ export default function VentaServicios() {
   
   // Existing client selection
   const [selectedClientId, setSelectedClientId] = useState('');
+  // Search query for existing client selector
+  const [clientSearchQuery, setClientSearchQuery] = useState('');
   
   // Form State
   const [formData, setFormData] = useState({
@@ -108,7 +109,7 @@ export default function VentaServicios() {
       if (formData.montoPagado > 0) {
         await addTransaction({
           tipo: 'INGRESO',
-          categoria: 'OTROS',
+          categoria: 'VENTA_SERVICIO',
           monto: Number(formData.montoPagado),
           descripcion: formData.observacionPago,
           fecha: new Date().toISOString(),
@@ -145,6 +146,7 @@ export default function VentaServicios() {
     });
     setSaleType('NEW_CLIENT');
     setSelectedClientId('');
+    setClientSearchQuery('');
   };
 
   // Get sales history (transactions related to new supply sales)
@@ -154,73 +156,31 @@ export default function VentaServicios() {
       .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
   }, [transactions]);
 
+  const filteredClients = useMemo(() => {
+    if (!clientSearchQuery.trim()) return [];
+    const query = normalizeSearchText(clientSearchQuery);
+    return clients.filter(c => {
+      const fullname = `${c.nombres} ${c.apellidos}`;
+      const legacyName = c.nombre || '';
+      return (
+        normalizeSearchText(c.dni || '').includes(query) ||
+        normalizeSearchText(c.nombres || '').includes(query) ||
+        normalizeSearchText(c.apellidos || '').includes(query) ||
+        normalizeSearchText(fullname).includes(query) ||
+        normalizeSearchText(legacyName).includes(query)
+      );
+    });
+  }, [clients, clientSearchQuery]);
+
+  const selectedClient = useMemo(() => {
+    return clients.find(c => c.id === selectedClientId);
+  }, [clients, selectedClientId]);
+
   const handlePrintReceipt = (sale: Transaction, client: Client | undefined) => {
-    try {
-      const doc = new jsPDF({
-        unit: 'mm',
-        format: [80, 150] // Ticket format
-      });
-
-      // Ticket Header
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
-      doc.text('COMPROBANTE DE PAGO', 40, 15, { align: 'center' });
-      
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      doc.text('MiniCentral Hidroeléctrica Paccha', 40, 22, { align: 'center' });
-      doc.text('RUC: 20123456789 (Referencial)', 40, 27, { align: 'center' });
-      
-      doc.line(5, 30, 75, 30);
-      
-      // Ticket Body
-      doc.setFontSize(9);
-      doc.text(`Nro: ${sale.comprobante || 'N/A'}`, 5, 35);
-      doc.text(`Fecha: ${new Date(sale.fecha).toLocaleString()}`, 5, 40);
-      
-      doc.line(5, 43, 75, 43);
-
-      doc.setFont('helvetica', 'bold');
-      doc.text('CLIENTE:', 5, 48);
-      doc.setFont('helvetica', 'normal');
-      if (client) {
-        doc.text(`${client.nombres} ${client.apellidos}`, 5, 53);
-        if (client.dni) doc.text(`DNI: ${client.dni}`, 5, 58);
-      } else {
-        doc.text(`Cliente Eliminado`, 5, 53);
-      }
-
-      const isSocio = client?.tipo === 'SOCIO' ? 'Socio' : 'Usuario';
-      doc.text(`Condición: ${isSocio}`, 5, 63);
-      
-      doc.line(5, 66, 75, 66);
-      
-      doc.setFont('helvetica', 'bold');
-      doc.text('DESCRIPCION', 5, 71);
-      doc.text('TOTAL', 60, 71);
-      
-      doc.setFont('helvetica', 'normal');
-      const textLines = doc.splitTextToSize(sale.descripcion || sale.referencia || 'Venta', 50);
-      doc.text(textLines, 5, 77);
-      doc.text(`S/ ${sale.monto.toFixed(2)}`, 60, 77);
-      
-      let finalY = 77 + (textLines.length * 4) + 5;
-      
-      doc.line(5, finalY, 75, finalY);
-      
-      doc.setFont('helvetica', 'bold');
-      doc.text('TOTAL PAGADO:', 15, finalY + 5);
-      doc.text(`S/ ${sale.monto.toFixed(2)}`, 60, finalY + 5);
-      
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'italic');
-      doc.text('¡Gracias por su pago!', 40, finalY + 15, { align: 'center' });
-      doc.text('Este documento es un comprobante interno.', 40, finalY + 19, { align: 'center' });
-
-      doc.save(`Comprobante_${sale.comprobante || 'Servicio'}.pdf`);
+    const success = generateGeneralPaymentReceiptPDF(sale, client);
+    if (success) {
       toast.success('Comprobante generado con éxito');
-    } catch (e) {
-      console.error(e);
+    } else {
       toast.error('Error al generar el comprobante');
     }
   };
@@ -335,19 +295,140 @@ export default function VentaServicios() {
                   </div>
 
                   {saleType === 'EXISTING_CLIENT' ? (
-                     <div>
-                       <label className="block text-sm font-medium text-slate-300">Seleccionar Cliente Existente</label>
-                       <select 
-                          required 
-                          value={selectedClientId} 
-                          onChange={(e) => setSelectedClientId(e.target.value)}
-                          className="mt-1 block w-full bg-[#0B0E14] border border-slate-700 rounded-md py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                        >
-                          <option value="">-- Seleccione un cliente --</option>
-                          {clients.map(c => (
-                            <option key={c.id} value={c.id}>{c.apellidos}, {c.nombres} - DNI: {c.dni}</option>
-                          ))}
-                        </select>
+                     <div className="space-y-3">
+                       {selectedClientId && selectedClient ? (
+                         <div className="bg-slate-800/40 p-4 rounded-md border border-slate-700/80 space-y-3 relative">
+                           <div className="flex justify-between items-start">
+                             <div>
+                               <h4 className="text-xs font-semibold uppercase text-blue-400 tracking-wider">Cliente Seleccionado</h4>
+                               <p className="text-base font-bold text-white mt-1">
+                                 {selectedClient.nombres} {selectedClient.apellidos}
+                               </p>
+                             </div>
+                             <Button 
+                               type="button" 
+                               variant="outline" 
+                               size="sm" 
+                               className="text-xs text-rose-400 border-rose-500/20 hover:bg-rose-500/10 hover:text-rose-300 cursor-pointer" 
+                               onClick={() => {
+                                 setSelectedClientId('');
+                                 setClientSearchQuery('');
+                               }}
+                             >
+                               Cambiar Cliente
+                             </Button>
+                           </div>
+
+                           <div className="grid grid-cols-2 gap-3 text-xs text-slate-300 border-t border-slate-800/60 pt-2">
+                             <div>
+                               <span className="text-slate-500 block">DNI / RUC</span>
+                               <span className="font-semibold text-slate-200">{selectedClient.dni || 'No Registrado'}</span>
+                             </div>
+                             <div>
+                               <span className="text-slate-500 block">Teléfono</span>
+                               <span className="font-semibold text-slate-200">{selectedClient.telefono || 'No Registrado'}</span>
+                             </div>
+                             <div>
+                               <span className="text-slate-500 block">Condición</span>
+                               <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${selectedClient.tipo === 'SOCIO' ? 'bg-amber-500/10 text-amber-500' : 'bg-blue-500/10 text-blue-400'}`}>
+                                 {selectedClient.tipo === 'SOCIO' ? 'Socio' : 'Usuario'}
+                               </span>
+                             </div>
+                             <div>
+                               <span className="text-slate-500 block text-ellipsis overflow-hidden">Estado Cli.</span>
+                               <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${selectedClient.estado === 'ACTIVO' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
+                                 {selectedClient.estado}
+                               </span>
+                             </div>
+                             <div className="col-span-2">
+                               <span className="text-slate-500 block">Dirección</span>
+                               <span className="font-semibold text-slate-200">{selectedClient.direccion || 'Sin Dirección'}</span>
+                             </div>
+                           </div>
+
+                           {/* Existing supplies summary list to avoid duplicate assignments */}
+                           <div className="mt-3 bg-slate-900/40 p-3 rounded-md border border-slate-800">
+                             <h5 className="text-xs font-semibold text-amber-400 flex items-center gap-1.5 mb-2">
+                               <span>⚠️ Suministros Existentes ({selectedClient.suministros?.length || 0})</span>
+                             </h5>
+                             {selectedClient.suministros && selectedClient.suministros.length > 0 ? (
+                               <div className="flex flex-wrap gap-1.5">
+                                 {selectedClient.suministros.map(sup => (
+                                   <span key={sup} className="px-2.5 py-1 bg-slate-800 text-slate-200 font-mono text-xs rounded border border-slate-700 shadow-sm">
+                                     {normalizeSupplyCode(sup)}
+                                   </span>
+                                 ))}
+                               </div>
+                             ) : (
+                               <p className="text-xs text-slate-400 italic">Este cliente no tiene suministros activos registrados todavía.</p>
+                             )}
+                             <p className="text-[10px] text-slate-400 mt-2 italic">
+                               Al procesar la venta, se generará y anexará un suministro adicional a este cliente.
+                             </p>
+                           </div>
+                         </div>
+                       ) : (
+                         <div className="space-y-2">
+                           <label className="block text-sm font-medium text-slate-300">Buscar por Suministro, DNI o Nombres</label>
+                           <div className="relative">
+                             <input 
+                               type="text" 
+                               placeholder="Escriba DNI, Nombres, Apellidos del cliente..." 
+                               value={clientSearchQuery} 
+                               onChange={(e) => setClientSearchQuery(e.target.value)} 
+                               className="w-full bg-[#0B0E14] border border-slate-700 rounded-md py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-white placeholder:text-slate-500"
+                             />
+                             <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                           </div>
+
+                           {/* Dynamic Results dropdown list */}
+                           {clientSearchQuery.trim() && (
+                             <div className="bg-slate-900 border border-slate-800 rounded-md max-h-56 overflow-y-auto divide-y divide-slate-800/80 mt-1 shadow-lg z-20">
+                               {filteredClients.length === 0 ? (
+                                 <div className="p-4 text-center text-sm text-slate-500">
+                                   No se encontraron coincidencias. Puede registrarlo como <span className="text-blue-400 font-semibold cursor-pointer underline hover:text-blue-300" onClick={() => { setSaleType('NEW_CLIENT'); setClientSearchQuery(''); }}>Cliente Nuevo</span>.
+                                 </div>
+                               ) : (
+                                 filteredClients.map(c => {
+                                   const numSuministros = c.suministros?.length || 0;
+                                   return (
+                                     <div 
+                                       key={c.id} 
+                                       onClick={() => {
+                                         setSelectedClientId(c.id);
+                                         setClientSearchQuery('');
+                                       }} 
+                                       className="p-3 hover:bg-slate-800/60 transition-colors cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                                     >
+                                       <div>
+                                         <div className="font-semibold text-sm text-white">
+                                           {c.nombres} {c.apellidos}
+                                         </div>
+                                         <div className="text-xs text-slate-400 flex flex-wrap gap-x-2 gap-y-0.5 mt-0.5">
+                                           <span>DNI: <strong className="text-slate-300">{c.dni || 'N/A'}</strong></span>
+                                           <span>•</span>
+                                           <span className="truncate max-w-[200px]" title={c.direccion}>Dir: {c.direccion || 'Sin dirección'}</span>
+                                         </div>
+                                       </div>
+                                       <div className="flex items-center gap-2 self-start sm:self-center">
+                                         <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded border border-slate-700 font-mono text-slate-300">
+                                           {numSuministros} sum.
+                                         </span>
+                                         <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
+                                           c.estado === 'ACTIVO' ? 'bg-emerald-500/10 text-emerald-400' :
+                                           c.estado === 'CORTADO' ? 'bg-amber-500/10 text-amber-500' : 'bg-slate-500/10 text-slate-400'
+                                         }`}>
+                                           {c.estado}
+                                         </span>
+                                       </div>
+                                     </div>
+                                   );
+                                 })
+                               )}
+                             </div>
+                           )}
+                         </div>
+                       )}
                      </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-800/30 p-4 rounded-md border border-slate-800/50">

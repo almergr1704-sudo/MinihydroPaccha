@@ -11,6 +11,7 @@ import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { TransactionType, Transaction } from '../store/types';
 import { toast } from 'react-hot-toast';
+import { generateGeneralPaymentReceiptPDF } from '../lib/receipts';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
@@ -475,7 +476,15 @@ export default function Finanzas() {
                     }`}>
                       {t.tipo === 'INGRESO' ? '+' : '-'}{formatCurrency(t.monto)}
                       {t.tipo === 'EGRESO' && (
-                        <Button variant="ghost" size="sm" onClick={() => handleGenerateEgresoPDF(t)} className="ml-2 px-2 text-slate-300 hover:text-white">
+                        <Button variant="ghost" size="sm" onClick={() => handleGenerateEgresoPDF(t)} className="ml-2 px-2 text-slate-300 hover:text-white" title="Descargar comprobante de egreso">
+                          <Download className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {t.tipo === 'INGRESO' && (
+                        <Button variant="ghost" size="sm" onClick={() => {
+                          const client = clients.find(c => c.id === t.clientId);
+                          generateGeneralPaymentReceiptPDF(t, client);
+                        }} className="ml-2 px-2 text-slate-300 hover:text-white" title="Descargar recibo de pago">
                           <Download className="h-4 w-4" />
                         </Button>
                       )}

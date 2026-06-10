@@ -1,6 +1,6 @@
 export type ClientType = 'SOCIO' | 'USUARIO';
 export type TransactionType = 'INGRESO' | 'EGRESO';
-export type IncomeCategory = 'CONSUMO' | 'APORTE' | 'MULTA' | 'RECONEXION' | 'OTROS';
+export type IncomeCategory = 'CONSUMO' | 'APORTE' | 'MULTA' | 'RECONEXION' | 'TRANSFERENCIA' | 'PAGO_EXTRAORDINARIO' | 'VENTA_SERVICIO' | 'OTROS';
 export type ExpenseCategory = 'MANTENIMIENTO' | 'MATERIALES' | 'SUELDOS' | 'EQUIPOS' | 'ADMINISTRATIVOS' | 'OTROS';
 export type AttendanceStatus = 'ASISTIO' | 'FALTA_JUSTIFICADA' | 'FALTA_INJUSTIFICADA';
 export type PaymentStatus = 'PENDIENTE' | 'PAGADO';
