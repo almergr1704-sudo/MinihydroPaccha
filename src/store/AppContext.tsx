@@ -1,12 +1,18 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { AppState, Client, Consumption, Transaction, Meeting, ClientType, Fine, AuditLog } from './types';
+import { AppState, Client, Consumption, Transaction, Meeting, ClientType, Fine, AuditLog, Committee, CommitteeMember } from './types';
 import { normalizeSupplyCode } from '../lib/utils';
+import bcrypt from 'bcryptjs';
 
 interface AppContextType extends AppState {
   user: any;
   userRole: string;
   mustChangePassword?: boolean;
   loadingAuth: boolean;
+  comites: Committee[];
+  addCommittee: (committee: Omit<Committee, 'id' | 'createdBy' | 'createdAt'>) => Promise<void>;
+  updateCommittee: (id: string, updates: Partial<Committee>) => Promise<void>;
+  deleteCommittee: (id: string) => Promise<void>;
+  toggleCommitteeStatus: (id: string) => Promise<void>;
   addAuditLog: (accion: AuditLog['accion'], modulo: AuditLog['modulo'], detalles: string) => void;
   addClient: (client: Omit<Client, 'id' | 'fechaRegistro'>) => Promise<Client>;
   updateClient: (id: string, client: Partial<Client>) => Promise<void>;
@@ -45,6 +51,7 @@ const initialData: AppState = {
   fines: [],
   auditLogs: [],
   suppliesInfo: [],
+  comites: [],
   settings: {
     costoSocio: 0.20,
     costoUsuario: 0.30,
@@ -70,6 +77,7 @@ const getLocalData = (): AppState => {
         auditLogs: parsed.auditLogs || initialData.auditLogs,
         suppliesInfo: parsed.suppliesInfo || initialData.suppliesInfo,
         settings: { ...initialData.settings, ...(parsed.settings || {}) },
+        comites: parsed.comites || [],
       };
     } catch (e) {
       console.error('Failed to parse local data', e);
@@ -99,6 +107,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     if (!data.suppliesInfo) {
       data.suppliesInfo = [];
+    }
+    if (!data.comites) {
+      data.comites = [];
     }
     
     // Ensure default admin exists
@@ -396,6 +407,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const client = currentState.clients.find(c => c.id === consumption.clientId);
       if (!client) return currentState;
 
+      // Check if this supply is currently exonerated by an active committee
+      let isExonerated = false;
+      if (currentState.comites) {
+        const activeComite = currentState.comites.find(c => c.activo);
+        if (activeComite) {
+          // Check if consumption.mes falls within comite period
+          const compDate = new Date(`${consumption.mes}-02`);
+          const start = new Date(activeComite.fechaInicio);
+          const end = new Date(activeComite.fechaFin);
+          if (compDate >= start && compDate <= end) {
+            const members = [
+              activeComite.presidente,
+              activeComite.secretario,
+              activeComite.tesorero,
+              activeComite.fiscalizador
+            ].filter(Boolean);
+            if (members.some(m => m.supplyCodeExonerado === consumption.codigoSuministro)) {
+              isExonerated = true;
+            }
+          }
+        }
+      }
+
       const settings = currentState.settings || initialData.settings;
       const isSocio = currentState.suppliesInfo.find(s => s.codigo === consumption.codigoSuministro)?.isSocio ?? (client.tipo === 'SOCIO');
       const tarifa = client.faseSuministro === 'TRIFASICO' && settings.costoTrifasico > 0 
@@ -403,8 +437,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         : isSocio ? settings.costoSocio : settings.costoUsuario;
         
       const minimoAplica = settings.consumoMinimo !== undefined ? settings.consumoMinimo : 6;
-      let montoCalculado = (consumption.kwh || 0) * tarifa;
-      if (montoCalculado < minimoAplica) {
+      let montoCalculado = isExonerated ? 0 : (consumption.kwh || 0) * tarifa;
+      if (!isExonerated && montoCalculado < minimoAplica) {
         montoCalculado = minimoAplica;
       }
       
@@ -415,6 +449,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         montoCalculado,
         estadoPago: 'PENDIENTE',
         createdBy: user?.email || 'Unknown',
+        observacion: isExonerated 
+          ? `EXONERADO (Miembro Comité Directivo). ${consumption.observacion || ''}`.trim()
+          : consumption.observacion
       };
       
       const newState = { ...currentState, consumptions: [...currentState.consumptions, newConsumption] };
@@ -560,6 +597,227 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     persistState({ ...state, meetings: newMeetings, fines: newFines });
   };
 
+  const syncCommitteeAdmins = (stateData: AppState, comite: Committee, oldActiveComite?: Committee) => {
+    let updatedAdmins = [...stateData.admins];
+
+    const syncMember = (member: CommitteeMember | undefined, role: string) => {
+      if (!member || !member.clientId) return;
+      const client = stateData.clients.find(c => c.id === member.clientId);
+      if (!client) return;
+
+      const dni = client.dni;
+      const email = client.correo || `${dni}@paccha.local`;
+      const existingIndex = updatedAdmins.findIndex(a => a.dni === dni || a.email?.toLowerCase() === email.toLowerCase());
+
+      if (existingIndex >= 0) {
+        updatedAdmins[existingIndex] = {
+          ...updatedAdmins[existingIndex],
+          role: role,
+          estado: 'ACTIVO'
+        };
+      } else {
+        const firstName = client.nombres || '';
+        const lastName = client.apellidos || '';
+        const usernameBase = (firstName.charAt(0) + (lastName.split(' ')[0] || '')).toLowerCase().replace(/[^a-z0-9]/g, '');
+        const finalUsername = `${usernameBase}${dni.slice(-2) || '00'}`;
+        const tempPassword = `Comite2026#`;
+        const hashedPassword = bcrypt.hashSync(tempPassword, 10);
+
+        updatedAdmins.push({
+          id: 'admin_' + Math.random().toString(36).substr(2, 9),
+          email: email.toLowerCase(),
+          username: finalUsername.toLowerCase(),
+          password: hashedPassword,
+          nombres: firstName,
+          apellidos: lastName,
+          dni: dni,
+          role: role,
+          estado: 'ACTIVO',
+          mustChangePassword: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          createdBy: 'SISTEMA_COMITE',
+          updatedBy: 'SISTEMA_COMITE'
+        });
+      }
+    };
+
+    if (oldActiveComite) {
+      const oldMemberIds = [
+        oldActiveComite.presidente?.clientId,
+        oldActiveComite.secretario?.clientId,
+        oldActiveComite.tesorero?.clientId,
+        oldActiveComite.fiscalizador?.clientId
+      ].filter(Boolean);
+
+      const newMemberIds = [
+        comite.presidente?.clientId,
+        comite.secretario?.clientId,
+        comite.tesorero?.clientId,
+        comite.fiscalizador?.clientId
+      ].filter(Boolean);
+
+      oldMemberIds.forEach(oldId => {
+        if (!newMemberIds.includes(oldId)) {
+          const client = stateData.clients.find(c => c.id === oldId);
+          if (client) {
+            const adminIdx = updatedAdmins.findIndex(a => a.dni === client.dni && a.id !== 'admin_default');
+            if (adminIdx >= 0) {
+              updatedAdmins[adminIdx] = {
+                ...updatedAdmins[adminIdx],
+                estado: 'INACTIVO'
+              };
+            }
+          }
+        }
+      });
+    }
+
+    syncMember(comite.presidente, 'ADMIN');
+    syncMember(comite.secretario, 'SECRETARIO');
+    syncMember(comite.tesorero, 'TESORERO');
+    syncMember(comite.fiscalizador, 'FISCALIZADOR');
+
+    return updatedAdmins;
+  };
+
+  const deactiveMembersAdmins = (stateData: AppState, comite: Committee) => {
+    let updatedAdmins = [...stateData.admins];
+    const memberIds = [
+      comite.presidente?.clientId,
+      comite.secretario?.clientId,
+      comite.tesorero?.clientId,
+      comite.fiscalizador?.clientId
+    ].filter(Boolean);
+
+    memberIds.forEach(id => {
+      const client = stateData.clients.find(c => c.id === id);
+      if (client) {
+        const adminIdx = updatedAdmins.findIndex(a => a.dni === client.dni && a.id !== 'admin_default');
+        if (adminIdx >= 0) {
+          updatedAdmins[adminIdx] = {
+            ...updatedAdmins[adminIdx],
+            estado: 'INACTIVO'
+          };
+        }
+      }
+    });
+
+    return updatedAdmins;
+  };
+
+  const addCommittee = async (committee: Omit<Committee, 'id' | 'createdBy' | 'createdAt'>) => {
+    setState(prev => {
+      const id = generateId();
+      const newComite: Committee = {
+        ...committee,
+        id,
+        createdAt: new Date().toISOString(),
+        createdBy: user?.email || 'Unknown'
+      };
+
+      let updatedComites = [...(prev.comites || [])];
+      let updatedAdmins = [...prev.admins];
+
+      if (newComite.activo) {
+        const oldActive = updatedComites.find(c => c.activo);
+        updatedComites = updatedComites.map(c => ({ ...c, activo: false }));
+        updatedAdmins = syncCommitteeAdmins(prev, newComite, oldActive);
+      }
+
+      updatedComites.push(newComite);
+
+      const newState = { ...prev, comites: updatedComites, admins: updatedAdmins };
+      setLocalData(newState);
+      setTimeout(() => addAuditLog('CREAR', 'SISTEMA', `Registró nuevo comité: ${committee.nombrePeriodo}`), 0);
+      return newState;
+    });
+  };
+
+  const updateCommittee = async (id: string, updates: Partial<Committee>) => {
+    setState(prev => {
+      let updatedComites = [...(prev.comites || [])];
+      let updatedAdmins = [...prev.admins];
+      
+      const targetComiteIdx = updatedComites.findIndex(c => c.id === id);
+      if (targetComiteIdx === -1) return prev;
+
+      const oldComite = updatedComites[targetComiteIdx];
+      const mergedComite = { ...oldComite, ...updates };
+
+      if (updates.activo !== undefined) {
+        if (updates.activo === true) {
+          const oldActive = updatedComites.find(c => c.activo && c.id !== id);
+          updatedComites = updatedComites.map(c => c.id === id ? mergedComite : { ...c, activo: false });
+          updatedAdmins = syncCommitteeAdmins(prev, mergedComite, oldActive);
+        } else {
+          updatedComites = updatedComites.map(c => c.id === id ? mergedComite : c);
+          updatedAdmins = deactiveMembersAdmins(prev, mergedComite);
+        }
+      } else {
+        updatedComites[targetComiteIdx] = mergedComite;
+        if (mergedComite.activo) {
+          updatedAdmins = syncCommitteeAdmins(prev, mergedComite, oldComite);
+        }
+      }
+
+      const newState = { ...prev, comites: updatedComites, admins: updatedAdmins };
+      setLocalData(newState);
+      setTimeout(() => addAuditLog('ACTUALIZAR', 'SISTEMA', `Actualizó comité: ${mergedComite.nombrePeriodo}`), 0);
+      return newState;
+    });
+  };
+
+  const deleteCommittee = async (id: string) => {
+    setState(prev => {
+      const targetComite = (prev.comites || []).find(c => c.id === id);
+      if (!targetComite) return prev;
+
+      let updatedAdmins = [...prev.admins];
+      if (targetComite.activo) {
+        updatedAdmins = deactiveMembersAdmins(prev, targetComite);
+      }
+
+      const updatedComites = (prev.comites || []).filter(c => c.id !== id);
+      const newState = { ...prev, comites: updatedComites, admins: updatedAdmins };
+      setLocalData(newState);
+      setTimeout(() => addAuditLog('ELIMINAR', 'SISTEMA', `Eliminó comité: ${targetComite.nombrePeriodo}`), 0);
+      return newState;
+    });
+  };
+
+  const toggleCommitteeStatus = async (id: string) => {
+    setState(prev => {
+      let updatedComites = [...(prev.comites || [])];
+      let updatedAdmins = [...prev.admins];
+
+      const targetIdx = updatedComites.findIndex(c => c.id === id);
+      if (targetIdx === -1) return prev;
+
+      const targetComite = updatedComites[targetIdx];
+      const newStatus = !targetComite.activo;
+
+      if (newStatus === true) {
+        const oldActive = updatedComites.find(c => c.activo);
+        updatedComites = updatedComites.map((c, idx) => {
+          if (idx === targetIdx) {
+            return { ...c, activo: true };
+          }
+          return { ...c, activo: false };
+        });
+        updatedAdmins = syncCommitteeAdmins(prev, { ...targetComite, activo: true }, oldActive);
+      } else {
+        updatedComites[targetIdx] = { ...targetComite, activo: false };
+        updatedAdmins = deactiveMembersAdmins(prev, targetComite);
+      }
+
+      const newState = { ...prev, comites: updatedComites, admins: updatedAdmins };
+      setLocalData(newState);
+      setTimeout(() => addAuditLog('ACTUALIZAR', 'SISTEMA', `Modificó estado de vigencia del comité: ${targetComite.nombrePeriodo}`), 0);
+      return newState;
+    });
+  };
+
   const updateSettings = async (settings: any) => {
     persistState({
       ...state,
@@ -571,6 +829,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider value={{
       ...state,
+      comites: state.comites || [],
       user,
       userRole,
       mustChangePassword,
@@ -595,7 +854,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setSupplySocioStatus,
       login,
       logout,
-      addAuditLog
+      addAuditLog,
+      addCommittee,
+      updateCommittee,
+      deleteCommittee,
+      toggleCommitteeStatus
     }}>
       {children}
     </AppContext.Provider>

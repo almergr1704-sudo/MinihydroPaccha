@@ -9,10 +9,14 @@ import { jsPDF } from 'jspdf';
 import { PasswordStrengthIndicator, evaluatePasswordStrength } from '../components/PasswordStrengthIndicator';
 import html2canvas from 'html2canvas';
 import ManualCapture from '../components/ManualCapture';
+import ComiteDirectivo from '../components/ComiteDirectivo';
 
 export default function Configuracion() {
   const { settings, updateSettings, userRole, user, updateAdmin, admins, mustChangePassword } = useAppContext();
   const { confirm } = useConfirm();
+  const [configTab, setConfigTab] = useState<'operativa' | 'comite' | 'cuenta' | 'datos_manuales'>(() => {
+    return userRole === 'ADMIN' ? 'operativa' : 'comite';
+  });
   const [isCapturing, setIsCapturing] = useState(false);
   const [formData, setFormData] = useState({
     costoSocio: 0.20,
@@ -484,6 +488,57 @@ export default function Configuracion() {
           </p>
         </div>
       </div>
+
+      {!mustChangePassword && (
+        <div className="flex border-b border-slate-700/60 space-x-2 md:space-x-4 mb-2 overflow-x-auto pb-1 scrollbar-none">
+          {userRole === 'ADMIN' && (
+            <button
+              type="button"
+              onClick={() => setConfigTab('operativa')}
+              className={`pb-3 text-xs md:text-sm font-semibold border-b-2 transition-all px-2 whitespace-nowrap ${
+                configTab === 'operativa' 
+                  ? 'border-blue-500 text-blue-400' 
+                  : 'border-transparent text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Configuración Operativa
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setConfigTab('comite')}
+            className={`pb-3 text-xs md:text-sm font-semibold border-b-2 transition-all px-2 whitespace-nowrap ${
+              configTab === 'comite' 
+                ? 'border-blue-500 text-blue-400' 
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            Comité Directivo de la Central
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfigTab('cuenta')}
+            className={`pb-3 text-xs md:text-sm font-semibold border-b-2 transition-all px-2 whitespace-nowrap ${
+              configTab === 'cuenta' 
+                ? 'border-blue-500 text-blue-400' 
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            Mi Cuenta (Contraseña)
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfigTab('datos_manuales')}
+            className={`pb-3 text-xs md:text-sm font-semibold border-b-2 transition-all px-2 whitespace-nowrap ${
+              configTab === 'datos_manuales' 
+                ? 'border-blue-500 text-blue-400' 
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Copias de Respaldo & Manuales
+            </button>
+          </div>
+        )}
       
       {mustChangePassword && (
         <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-lg">
@@ -493,7 +548,7 @@ export default function Configuracion() {
         </div>
       )}
 
-      {(!mustChangePassword && userRole === 'ADMIN') && (
+      {(!mustChangePassword && configTab === 'operativa' && userRole === 'ADMIN') && (
         <Card>
           <CardContent className="p-6">
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -644,6 +699,11 @@ export default function Configuracion() {
       </Card>
       )}
 
+      {!mustChangePassword && configTab === 'comite' && (
+        <ComiteDirectivo />
+      )}
+
+      {(mustChangePassword || configTab === 'cuenta') && (
       <Card>
         <CardContent className="p-6">
           <form onSubmit={handlePasswordChange} className="space-y-6">
@@ -721,7 +781,9 @@ export default function Configuracion() {
           </form>
         </CardContent>
       </Card>
-      {(!mustChangePassword && userRole === 'ADMIN') && (
+      )}
+
+      {(!mustChangePassword && configTab === 'datos_manuales' && userRole === 'ADMIN') && (
         <Card>
           <CardContent className="p-6">
             <div className="space-y-6">
@@ -755,7 +817,8 @@ export default function Configuracion() {
         </CardContent>
       </Card>
       )}
-      {!mustChangePassword && (
+
+      {(!mustChangePassword && configTab === 'datos_manuales') && (
       <Card>
         <CardContent className="p-6">
           <div className="space-y-6">

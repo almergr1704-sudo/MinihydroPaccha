@@ -119,4 +119,25 @@ export interface AppState {
   settings: AppSettings;
   auditLogs: AuditLog[];
   suppliesInfo: SupplyInfo[];
+  comites?: Committee[];
+}
+
+export interface CommitteeMember {
+  clientId: string; 
+  nombreCompleto: string; 
+  supplyCodeExonerado?: string; 
+}
+
+export interface Committee {
+  id: string;
+  nombrePeriodo: string; 
+  fechaInicio: string; 
+  fechaFin: string; 
+  presidente: CommitteeMember;
+  secretario: CommitteeMember;
+  tesorero: CommitteeMember;
+  fiscalizador: CommitteeMember;
+  activo: boolean; 
+  createdBy: string;
+  createdAt: string;
 }
