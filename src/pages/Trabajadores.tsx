@@ -7,7 +7,6 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { generatePayrollReceiptPDF } from '../lib/receipts';
-import { motion } from 'motion/react';
 
 export default function Trabajadores() {
   const { 
@@ -602,7 +601,7 @@ export default function Trabajadores() {
                         className="mt-1 block w-full py-2 px-3 border border-slate-800 bg-[#0C101A] rounded-lg text-xs text-slate-100 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                         placeholder="Nombres del trabajador"
                         value={workerForm?.nombres || ''}
-                        onChange={(e) => setWorkerForm({ ...workerForm, nombres: e.target.value })}
+                        onChange={(e) => setWorkerForm(prev => ({ ...prev, nombres: e.target.value }))}
                       />
                     </div>
                     <div>
@@ -613,7 +612,7 @@ export default function Trabajadores() {
                         className="mt-1 block w-full py-2 px-3 border border-slate-800 bg-[#0C101A] rounded-lg text-xs text-slate-100 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                         placeholder="Apellidos del trabajador"
                         value={workerForm?.apellidos || ''}
-                        onChange={(e) => setWorkerForm({ ...workerForm, apellidos: e.target.value })}
+                        onChange={(e) => setWorkerForm(prev => ({ ...prev, apellidos: e.target.value }))}
                       />
                     </div>
                   </div>
@@ -628,7 +627,7 @@ export default function Trabajadores() {
                         className="mt-1 block w-full py-2 px-3 border border-slate-800 bg-[#0C101A] rounded-lg text-xs text-slate-100 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                         placeholder="8 dígitos"
                         value={workerForm?.dni || ''}
-                        onChange={(e) => setWorkerForm({ ...workerForm, dni: e.target.value.replace(/\D/g, '') })}
+                        onChange={(e) => setWorkerForm(prev => ({ ...prev, dni: e.target.value.replace(/\D/g, '') }))}
                       />
                     </div>
                     <div>
@@ -641,7 +640,7 @@ export default function Trabajadores() {
                         className="mt-1 block w-full py-2 px-3 border border-slate-800 bg-[#0C101A] rounded-lg text-xs text-emerald-400 font-bold outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                         placeholder="Ejemplo: 1200"
                         value={workerForm?.sueldoMensual === 0 ? '' : (workerForm?.sueldoMensual ?? '')}
-                        onChange={(e) => setWorkerForm({ ...workerForm, sueldoMensual: Number(e.target.value) })}
+                        onChange={(e) => setWorkerForm(prev => ({ ...prev, sueldoMensual: Number(e.target.value) || 0 }))}
                       />
                     </div>
                   </div>
@@ -654,7 +653,7 @@ export default function Trabajadores() {
                       className="mt-1 block w-full py-2 px-3 border border-slate-800 bg-[#0C101A] rounded-lg text-xs text-slate-100 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                       placeholder="Ej. Operario de Turbinas, Guardián, Electricista"
                       value={workerForm?.cargo || ''}
-                      onChange={(e) => setWorkerForm({ ...workerForm, cargo: e.target.value })}
+                      onChange={(e) => setWorkerForm(prev => ({ ...prev, cargo: e.target.value }))}
                     />
                   </div>
 
@@ -666,7 +665,7 @@ export default function Trabajadores() {
                         className="mt-1 block w-full py-2 px-3 border border-slate-800 bg-[#0C101A] rounded-lg text-xs text-slate-100 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 font-mono"
                         placeholder="Opcional"
                         value={workerForm?.telefono || ''}
-                        onChange={(e) => setWorkerForm({ ...workerForm, telefono: e.target.value })}
+                        onChange={(e) => setWorkerForm(prev => ({ ...prev, telefono: e.target.value }))}
                       />
                     </div>
                     <div>
@@ -676,7 +675,7 @@ export default function Trabajadores() {
                         className="mt-1 block w-full py-2 px-3 border border-slate-800 bg-[#0C101A] rounded-lg text-xs text-slate-100 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                         placeholder="Opcional"
                         value={workerForm?.correo || ''}
-                        onChange={(e) => setWorkerForm({ ...workerForm, correo: e.target.value })}
+                        onChange={(e) => setWorkerForm(prev => ({ ...prev, correo: e.target.value }))}
                       />
                     </div>
                   </div>
@@ -688,7 +687,7 @@ export default function Trabajadores() {
                       className="mt-1 block w-full py-2 px-3 border border-slate-800 bg-[#0C101A] rounded-lg text-xs text-slate-100 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                       placeholder="Dirección del domicilio (Opcional)"
                       value={workerForm?.direccion || ''}
-                      onChange={(e) => setWorkerForm({ ...workerForm, direccion: e.target.value })}
+                      onChange={(e) => setWorkerForm(prev => ({ ...prev, direccion: e.target.value }))}
                     />
                   </div>
 
@@ -699,23 +698,21 @@ export default function Trabajadores() {
                       className="mt-1 block w-full py-2 px-3 border border-slate-800 bg-[#0C101A] rounded-lg text-xs text-slate-100 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                       placeholder="Añadir observaciones sobre el contrato, turnos, etc (Opcional)"
                       value={workerForm?.observaciones || ''}
-                      onChange={(e) => setWorkerForm({ ...workerForm, observaciones: e.target.value })}
+                      onChange={(e) => setWorkerForm(prev => ({ ...prev, observaciones: e.target.value }))}
                     />
                   </div>
 
-                  {editingWorkerId && (
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-400">Estado Contractual</label>
-                      <select
-                        className="mt-1 block w-full py-2 px-3 border border-slate-800 bg-[#0C101A] rounded-lg text-xs text-slate-100 outline-none focus:ring-1 focus:ring-blue-500"
-                        value={workerForm?.estado || 'ACTIVO'}
-                        onChange={(e: any) => setWorkerForm({ ...workerForm, estado: e.target.value })}
-                      >
-                        <option value="ACTIVO">ACTIVO</option>
-                        <option value="INACTIVO">INACTIVO</option>
-                      </select>
-                    </div>
-                  )}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400">Estado Contractual</label>
+                    <select
+                      className="mt-1 block w-full py-2 px-3 border border-slate-800 bg-[#0C101A] rounded-lg text-xs text-slate-100 outline-none focus:ring-1 focus:ring-blue-500"
+                      value={workerForm?.estado || 'ACTIVO'}
+                      onChange={(e: any) => setWorkerForm(prev => ({ ...prev, estado: e.target.value }))}
+                    >
+                      <option value="ACTIVO">ACTIVO</option>
+                      <option value="INACTIVO">INACTIVO</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div className="bg-slate-900/60 px-6 py-3 sm:flex sm:flex-row-reverse sm:gap-2 border-t border-slate-800">
