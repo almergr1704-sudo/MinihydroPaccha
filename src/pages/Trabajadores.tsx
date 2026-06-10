@@ -136,33 +136,46 @@ export default function Trabajadores() {
 
   // Format YYYY-MM to Spanish Month Name
   const formatMes = (mesRaw: string) => {
-    const [year, month] = mesRaw.split('-');
+    if (!mesRaw || typeof mesRaw !== 'string') return mesRaw || '';
+    const parts = mesRaw.split('-');
+    if (parts.length < 2) return mesRaw;
+    const [year, month] = parts;
     const mNames = [
       'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
       'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
     ];
-    const monthName = mNames[parseInt(month, 10) - 1] || month;
+    const monthIndex = parseInt(month, 10) - 1;
+    const monthName = mNames[monthIndex] || month;
     return `${monthName} ${year}`;
   };
 
+  const formatFecha = (dateStr: string | undefined | null) => {
+    if (!dateStr) return 'N/A';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return 'N/A';
+    return d.toLocaleDateString('es-PE');
+  };
+
   // Calculate Metrics
-  const activeWorkers = trabajadores.filter(t => t.estado === 'ACTIVO');
-  const inactiveWorkers = trabajadores.filter(t => t.estado === 'INACTIVO');
+  const activeWorkers = (trabajadores || []).filter(t => t && t.estado === 'ACTIVO');
+  const inactiveWorkers = (trabajadores || []).filter(t => t && t.estado === 'INACTIVO');
   
   // Total wages registered this year
-  const filteredYearlyPayments = pagosSueldos.filter(p => p.mesPagado.startsWith(reportYear));
-  const totalYearlyWages = filteredYearlyPayments.reduce((acc, p) => acc + p.monto, 0);
+  const filteredYearlyPayments = (pagosSueldos || []).filter(p => p && p.mesPagado && p.mesPagado.startsWith(reportYear));
+  const totalYearlyWages = filteredYearlyPayments.reduce((acc, p) => acc + (p.monto || 0), 0);
 
   // Filtered workers list
-  const filteredWorkers = trabajadores.filter(worker => {
-    const query = `${worker.nombres} ${worker.apellidos} ${worker.dni} ${worker.cargo}`.toLowerCase();
+  const filteredWorkers = (trabajadores || []).filter(worker => {
+    if (!worker) return false;
+    const query = `${worker.nombres || ''} ${worker.apellidos || ''} ${worker.dni || ''} ${worker.cargo || ''}`.toLowerCase();
     const matchesSearch = query.includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'TODOS' || worker.estado === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
   // Payments lists corresponding to single worker or months
-  const filteredPayments = pagosSueldos.filter(p => {
+  const filteredPayments = (pagosSueldos || []).filter(p => {
+    if (!p) return false;
     const matchesWorker = reportWorkerId === 'ALL' || p.trabajadorId === reportWorkerId;
     const matchesMonth = !reportMonth || p.mesPagado === reportMonth;
     return matchesWorker && matchesMonth;
@@ -284,7 +297,7 @@ export default function Trabajadores() {
               <div>
                 <span className="text-xs font-semibold text-slate-500 block">COSTO PLANILLA MENSUAL EST.</span>
                 <span className="text-2xl font-bold text-blue-400 font-mono block mt-1">
-                  S/ {activeWorkers.reduce((acc, t) => acc + t.sueldoMensual, 0).toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+                  S/ {activeWorkers.reduce((acc, t) => acc + (t.sueldoMensual || 0), 0).toLocaleString('es-PE', { minimumFractionDigits: 2 })}
                 </span>
               </div>
               <div className="h-10 w-10 bg-blue-500/10 rounded-lg flex items-center justify-center border border-blue-500/20">
@@ -330,7 +343,9 @@ export default function Trabajadores() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filteredWorkers.map(worker => (
+              {filteredWorkers.map(worker => {
+                if (!worker) return null;
+                return (
                 <div 
                   key={worker.id}
                   className="bg-[#111622] border border-slate-800 rounded-xl p-5 hover:border-slate-750 transition-all duration-150 flex flex-col justify-between"
@@ -344,18 +359,18 @@ export default function Trabajadores() {
                             ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-550/10' 
                             : 'bg-rose-500/10 text-rose-400 border border-rose-550/10'
                         }`}>
-                          {worker.estado}
+                          {worker.estado || 'ACTIVO'}
                         </span>
 
                         <h3 className="text-base font-bold text-slate-100 mt-2">
-                          {worker.apellidos}, {worker.nombres}
+                          {worker.apellidos || ''}, {worker.nombres || ''}
                         </h3>
-                        <p className="text-xs text-slate-400 font-medium">DNI {worker.dni}</p>
+                        <p className="text-xs text-slate-400 font-medium">DNI {worker.dni || ''}</p>
                       </div>
 
                       <div className="text-right">
                         <span className="text-xs text-slate-500 block">Sueldo Asignado</span>
-                        <span className="text-sm font-bold text-teal-400 font-mono">S/ {worker.sueldoMensual.toFixed(2)}</span>
+                        <span className="text-sm font-bold text-teal-400 font-mono">S/ {(worker.sueldoMensual || 0).toFixed(2)}</span>
                       </div>
                     </div>
 
@@ -363,12 +378,12 @@ export default function Trabajadores() {
                     <div className="grid grid-cols-2 gap-y-2 gap-x-4 border-t border-slate-800/60 pt-4 mt-4 text-xs">
                       <div>
                         <span className="text-slate-500 block">Cargo / Rol</span>
-                        <span className="text-slate-200 font-medium">{worker.cargo}</span>
+                        <span className="text-slate-200 font-medium">{worker.cargo || 'N/A'}</span>
                       </div>
                       <div>
                         <span className="text-slate-500 block">Fecha Registro</span>
-                        <span className="text-slate-200 font-medium">
-                          {new Date(worker.fechaRegistro).toLocaleDateString('es-PE')}
+                        <span className="text-slate-200 font-medium font-mono">
+                          {formatFecha(worker.fechaRegistro)}
                         </span>
                       </div>
                       {worker.telefono && (
@@ -421,7 +436,7 @@ export default function Trabajadores() {
                     </div>
                   </div>
                 </div>
-              ))}
+              )})}
             </div>
           )}
         </div>

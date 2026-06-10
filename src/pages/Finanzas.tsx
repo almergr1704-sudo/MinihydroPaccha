@@ -979,9 +979,9 @@ export default function Finanzas() {
                       }}
                     >
                       <option value="">-- Seleccionar Trabajador Activo --</option>
-                      {trabajadores.filter((t: any) => t.estado === 'ACTIVO').map((t: any) => (
+                      {(trabajadores || []).filter((t: any) => t && t.estado === 'ACTIVO').map((t: any) => (
                         <option key={t.id} value={t.id}>
-                          {t.apellidos}, {t.nombres} - {t.cargo} (S/ {t.sueldoMensual.toFixed(2)})
+                          {t.apellidos || ''}, {t.nombres || ''} - {t.cargo || ''} (S/ {Number(t.sueldoMensual || 0).toFixed(2)})
                         </option>
                       ))}
                     </select>
