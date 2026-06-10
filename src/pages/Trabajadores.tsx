@@ -10,8 +10,8 @@ import { generatePayrollReceiptPDF } from '../lib/receipts';
 
 export default function Trabajadores() {
   const { 
-    trabajadores, 
-    pagosSueldos, 
+    trabajadores = [], 
+    pagosSueldos = [], 
     addTrabajador, 
     updateTrabajador, 
     userRole 

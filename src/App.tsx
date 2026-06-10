@@ -70,7 +70,15 @@ const AuthGuard = ({ children }: { children: React.ReactNode }) => {
 const RoleGuard = ({ children, allowedRoles }: { children: React.ReactNode, allowedRoles: string[] }) => {
   const { userRole } = useAppContext();
   if (!allowedRoles.includes(userRole)) {
-    return <Navigate to={userRole === 'OPERATOR' ? '/consumo' : '/'} replace />;
+    let fallbackPath = '/';
+    if (userRole === 'OPERATOR') {
+      fallbackPath = '/consumo';
+    } else if (userRole === 'SECRETARIO') {
+      fallbackPath = '/reuniones';
+    } else if (userRole === 'VOCAL') {
+      fallbackPath = '/reportes';
+    }
+    return <Navigate to={fallbackPath} replace />;
   }
   return <>{children}</>;
 };
