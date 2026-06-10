@@ -58,25 +58,12 @@ export default function Finanzas() {
   const handleGenerateEgresoPDF = (t: Transaction) => {
     const toastId = toast.loading('Generando PDF...');
     try {
-      const doc = new jsPDF();
-    doc.setFontSize(20);
-    doc.text('Mini Central Hidroeléctrica Paccha', 14, 22);
-    doc.setFontSize(12);
-    doc.text('Comprobante de Egreso', 14, 30);
-    
-    doc.setFontSize(10);
-    doc.text(`Fecha: ${format(parseISO(t.fecha), 'dd MMM yyyy, HH:mm')}`, 14, 40);
-    doc.text(`Categoría: ${t.categoria}`, 14, 45);
-    
-    doc.text('Detalles del Pago:', 14, 55);
-    doc.text(`Pagado a (Nombres/Apellidos): ${t.destinatario || 'No especificado'}`, 14, 60);
-    doc.text(`Monto: ${formatCurrency(t.monto)}`, 14, 65);
-    
-    const splitDesc = doc.splitTextToSize(`Concepto / Descripción: ${t.descripcion}`, 180);
-    doc.text(splitDesc, 14, 70);
-
-      doc.save(`Egreso_${t.fecha}.pdf`);
-      toast.success('Comprobante generado y descargado con éxito.', { id: toastId });
+      const success = generateGeneralPaymentReceiptPDF(t, undefined);
+      if (success) {
+        toast.success('Comprobante generado y descargado con éxito.', { id: toastId });
+      } else {
+        toast.error('Error al generar comprobante.', { id: toastId });
+      }
     } catch (error) {
       console.error('Error generating PDF:', error);
       toast.error('Error al generar comprobante.', { id: toastId });

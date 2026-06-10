@@ -24,11 +24,12 @@ export function generateGeneralPaymentReceiptPDF(transaction: Transaction, clien
     });
 
     const centerX = 40;
+    const isEgreso = transaction.tipo === 'EGRESO';
 
     // --- ENCABEZADO INSTITUCIONAL UNIFORME ---
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(12);
-    doc.text('COMPROBANTE DE PAGO', centerX, 12, { align: 'center' });
+    doc.text(isEgreso ? 'COMPROBANTE DE EGRESO' : 'COMPROBANTE DE PAGO', centerX, 12, { align: 'center' });
     
     doc.setFontSize(9);
     doc.text('Mini Central Hidroeléctrica Paccha', centerX, 17, { align: 'center' });
@@ -67,18 +68,21 @@ export function generateGeneralPaymentReceiptPDF(transaction: Transaction, clien
     doc.text('Estado del Pago:', 5, 56);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(16, 185, 129); // Emerald-500 style
-    doc.text('PAGADO / CONFORME', 31, 56);
+    doc.text(isEgreso ? 'ENTREGADO / EGRESO' : 'PAGADO / CONFORME', 31, 56);
     doc.setTextColor(0, 0, 0); // Reset color
     
     doc.setLineWidth(0.2);
     doc.line(5, 59, 75, 59);
 
-    // --- DATOS DEL CLIENTE ---
-    doc.setFont('helvetica', 'bold');
-    doc.text('DATOS DEL CLIENTE:', 5, 63);
-    
-    doc.setFont('helvetica', 'normal');
+    // Dynamic concept mapping & table offset calculation
+    let finalInfoStartY = 76;
+
+    // --- DATOS DEL CLIENTE / RECEPTOR ---
     if (client) {
+      doc.setFont('helvetica', 'bold');
+      doc.text('DATOS DEL CLIENTE:', 5, 63);
+      
+      doc.setFont('helvetica', 'normal');
       const clientName = `${client.apellidos}, ${client.nombres}`;
       const clientNameLines = doc.splitTextToSize(clientName, 68);
       doc.text(clientNameLines, 5, 68);
@@ -86,7 +90,13 @@ export function generateGeneralPaymentReceiptPDF(transaction: Transaction, clien
       const clientLinesOffset = (clientNameLines.length - 1) * 4;
       const nextY = 73 + clientLinesOffset;
       
-      doc.text(`DNI / RUC: ${client.dni || 'No Registrado'}`, 5, nextY);
+      // Modificación RUC: Mostrar RUC si corresponde o es EMPRESA, si no, DNI
+      const isEnterprise = client.tipoPersona === 'EMPRESA' || (client.dni && client.dni.length === 11);
+      if (isEnterprise) {
+        doc.text(`RUC: ${client.dni || '____________________'}`, 5, nextY);
+      } else {
+        doc.text(`DNI: ${client.dni || 'No Registrado'}`, 5, nextY);
+      }
       
       const isSocio = client.tipo === 'SOCIO' ? 'Socio (Propietario / Comunitario)' : 'Usuario Regular (No Socio)';
       doc.text(`Condición: ${isSocio}`, 5, nextY + 4);
@@ -99,31 +109,55 @@ export function generateGeneralPaymentReceiptPDF(transaction: Transaction, clien
       const addressLinesOffset = (addressLines.length - 1) * 4;
       const supplyY = nextY + 12 + addressLinesOffset;
 
-      // Código de suministro (cuando corresponda, check if client has any)
-      let supplyCode = 'No aplica';
-      if (client.suministros && client.suministros.length > 0) {
-        supplyCode = client.suministros.join(', ');
-      } else if (client.codigoSuministro) {
-        supplyCode = client.codigoSuministro;
-      } else if (transaction.referencia && (transaction.referencia.includes('SUM-') || transaction.referencia.includes('Suministro'))) {
-        const match = transaction.referencia.match(/SUM-\d+/i);
-        if (match) supplyCode = match[0].toUpperCase();
+      // Código Suministro: Mantener únicamente en Venta de Suministros, Transferencia o relacionados
+      const isSupplyRelated = 
+        transaction.categoria === 'VENTA_SERVICIO' || 
+        transaction.categoria === 'TRANSFERENCIA' ||
+        (transaction.referencia && /SUM-\d+/i.test(transaction.referencia)) ||
+        (transaction.descripcion && /SUM-\d+/i.test(transaction.descripcion));
+
+      if (isSupplyRelated) {
+        let supplyCode = 'No aplica';
+        if (client.suministros && client.suministros.length > 0) {
+          supplyCode = client.suministros.join(', ');
+        } else if (client.codigoSuministro) {
+          supplyCode = client.codigoSuministro;
+        } else if (transaction.referencia && (transaction.referencia.includes('SUM-') || transaction.referencia.includes('Suministro'))) {
+          const match = transaction.referencia.match(/SUM-\d+/i);
+          if (match) supplyCode = match[0].toUpperCase();
+        }
+        
+        doc.setFont('helvetica', 'bold');
+        doc.text(`Código Suministro: ${supplyCode}`, 5, supplyY);
+        doc.setFont('helvetica', 'normal');
+        doc.line(5, supplyY + 3, 75, supplyY + 3);
+        finalInfoStartY = supplyY + 8;
+      } else {
+        doc.line(5, supplyY - 1, 75, supplyY - 1);
+        finalInfoStartY = supplyY + 4;
+      }
+    } else {
+      // Destinatario para egresos o público general
+      doc.setFont('helvetica', 'bold');
+      if (isEgreso) {
+        doc.text('DESTINATARIO / RECEPTOR:', 5, 63);
+      } else {
+        doc.text('DATOS DE LA OPERACIÓN:', 5, 63);
       }
       
-      doc.setFont('helvetica', 'bold');
-      doc.text(`Código Suministro: ${supplyCode}`, 5, supplyY);
       doc.setFont('helvetica', 'normal');
-
-      doc.line(5, supplyY + 3, 75, supplyY + 3);
-    } else {
-      doc.text('Cliente: Público General (No especificado)', 5, 68);
-      doc.line(5, 72, 75, 72);
+      const recepName = transaction.destinatario || 'Público General / Proveedor';
+      const recepLines = doc.splitTextToSize(recepName, 68);
+      doc.text(recepLines, 5, 68);
+      
+      const linesOffset = (recepLines.length - 1) * 4;
+      const nextY = 73 + linesOffset;
+      
+      // Mostrar RUC con formato limpio
+      doc.text('RUC: ____________________', 5, nextY);
+      doc.line(5, nextY + 3, 75, nextY + 3);
+      finalInfoStartY = nextY + 8;
     }
-    
-    // Determine dynamic concept mapping y table offset
-    let preConceptY = client ? 78 + ((doc as any).internal.getFontSize() || 8) : 76;
-    // Let's safe-check a reliable starting position for payment details
-    const finalInfoStartY = client ? Math.max(92, 70 + (client.direccion ? 20 : 10)) : 76;
 
     doc.line(5, finalInfoStartY, 75, finalInfoStartY);
 
@@ -181,13 +215,13 @@ export function generateGeneralPaymentReceiptPDF(transaction: Transaction, clien
     // Total block
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
-    doc.text('TOTAL COBRADO:', 5, finalTableY + 5);
+    doc.text(isEgreso ? 'TOTAL ENTREGADO:' : 'TOTAL COBRADO:', 5, finalTableY + 5);
     doc.text(`S/ ${(transaction.monto || 0).toFixed(2)}`, 62, finalTableY + 5);
     
     // --- ESTADO Y DETALLES DEL SISTEMA ERP ---
     doc.setFontSize(7);
     doc.setFont('helvetica', 'normal');
-    doc.text('* Este recibo es conforme gracias a la autogestión de la comunidad.', 5, finalTableY + 11);
+    doc.text(isEgreso ? '* Este comprobante de egreso es conforme gracias a la autogestión.' : '* Este recibo es conforme gracias a la autogestión de la comunidad.', 5, finalTableY + 11);
     
     // Draw an elegant vector simulated QR code
     const qrX = centerX - 12;

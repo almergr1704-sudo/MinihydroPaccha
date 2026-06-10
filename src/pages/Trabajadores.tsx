@@ -57,34 +57,39 @@ export default function Trabajadores() {
 
   // Form Reset
   const resetWorkerForm = (worker?: Trabajador) => {
-    if (worker) {
-      setWorkerForm({
-        nombres: worker.nombres,
-        apellidos: worker.apellidos,
-        dni: worker.dni,
-        cargo: worker.cargo,
-        sueldoMensual: worker.sueldoMensual,
-        telefono: worker.telefono || '',
-        correo: worker.correo || '',
-        direccion: worker.direccion || '',
-        observaciones: worker.observaciones || '',
-        estado: worker.estado
-      });
-      setEditingWorkerId(worker.id);
-    } else {
-      setWorkerForm({
-        nombres: '',
-        apellidos: '',
-        dni: '',
-        cargo: '',
-        sueldoMensual: 0,
-        telefono: '',
-        correo: '',
-        direccion: '',
-        observaciones: '',
-        estado: 'ACTIVO'
-      });
-      setEditingWorkerId(null);
+    try {
+      if (worker) {
+        setWorkerForm({
+          nombres: worker.nombres || '',
+          apellidos: worker.apellidos || '',
+          dni: worker.dni || '',
+          cargo: worker.cargo || '',
+          sueldoMensual: worker.sueldoMensual || 0,
+          telefono: worker.telefono || '',
+          correo: worker.correo || '',
+          direccion: worker.direccion || '',
+          observaciones: worker.observaciones || '',
+          estado: worker.estado || 'ACTIVO'
+        });
+        setEditingWorkerId(worker.id);
+      } else {
+        setWorkerForm({
+          nombres: '',
+          apellidos: '',
+          dni: '',
+          cargo: '',
+          sueldoMensual: 0,
+          telefono: '',
+          correo: '',
+          direccion: '',
+          observaciones: '',
+          estado: 'ACTIVO'
+        });
+        setEditingWorkerId(null);
+      }
+    } catch (error) {
+      console.error('Error resetWorkerForm:', error);
+      toast.error('Error al inicializar el formulario.');
     }
   };
 
@@ -187,8 +192,13 @@ export default function Trabajadores() {
           <div className="flex gap-2">
             <button
               onClick={() => {
-                resetWorkerForm();
-                setIsWorkerModalOpen(true);
+                try {
+                  resetWorkerForm();
+                  setIsWorkerModalOpen(true);
+                } catch (err: any) {
+                  toast.error('Ocurrió un error al cargar el formulario.');
+                  console.error(err);
+                }
               }}
               className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-semibold transition-all duration-150 shadow-sm"
             >
@@ -591,7 +601,7 @@ export default function Trabajadores() {
                         required
                         className="mt-1 block w-full py-2 px-3 border border-slate-800 bg-[#0C101A] rounded-lg text-xs text-slate-100 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                         placeholder="Nombres del trabajador"
-                        value={workerForm.nombres}
+                        value={workerForm?.nombres || ''}
                         onChange={(e) => setWorkerForm({ ...workerForm, nombres: e.target.value })}
                       />
                     </div>
@@ -602,7 +612,7 @@ export default function Trabajadores() {
                         required
                         className="mt-1 block w-full py-2 px-3 border border-slate-800 bg-[#0C101A] rounded-lg text-xs text-slate-100 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                         placeholder="Apellidos del trabajador"
-                        value={workerForm.apellidos}
+                        value={workerForm?.apellidos || ''}
                         onChange={(e) => setWorkerForm({ ...workerForm, apellidos: e.target.value })}
                       />
                     </div>
@@ -617,7 +627,7 @@ export default function Trabajadores() {
                         maxLength={8}
                         className="mt-1 block w-full py-2 px-3 border border-slate-800 bg-[#0C101A] rounded-lg text-xs text-slate-100 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                         placeholder="8 dígitos"
-                        value={workerForm.dni}
+                        value={workerForm?.dni || ''}
                         onChange={(e) => setWorkerForm({ ...workerForm, dni: e.target.value.replace(/\D/g, '') })}
                       />
                     </div>
@@ -630,7 +640,7 @@ export default function Trabajadores() {
                         step="0.01"
                         className="mt-1 block w-full py-2 px-3 border border-slate-800 bg-[#0C101A] rounded-lg text-xs text-emerald-400 font-bold outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                         placeholder="Ejemplo: 1200"
-                        value={workerForm.sueldoMensual || ''}
+                        value={workerForm?.sueldoMensual === 0 ? '' : (workerForm?.sueldoMensual ?? '')}
                         onChange={(e) => setWorkerForm({ ...workerForm, sueldoMensual: Number(e.target.value) })}
                       />
                     </div>
@@ -643,7 +653,7 @@ export default function Trabajadores() {
                       required
                       className="mt-1 block w-full py-2 px-3 border border-slate-800 bg-[#0C101A] rounded-lg text-xs text-slate-100 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                       placeholder="Ej. Operario de Turbinas, Guardián, Electricista"
-                      value={workerForm.cargo}
+                      value={workerForm?.cargo || ''}
                       onChange={(e) => setWorkerForm({ ...workerForm, cargo: e.target.value })}
                     />
                   </div>
@@ -655,7 +665,7 @@ export default function Trabajadores() {
                         type="text"
                         className="mt-1 block w-full py-2 px-3 border border-slate-800 bg-[#0C101A] rounded-lg text-xs text-slate-100 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 font-mono"
                         placeholder="Opcional"
-                        value={workerForm.telefono}
+                        value={workerForm?.telefono || ''}
                         onChange={(e) => setWorkerForm({ ...workerForm, telefono: e.target.value })}
                       />
                     </div>
@@ -665,7 +675,7 @@ export default function Trabajadores() {
                         type="email"
                         className="mt-1 block w-full py-2 px-3 border border-slate-800 bg-[#0C101A] rounded-lg text-xs text-slate-100 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                         placeholder="Opcional"
-                        value={workerForm.correo}
+                        value={workerForm?.correo || ''}
                         onChange={(e) => setWorkerForm({ ...workerForm, correo: e.target.value })}
                       />
                     </div>
@@ -677,7 +687,7 @@ export default function Trabajadores() {
                       type="text"
                       className="mt-1 block w-full py-2 px-3 border border-slate-800 bg-[#0C101A] rounded-lg text-xs text-slate-100 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                       placeholder="Dirección del domicilio (Opcional)"
-                      value={workerForm.direccion}
+                      value={workerForm?.direccion || ''}
                       onChange={(e) => setWorkerForm({ ...workerForm, direccion: e.target.value })}
                     />
                   </div>
@@ -688,7 +698,7 @@ export default function Trabajadores() {
                       rows={2}
                       className="mt-1 block w-full py-2 px-3 border border-slate-800 bg-[#0C101A] rounded-lg text-xs text-slate-100 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                       placeholder="Añadir observaciones sobre el contrato, turnos, etc (Opcional)"
-                      value={workerForm.observaciones}
+                      value={workerForm?.observaciones || ''}
                       onChange={(e) => setWorkerForm({ ...workerForm, observaciones: e.target.value })}
                     />
                   </div>
@@ -698,7 +708,7 @@ export default function Trabajadores() {
                       <label className="block text-xs font-semibold text-slate-400">Estado Contractual</label>
                       <select
                         className="mt-1 block w-full py-2 px-3 border border-slate-800 bg-[#0C101A] rounded-lg text-xs text-slate-100 outline-none focus:ring-1 focus:ring-blue-500"
-                        value={workerForm.estado}
+                        value={workerForm?.estado || 'ACTIVO'}
                         onChange={(e: any) => setWorkerForm({ ...workerForm, estado: e.target.value })}
                       >
                         <option value="ACTIVO">ACTIVO</option>
