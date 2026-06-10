@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { 
   Shield, UserCheck, Calendar, Award, History, UserX, Zap, ZapOff, Check, 
-  Trash, Plus, Search, AlertCircle, FileText, Download, Edit2, AlertTriangle, RefreshCw
+  Trash, Plus, Search, AlertCircle, FileText, Download, Edit2, AlertTriangle, RefreshCw, Key, Users
 } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Card, CardHeader, CardTitle, CardContent, Button, Badge } from './ui';
@@ -9,16 +9,173 @@ import { toast } from 'react-hot-toast';
 import { useConfirm } from './ui/ConfirmDialog';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import bcrypt from 'bcryptjs';
 
 interface MemberFormState {
   clientId: string;
   supplyCodeExonerado: string;
 }
 
+// Custom Searchable Autocomplete select for members with assignment awareness
+interface SocioSearchSelectProps {
+  label: string;
+  value: string;
+  onChange: (clientId: string) => void;
+  onSupplyChange: (supply: string) => void;
+  supplyValue: string;
+  socios: any[];
+  getClientSupplies: (id: string) => string[];
+  currentRole: string;
+  getAssignmentError: (id: string, role: string) => string | null;
+  icon: any;
+}
+
+function SocioSearchSelect({
+  label,
+  value,
+  onChange,
+  onSupplyChange,
+  supplyValue,
+  socios,
+  getClientSupplies,
+  currentRole,
+  getAssignmentError,
+  icon: Icon
+}: SocioSearchSelectProps) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+
+  const selectedSocio = useMemo(() => {
+    return socios.find(s => s.id === value);
+  }, [socios, value]);
+
+  const filteredSocios = useMemo(() => {
+    if (!searchTerm.trim()) return socios;
+    const term = searchTerm.toLowerCase();
+    return socios.filter(s => {
+      const nombres = s.nombres || '';
+      const apellidos = s.apellidos || '';
+      const dni = s.dni || '';
+      const fullName = `${nombres} ${apellidos}`.toLowerCase();
+      return (
+        dni.includes(term) ||
+        nombres.toLowerCase().includes(term) ||
+        apellidos.toLowerCase().includes(term) ||
+        fullName.includes(term)
+      );
+    });
+  }, [socios, searchTerm]);
+
+  return (
+    <div className="space-y-2 p-4 bg-slate-900/40 rounded-xl border border-slate-800/80 hover:border-slate-700/60 transition-all relative">
+      <div>
+        <label className="block text-sm font-semibold text-slate-200 flex items-center mb-1">
+          {Icon && <Icon className="w-4.5 h-4.5 mr-1.5 text-blue-400" />} {label}
+        </label>
+        
+        <div className="relative">
+          {/* Custom Select Trigger */}
+          <button
+            type="button"
+            onClick={() => setIsOpen(!isOpen)}
+            className="w-full bg-[#0B0E14] border border-slate-700 rounded-lg py-2.5 px-3.5 text-left text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 flex justify-between items-center text-sm"
+          >
+            {selectedSocio ? (
+              <span className="truncate">
+                {selectedSocio.nombres} {selectedSocio.apellidos} <span className="text-slate-400 font-mono text-xs">(DNI: {selectedSocio.dni})</span>
+              </span>
+            ) : (
+              <span className="text-slate-400">Seleccionar Socio...</span>
+            )}
+            <span className="text-slate-500">▼</span>
+          </button>
+
+          {isOpen && (
+            <div className="absolute z-50 mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg shadow-xl max-h-60 overflow-y-auto p-2 space-y-2">
+              <div className="relative sticky top-0 bg-slate-900 pb-1">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder="Buscar DNI, nombres, apellidos..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full bg-[#0B0E14] border border-slate-700 rounded-md pl-9 pr-3 py-1.5 text-slate-100 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                {filteredSocios.length > 0 ? (
+                  filteredSocios.map(s => {
+                    const assignError = getAssignmentError(s.id, currentRole);
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        disabled={!!assignError}
+                        onClick={() => {
+                          onChange(s.id);
+                          setIsOpen(false);
+                          setSearchTerm('');
+                        }}
+                        className={`w-full text-left py-2 px-3 rounded-md text-xs sm:text-sm flex justify-between items-center transition-all ${
+                          value === s.id
+                            ? 'bg-blue-600/20 text-blue-400 font-semibold'
+                            : !!assignError
+                            ? 'text-slate-500 cursor-not-allowed bg-slate-950/20'
+                            : 'text-slate-300 hover:bg-slate-800'
+                        }`}
+                      >
+                        <span className="truncate">
+                          {s.nombres} {s.apellidos} <span className="text-slate-400 font-mono text-xs">(DNI: {s.dni})</span>
+                        </span>
+                        {!!assignError && (
+                          <span className="text-red-400/95 font-semibold text-[10px] bg-red-950/50 px-2 py-0.5 rounded border border-red-900/30">
+                            Asignado: {assignError}
+                          </span>
+                        )}
+                        {value === s.id && !assignError && (
+                          <span className="text-blue-400">✓</span>
+                        )}
+                      </button>
+                    );
+                  })
+                ) : (
+                  <p className="text-center py-2 text-xs text-slate-500">No se encontraron socios.</p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Suministro selection */}
+      {value && (
+        <div className="pt-2 animate-fade-in">
+          <label className="block text-xs font-semibold text-slate-400 mb-1">
+            Suministro a Exonerar
+          </label>
+          <select
+            required
+            value={supplyValue}
+            onChange={(e) => onSupplyChange(e.target.value)}
+            className="w-full bg-[#0B0E14] border border-slate-700 rounded-lg py-2 px-3 text-slate-100 text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 animate-fadeIn"
+          >
+            <option value="">-- Seleccionar Suministro --</option>
+            {getClientSupplies(value).map(code => (
+              <option key={code} value={code}>Suministro: {code}</option>
+            ))}
+          </select>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ComiteDirectivo() {
   const { 
     clients, comites, addCommittee, updateCommittee, deleteCommittee, 
-    toggleCommitteeStatus, suppliesInfo, userRole, admins 
+    toggleCommitteeStatus, suppliesInfo, userRole, admins, updateAdmin 
   } = useAppContext();
   
   const { confirm } = useConfirm();
@@ -36,6 +193,7 @@ export default function ComiteDirectivo() {
   const [secretario, setSecretario] = useState<MemberFormState>({ clientId: '', supplyCodeExonerado: '' });
   const [tesorero, setTesorero] = useState<MemberFormState>({ clientId: '', supplyCodeExonerado: '' });
   const [fiscalizador, setFiscalizador] = useState<MemberFormState>({ clientId: '', supplyCodeExonerado: '' });
+  const [vocal, setVocal] = useState<MemberFormState>({ clientId: '', supplyCodeExonerado: '' });
 
   // Get eligible partners (Socios Only)
   const sociosHabilitados = useMemo(() => {
@@ -61,6 +219,18 @@ export default function ComiteDirectivo() {
     return client.suministros || (client.codigoSuministro ? [client.codigoSuministro] : []);
   };
 
+  const getAdminUsernameByDni = (dni: string) => {
+    const a = admins.find(adm => adm.dni === dni);
+    return a ? a.username : null;
+  };
+
+  const getAdminUsername = (clientId: string) => {
+    const client = clients.find(c => c.id === clientId);
+    if (!client) return '---';
+    const username = getAdminUsernameByDni(client.dni);
+    return username ? `@${username}` : 'Por generar';
+  };
+
   const resetForm = () => {
     setEditingId(null);
     setNombrePeriodo('');
@@ -71,6 +241,7 @@ export default function ComiteDirectivo() {
     setSecretario({ clientId: '', supplyCodeExonerado: '' });
     setTesorero({ clientId: '', supplyCodeExonerado: '' });
     setFiscalizador({ clientId: '', supplyCodeExonerado: '' });
+    setVocal({ clientId: '', supplyCodeExonerado: '' });
   };
 
   const handleEdit = (comite: any) => {
@@ -83,6 +254,7 @@ export default function ComiteDirectivo() {
     setSecretario({ clientId: comite.secretario.clientId, supplyCodeExonerado: comite.secretario.supplyCodeExonerado || '' });
     setTesorero({ clientId: comite.tesorero.clientId, supplyCodeExonerado: comite.tesorero.supplyCodeExonerado || '' });
     setFiscalizador({ clientId: comite.fiscalizador.clientId, supplyCodeExonerado: comite.fiscalizador.supplyCodeExonerado || '' });
+    setVocal({ clientId: comite.vocal?.clientId || '', supplyCodeExonerado: comite.vocal?.supplyCodeExonerado || '' });
     setActiveTab('registrar');
   };
 
@@ -128,6 +300,45 @@ export default function ComiteDirectivo() {
     }
   };
 
+  const handleResetPassword = async (memberDni: string, fullName: string) => {
+    const admin = admins.find(a => a.dni === memberDni);
+    if (!admin) {
+      toast.error(`No existe un usuario del sistema creado para ${fullName}. Registre una nueva elección con estado Activo para generar su usuario automáticamente.`);
+      return;
+    }
+
+    const isConfirmed = await confirm({
+      title: 'Restablecer Contraseña',
+      message: `¿Está seguro de restablecer el acceso para ${fullName}?\n\nLa contraseña se restaurará a la contraseña temporal "Comite2026#" y se le solicitará cambiarla obligatoriamente en el primer inicio de sesión.`,
+      type: 'warning',
+      confirmLabel: 'Restablecer'
+    });
+
+    if (!isConfirmed) return;
+
+    try {
+      const hashedPassword = bcrypt.hashSync('Comite2026#', 10);
+      await updateAdmin(admin.id, {
+        password: hashedPassword,
+        mustChangePassword: true,
+        estado: 'ACTIVO'
+      });
+      toast.success(`La contraseña de ${fullName} se restableció con éxito a: Comite2026#`);
+    } catch (err: any) {
+      toast.error(err.message || 'Error al restablecer la contraseña.');
+    }
+  };
+
+  const getAssignmentError = (clientId: string, excludeRole: string) => {
+    if (!clientId) return null;
+    if (presidente.clientId === clientId && excludeRole !== 'presidente') return 'PRESIDENTE';
+    if (secretario.clientId === clientId && excludeRole !== 'secretario') return 'SECRETARIO';
+    if (tesorero.clientId === clientId && excludeRole !== 'tesorero') return 'TESORERO';
+    if (fiscalizador.clientId === clientId && excludeRole !== 'fiscalizador') return 'FISCALIZADOR';
+    if (vocal.clientId === clientId && excludeRole !== 'vocal') return 'VOCAL';
+    return null;
+  };
+
   const validateForm = () => {
     if (!nombrePeriodo.trim()) {
       toast.error('Debe ingresar un nombre o descripción para el periodo.');
@@ -142,18 +353,24 @@ export default function ComiteDirectivo() {
       return false;
     }
 
-    const roles = { presidente, secretario, tesorero, fiscalizador };
-    const selectedIds = [presidente.clientId, secretario.clientId, tesorero.clientId, fiscalizador.clientId].filter(Boolean);
+    const roles = { presidente, secretario, tesorero, fiscalizador, vocal };
+    const selectedIds = [
+      presidente.clientId, 
+      secretario.clientId, 
+      tesorero.clientId, 
+      fiscalizador.clientId,
+      vocal.clientId
+    ].filter(Boolean);
     
     // Check if any role is empty
-    if (!presidente.clientId || !secretario.clientId || !tesorero.clientId || !fiscalizador.clientId) {
+    if (!presidente.clientId || !secretario.clientId || !tesorero.clientId || !fiscalizador.clientId || !vocal.clientId) {
       toast.error('Todos los cargos del comité deben tener un socio asignado.');
       return false;
     }
 
     // Check unique members in same period
     const uniqueIds = new Set(selectedIds);
-    if (uniqueIds.size !== 4) {
+    if (uniqueIds.size !== 5) {
       toast.error('No se pueden asignar múltiples cargos a la misma persona en un mismo período.');
       return false;
     }
@@ -196,6 +413,7 @@ export default function ComiteDirectivo() {
       secretario: buildMemberObj(secretario),
       tesorero: buildMemberObj(tesorero),
       fiscalizador: buildMemberObj(fiscalizador),
+      vocal: buildMemberObj(vocal),
       activo
     };
 
@@ -243,6 +461,10 @@ export default function ComiteDirectivo() {
         ['FISCALIZADOR', comiteVigente.fiscalizador.nombreCompleto, comiteVigente.fiscalizador.supplyCodeExonerado || 'Ninguno', 'Solo Consulta (FISCALIZADOR)']
       ];
 
+      if (comiteVigente.vocal) {
+        tableData.push(['VOCAL', comiteVigente.vocal.nombreCompleto, comiteVigente.vocal.supplyCodeExonerado || 'Ninguno', 'Acceso Reducido (VOCAL)']);
+      }
+
       autoTable(doc, {
         startY: yOffset + 12,
         head: [['CARGO', 'NOMBRE COMPLETO', 'SUMINISTRO EXONERADO', 'ROL ASIGNADO']],
@@ -272,12 +494,13 @@ export default function ComiteDirectivo() {
       c.secretario.nombreCompleto,
       c.tesorero.nombreCompleto,
       c.fiscalizador.nombreCompleto,
+      c.vocal?.nombreCompleto || 'Ninguno',
       c.activo ? 'ACTIVO' : 'INACTIVO'
     ]);
 
     autoTable(doc, {
       startY: yOffset + 6,
-      head: [['Gestión', 'Periodo', 'Presidente', 'Secretario', 'Tesorero', 'Fiscalizador', 'Estado']],
+      head: [['Gestión', 'Periodo', 'Presidente', 'Secretario', 'Tesorero', 'Fiscalizador', 'Vocal', 'Estado']],
       body: historyRows,
       theme: 'grid',
       headStyles: { fillColor: [71, 85, 105] },
@@ -294,6 +517,16 @@ export default function ComiteDirectivo() {
     doc.save(`Reporte_Comite_Directivo_${new Date().toISOString().slice(0, 10)}.pdf`);
     toast.success('Reporte PDF descargado con éxito.');
   };
+
+  const selectedSocioIds = useMemo(() => {
+    return [
+      presidente.clientId,
+      secretario.clientId,
+      tesorero.clientId,
+      fiscalizador.clientId,
+      vocal.clientId
+    ].filter(Boolean);
+  }, [presidente.clientId, secretario.clientId, tesorero.clientId, fiscalizador.clientId, vocal.clientId]);
 
   return (
     <div className="space-y-6">
@@ -337,7 +570,7 @@ export default function ComiteDirectivo() {
         </button>
       </div>
 
-      {/* 1. COMITÉ DIRECTIVO VIGENTE BARNER */}
+      {/* 1. COMITÉ DIRECTIVO VIGENTE */}
       {activeTab === 'vigente' && (
         <div className="space-y-6">
           {comiteVigente ? (
@@ -346,7 +579,7 @@ export default function ComiteDirectivo() {
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center space-y-4 md:space-y-0">
                   <div>
                     <span className="bg-blue-500/20 text-blue-400 text-xs px-3 py-1 rounded-full border border-blue-500/30 font-semibold uppercase tracking-wider">
-                      Gestion Actual Activa
+                      Gestión Activa Vigente
                     </span>
                     <h3 className="text-2xl font-bold text-white mt-2 leading-tight">
                       {comiteVigente.nombrePeriodo}
@@ -356,113 +589,242 @@ export default function ComiteDirectivo() {
                       Desde: <span className="text-slate-200 font-medium mx-1">{comiteVigente.fechaInicio}</span> hasta: <span className="text-slate-200 font-medium ml-1">{comiteVigente.fechaFin}</span>
                     </p>
                   </div>
-                  <Button variant="outline" size="sm" onClick={() => handleEdit(comiteVigente)} className="text-blue-400 hover:bg-blue-500/10 border-blue-500/20">
-                    <Edit2 className="w-3.5 h-3.5 mr-1" /> Editar Comité Vigente
-                  </Button>
+                  {(userRole === 'ADMIN' || userRole === 'CLIENT') && (
+                    <Button variant="outline" size="sm" onClick={() => handleEdit(comiteVigente)} className="text-blue-400 hover:bg-blue-500/10 border-blue-500/20 bg-slate-900/40">
+                      <Edit2 className="w-3.5 h-3.5 mr-1" /> Editar Comité Vigente
+                    </Button>
+                  )}
                 </div>
               </div>
 
-              {/* Members Bento Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Members Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 
                 {/* Presidente */}
-                <div className="bg-slate-800/20 p-5 rounded-2xl border border-slate-700/50 hover:border-slate-600 transition-all">
-                  <div className="flex justify-between items-start">
-                    <div className="bg-blue-500/10 p-3 rounded-xl border border-blue-500/20 text-blue-400">
-                      <Shield className="w-6 h-6" />
+                <div className="bg-slate-800/20 p-5 rounded-2xl border border-slate-700/50 hover:border-slate-600 transition-all flex flex-col justify-between">
+                  <div>
+                    <div className="flex justify-between items-start">
+                      <div className="bg-blue-500/10 p-3 rounded-xl border border-blue-500/20 text-blue-400">
+                        <Shield className="w-6 h-6" />
+                      </div>
+                      <Badge variant="success">PRESIDENTE</Badge>
                     </div>
-                    <Badge variant="success">PRESIDENTE</Badge>
+                    <h4 className="text-lg font-semibold text-slate-100 mt-4 truncate">
+                      {comiteVigente.presidente.nombreCompleto}
+                    </h4>
+                    <div className="mt-4 pt-4 border-t border-slate-800/60 space-y-2 text-xs text-slate-400">
+                      <p className="flex justify-between items-center bg-slate-900/40 p-2 rounded">
+                        <span>Acceso del Sistema:</span>
+                        <strong className="text-slate-200 font-medium">ADMIN (Control Total)</strong>
+                      </p>
+                      <p className="flex justify-between items-center bg-slate-900/40 p-2 rounded">
+                        <span>Usuario ERP:</span>
+                        <strong className="text-blue-400 font-mono">{getAdminUsername(comiteVigente.presidente.clientId)}</strong>
+                      </p>
+                      <p className="flex justify-between items-center bg-emerald-500/5 p-2 rounded border border-emerald-500/10">
+                        <span className="flex items-center text-emerald-400 font-medium">
+                          <Zap className="w-3 h-3 mr-1 text-emerald-500" /> Suministro Exonerado:
+                        </span>
+                        <strong className="text-slate-100 font-mono tracking-wider">{comiteVigente.presidente.supplyCodeExonerado || 'No Asignado'}</strong>
+                      </p>
+                    </div>
                   </div>
-                  <h4 className="text-lg font-semibold text-slate-100 mt-4 truncate">
-                    {comiteVigente.presidente.nombreCompleto}
-                  </h4>
-                  <div className="mt-4 pt-4 border-t border-slate-800/60 space-y-2 text-xs text-slate-400">
-                    <p className="flex justify-between items-center bg-slate-900/40 p-2 rounded">
-                      <span>Acceso del Sistema:</span>
-                      <strong className="text-slate-200 font-medium">ADMIN (Control Total)</strong>
-                    </p>
-                    <p className="flex justify-between items-center bg-emerald-500/5 p-2 rounded border border-emerald-500/10">
-                      <span className="flex items-center text-emerald-400 font-medium">
-                        <Zap className="w-3 h-3 mr-1 text-emerald-500" /> Suministro Exonerado:
-                      </span>
-                      <strong className="text-slate-100 font-mono tracking-wider">{comiteVigente.presidente.supplyCodeExonerado || 'No Asignado'}</strong>
-                    </p>
-                  </div>
+                  {userRole === 'ADMIN' && (
+                    <div className="pt-4 border-t border-slate-800/40 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const client = clients.find(c => c.id === comiteVigente.presidente.clientId);
+                          if (client) handleResetPassword(client.dni, comiteVigente.presidente.nombreCompleto);
+                        }}
+                        className="text-[11px] text-blue-450 hover:text-blue-300 font-semibold flex items-center bg-blue-500/10 hover:bg-blue-500/20 px-2.5 py-1.5 rounded transition-all"
+                      >
+                        <Key className="w-3.5 h-3.5 mr-1" /> Restablecer Contraseña
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Secretario */}
-                <div className="bg-slate-800/20 p-5 rounded-2xl border border-slate-700/50 hover:border-slate-600 transition-all">
-                  <div className="flex justify-between items-start">
-                    <div className="bg-indigo-500/10 p-3 rounded-xl border border-indigo-500/20 text-indigo-400">
-                      <FileText className="w-6 h-6" />
+                <div className="bg-slate-800/20 p-5 rounded-2xl border border-slate-700/50 hover:border-slate-600 transition-all flex flex-col justify-between">
+                  <div>
+                    <div className="flex justify-between items-start">
+                      <div className="bg-indigo-500/10 p-3 rounded-xl border border-indigo-500/20 text-indigo-400">
+                        <FileText className="w-6 h-6" />
+                      </div>
+                      <Badge variant="info">SECRETARIO</Badge>
                     </div>
-                    <Badge variant="info">SECRETARIO</Badge>
+                    <h4 className="text-lg font-semibold text-slate-100 mt-4 truncate">
+                      {comiteVigente.secretario.nombreCompleto}
+                    </h4>
+                    <div className="mt-4 pt-4 border-t border-slate-800/60 space-y-2 text-xs text-slate-400">
+                      <p className="flex justify-between items-center bg-slate-900/40 p-2 rounded">
+                        <span>Acceso del Sistema:</span>
+                        <strong className="text-slate-200 font-medium">SECRETARIO (Reuniones)</strong>
+                      </p>
+                      <p className="flex justify-between items-center bg-slate-900/40 p-2 rounded">
+                        <span>Usuario ERP:</span>
+                        <strong className="text-blue-400 font-mono">{getAdminUsername(comiteVigente.secretario.clientId)}</strong>
+                      </p>
+                      <p className="flex justify-between items-center bg-emerald-500/5 p-2 rounded border border-emerald-500/10">
+                        <span className="flex items-center text-emerald-400 font-medium">
+                          <Zap className="w-3 h-3 mr-1 text-emerald-500" /> Suministro Exonerado:
+                        </span>
+                        <strong className="text-slate-100 font-mono tracking-wider">{comiteVigente.secretario.supplyCodeExonerado || 'No Asignado'}</strong>
+                      </p>
+                    </div>
                   </div>
-                  <h4 className="text-lg font-semibold text-slate-100 mt-4 truncate">
-                    {comiteVigente.secretario.nombreCompleto}
-                  </h4>
-                  <div className="mt-4 pt-4 border-t border-slate-800/60 space-y-2 text-xs text-slate-400">
-                    <p className="flex justify-between items-center bg-slate-900/40 p-2 rounded">
-                      <span>Acceso del Sistema:</span>
-                      <strong className="text-slate-200 font-medium">SECRETARIO (Reuniones)</strong>
-                    </p>
-                    <p className="flex justify-between items-center bg-emerald-500/5 p-2 rounded border border-emerald-500/10">
-                      <span className="flex items-center text-emerald-400 font-medium">
-                        <Zap className="w-3 h-3 mr-1 text-emerald-500" /> Suministro Exonerado:
-                      </span>
-                      <strong className="text-slate-100 font-mono tracking-wider">{comiteVigente.secretario.supplyCodeExonerado || 'No Asignado'}</strong>
-                    </p>
-                  </div>
+                  {userRole === 'ADMIN' && (
+                    <div className="pt-4 border-t border-slate-800/40 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const client = clients.find(c => c.id === comiteVigente.secretario.clientId);
+                          if (client) handleResetPassword(client.dni, comiteVigente.secretario.nombreCompleto);
+                        }}
+                        className="text-[11px] text-blue-450 hover:text-blue-300 font-semibold flex items-center bg-blue-500/10 hover:bg-blue-500/20 px-2.5 py-1.5 rounded transition-all"
+                      >
+                        <Key className="w-3.5 h-3.5 mr-1" /> Restablecer Contraseña
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Tesorero */}
-                <div className="bg-slate-800/20 p-5 rounded-2xl border border-slate-700/50 hover:border-slate-600 transition-all">
-                  <div className="flex justify-between items-start">
-                    <div className="bg-amber-500/10 p-3 rounded-xl border border-amber-500/20 text-amber-400">
-                      <UserCheck className="w-6 h-6" />
+                <div className="bg-slate-800/20 p-5 rounded-2xl border border-slate-700/50 hover:border-slate-600 transition-all flex flex-col justify-between">
+                  <div>
+                    <div className="flex justify-between items-start">
+                      <div className="bg-amber-500/10 p-3 rounded-xl border border-amber-500/20 text-amber-400">
+                        <UserCheck className="w-6 h-6" />
+                      </div>
+                      <Badge variant="warning">TESORERO</Badge>
                     </div>
-                    <Badge variant="warning">TESORERO</Badge>
+                    <h4 className="text-lg font-semibold text-slate-100 mt-4 truncate">
+                      {comiteVigente.tesorero.nombreCompleto}
+                    </h4>
+                    <div className="mt-4 pt-4 border-t border-slate-800/60 space-y-2 text-xs text-slate-400">
+                      <p className="flex justify-between items-center bg-slate-900/40 p-2 rounded">
+                        <span>Acceso del Sistema:</span>
+                        <strong className="text-slate-200 font-medium">TESORERO (Finanzas)</strong>
+                      </p>
+                      <p className="flex justify-between items-center bg-slate-900/40 p-2 rounded">
+                        <span>Usuario ERP:</span>
+                        <strong className="text-blue-400 font-mono">{getAdminUsername(comiteVigente.tesorero.clientId)}</strong>
+                      </p>
+                      <p className="flex justify-between items-center bg-emerald-500/5 p-2 rounded border border-emerald-500/10">
+                        <span className="flex items-center text-emerald-400 font-medium">
+                          <Zap className="w-3 h-3 mr-1 text-emerald-500" /> Suministro Exonerado:
+                        </span>
+                        <strong className="text-slate-100 font-mono tracking-wider">{comiteVigente.tesorero.supplyCodeExonerado || 'No Asignado'}</strong>
+                      </p>
+                    </div>
                   </div>
-                  <h4 className="text-lg font-semibold text-slate-100 mt-4 truncate">
-                    {comiteVigente.tesorero.nombreCompleto}
-                  </h4>
-                  <div className="mt-4 pt-4 border-t border-slate-800/60 space-y-2 text-xs text-slate-400">
-                    <p className="flex justify-between items-center bg-slate-900/40 p-2 rounded">
-                      <span>Acceso del Sistema:</span>
-                      <strong className="text-slate-200 font-medium">TESORERO (Finanzas)</strong>
-                    </p>
-                    <p className="flex justify-between items-center bg-emerald-500/5 p-2 rounded border border-emerald-500/10">
-                      <span className="flex items-center text-emerald-400 font-medium">
-                        <Zap className="w-3 h-3 mr-1 text-emerald-500" /> Suministro Exonerado:
-                      </span>
-                      <strong className="text-slate-100 font-mono tracking-wider">{comiteVigente.tesorero.supplyCodeExonerado || 'No Asignado'}</strong>
-                    </p>
-                  </div>
+                  {userRole === 'ADMIN' && (
+                    <div className="pt-4 border-t border-slate-800/40 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const client = clients.find(c => c.id === comiteVigente.tesorero.clientId);
+                          if (client) handleResetPassword(client.dni, comiteVigente.tesorero.nombreCompleto);
+                        }}
+                        className="text-[11px] text-blue-450 hover:text-blue-300 font-semibold flex items-center bg-blue-500/10 hover:bg-blue-500/20 px-2.5 py-1.5 rounded transition-all"
+                      >
+                        <Key className="w-3.5 h-3.5 mr-1" /> Restablecer Contraseña
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Fiscalizador */}
-                <div className="bg-slate-800/20 p-5 rounded-2xl border border-slate-700/50 hover:border-slate-600 transition-all">
-                  <div className="flex justify-between items-start">
-                    <div className="bg-purple-500/10 p-3 rounded-xl border border-purple-500/20 text-purple-400">
-                      <RefreshCw className="w-6 h-6" />
+                <div className="bg-slate-800/20 p-5 rounded-2xl border border-slate-700/50 hover:border-slate-600 transition-all flex flex-col justify-between">
+                  <div>
+                    <div className="flex justify-between items-start">
+                      <div className="bg-purple-500/10 p-3 rounded-xl border border-purple-500/20 text-purple-400">
+                        <RefreshCw className="w-6 h-6" />
+                      </div>
+                      <Badge variant="default">FISCALIZADOR</Badge>
                     </div>
-                    <Badge variant="default">FISCALIZADOR</Badge>
+                    <h4 className="text-lg font-semibold text-slate-100 mt-4 truncate">
+                      {comiteVigente.fiscalizador.nombreCompleto}
+                    </h4>
+                    <div className="mt-4 pt-4 border-t border-slate-800/60 space-y-2 text-xs text-slate-400">
+                      <p className="flex justify-between items-center bg-slate-900/40 p-2 rounded">
+                        <span>Acceso del Sistema:</span>
+                        <strong className="text-slate-200 font-medium">FISCALIZADOR (Solo Consulta)</strong>
+                      </p>
+                      <p className="flex justify-between items-center bg-slate-900/40 p-2 rounded">
+                        <span>Usuario ERP:</span>
+                        <strong className="text-blue-400 font-mono">{getAdminUsername(comiteVigente.fiscalizador.clientId)}</strong>
+                      </p>
+                      <p className="flex justify-between items-center bg-emerald-500/5 p-2 rounded border border-emerald-500/10">
+                        <span className="flex items-center text-emerald-400 font-medium">
+                          <Zap className="w-3 h-3 mr-1 text-emerald-500" /> Suministro Exonerado:
+                        </span>
+                        <strong className="text-slate-100 font-mono tracking-wider">{comiteVigente.fiscalizador.supplyCodeExonerado || 'No Asignado'}</strong>
+                      </p>
+                    </div>
                   </div>
-                  <h4 className="text-lg font-semibold text-slate-100 mt-4 truncate">
-                    {comiteVigente.fiscalizador.nombreCompleto}
-                  </h4>
-                  <div className="mt-4 pt-4 border-t border-slate-800/60 space-y-2 text-xs text-slate-400">
-                    <p className="flex justify-between items-center bg-slate-900/40 p-2 rounded">
-                      <span>Acceso del Sistema:</span>
-                      <strong className="text-slate-200 font-medium">FISCALIZADOR (Solo Consulta)</strong>
-                    </p>
-                    <p className="flex justify-between items-center bg-emerald-500/5 p-2 rounded border border-emerald-500/10">
-                      <span className="flex items-center text-emerald-400 font-medium">
-                        <Zap className="w-3 h-3 mr-1 text-emerald-500" /> Suministro Exonerado:
-                      </span>
-                      <strong className="text-slate-100 font-mono tracking-wider">{comiteVigente.fiscalizador.supplyCodeExonerado || 'No Asignado'}</strong>
-                    </p>
+                  {userRole === 'ADMIN' && (
+                    <div className="pt-4 border-t border-slate-800/40 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const client = clients.find(c => c.id === comiteVigente.fiscalizador.clientId);
+                          if (client) handleResetPassword(client.dni, comiteVigente.fiscalizador.nombreCompleto);
+                        }}
+                        className="text-[11px] text-blue-450 hover:text-blue-300 font-semibold flex items-center bg-blue-500/10 hover:bg-blue-500/20 px-2.5 py-1.5 rounded transition-all"
+                      >
+                        <Key className="w-3.5 h-3.5 mr-1" /> Restablecer Contraseña
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Vocal */}
+                <div className="bg-slate-800/20 p-5 rounded-2xl border border-slate-700/50 hover:border-slate-600 transition-all flex flex-col justify-between">
+                  <div>
+                    <div className="flex justify-between items-start">
+                      <div className="bg-teal-500/10 p-3 rounded-xl border border-teal-500/20 text-teal-400">
+                        <Users className="w-6 h-6" />
+                      </div>
+                      <Badge variant="info" className="bg-teal-500/10 text-teal-400 border border-teal-500/20">VOCAL</Badge>
+                    </div>
+                    <h4 className="text-lg font-semibold text-slate-100 mt-4 truncate font-semibold">
+                      {comiteVigente.vocal?.nombreCompleto || 'No Asignado'}
+                    </h4>
+                    <div className="mt-4 pt-4 border-t border-slate-800/60 space-y-2 text-xs text-slate-400">
+                      <p className="flex justify-between items-center bg-slate-900/40 p-2 rounded">
+                        <span>Acceso del Sistema:</span>
+                        <strong className="text-slate-200 font-medium">VOCAL (Acceso Consulta)</strong>
+                      </p>
+                      <p className="flex justify-between items-center bg-slate-900/40 p-2 rounded">
+                        <span>Usuario ERP:</span>
+                        <strong className="text-blue-400 font-mono">
+                          {comiteVigente.vocal?.clientId ? getAdminUsername(comiteVigente.vocal.clientId) : '---'}
+                        </strong>
+                      </p>
+                      <p className="flex justify-between items-center bg-emerald-500/5 p-2 rounded border border-emerald-500/10">
+                        <span className="flex items-center text-emerald-400 font-medium">
+                          <Zap className="w-3 h-3 mr-1 text-emerald-500" /> Suministro Exonerado:
+                        </span>
+                        <strong className="text-slate-100 font-mono tracking-wider">{comiteVigente.vocal?.supplyCodeExonerado || 'No Asignado'}</strong>
+                      </p>
+                    </div>
                   </div>
+                  {userRole === 'ADMIN' && comiteVigente.vocal?.clientId && (
+                    <div className="pt-4 border-t border-slate-800/40 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const client = clients.find(c => c.id === comiteVigente.vocal!.clientId);
+                          if (client) handleResetPassword(client.dni, comiteVigente.vocal!.nombreCompleto);
+                        }}
+                        className="text-[11px] text-blue-450 hover:text-blue-300 font-semibold flex items-center bg-blue-500/10 hover:bg-blue-500/20 px-2.5 py-1.5 rounded transition-all"
+                      >
+                        <Key className="w-3.5 h-3.5 mr-1" /> Restablecer Contraseña
+                      </button>
+                    </div>
+                  )}
                 </div>
 
               </div>
@@ -474,222 +836,220 @@ export default function ComiteDirectivo() {
               <p className="text-slate-400 text-sm mt-2">
                 No hay ningún comité vigente en funciones. Ingrese a la pestaña "Nueva Elección" para designar un nuevo Comité Directivo y habilitar las facultades correspondientes del sistema.
               </p>
-              <Button onClick={() => setActiveTab('registrar')} className="mt-6" size="sm">
-                <Plus className="w-4 h-4 mr-1.5" /> Crear Primer Comité
-              </Button>
+              {userRole === 'ADMIN' && (
+                <Button onClick={() => setActiveTab('registrar')} className="mt-6 font-semibold" size="sm">
+                  <Plus className="w-4 h-4 mr-1.5" /> Registrar Elección
+                </Button>
+              )}
             </div>
           )}
         </div>
       )}
 
-      {/* 2. REGISTRAR / EDITAR PERIODO FORM */}
+      {/* 2. REGISTRAR / EDITAR ELECCION FORM */}
       {activeTab === 'registrar' && (
-        <Card>
+        <Card className="border-slate-800/60 bg-slate-950/20 shadow-xl">
           <CardHeader>
-            <CardTitle>{editingId ? 'Editar Periodo del Comité Directivo' : 'Registrar Nueva Elección de Comité Directivo'}</CardTitle>
+            <CardTitle className="text-lg font-bold text-slate-100 flex items-center">
+              <Plus className="text-blue-500 mr-2" />
+              {editingId ? 'Editar Periodo del Comité Directivo' : 'Registrar Nueva Elección de Comité Directivo'}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
               
               {/* Period Fields */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="md:col-span-3">
-                  <label className="block text-sm font-medium text-slate-300">Nombre de la Gestión o Periodo</label>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 p-4 bg-slate-900/10 rounded-xl border border-slate-800/60">
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">Nombre de la Gestión o Periodo</label>
                   <input
                     type="text"
                     required
                     value={nombrePeriodo}
                     onChange={(e) => setNombrePeriodo(e.target.value)}
-                    className="mt-1 block w-full bg-[#0B0E14] border border-slate-600 rounded-md py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-slate-100 sm:text-sm"
+                    className="mt-1 block w-full bg-[#0B0E14] border border-slate-750 rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-slate-100 sm:text-sm"
                     placeholder="Ej. Junta Directiva General Paccha 2026-2027"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-300">Fecha de Inicio de Gestión</label>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">Inicio de Gestión</label>
                   <input
                     type="date"
                     required
                     value={fechaInicio}
                     onChange={(e) => setFechaInicio(e.target.value)}
-                    className="mt-1 block w-full bg-[#0B0E14] border border-slate-600 rounded-md py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-slate-100 sm:text-sm"
+                    className="mt-1 block w-full bg-[#0B0E14] border border-slate-750 rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-100 sm:text-sm"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-300">Fecha de Finalización</label>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">Finalización de Gestión</label>
                   <input
                     type="date"
                     required
                     value={fechaFin}
                     onChange={(e) => setFechaFin(e.target.value)}
-                    className="mt-1 block w-full bg-[#0B0E14] border border-slate-600 rounded-md py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-slate-100 sm:text-sm"
+                    className="mt-1 block w-full bg-[#0B0E14] border border-slate-750 rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-100 sm:text-sm"
                   />
                 </div>
-                <div className="flex items-center pt-8">
+                <div className="md:col-span-4 flex items-center justify-between pt-2 border-t border-slate-800/60">
+                  <div className="text-slate-400 text-xs max-w-md">
+                    Al activar el comité vigente, se suspenderán los permisos especiales del comité previo y se habilitarán los nuevos.
+                  </div>
                   <label className="flex items-center space-x-3 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={activo}
                       onChange={(e) => setActivo(e.target.checked)}
-                      className="h-4.5 w-4.5 text-blue-600 focus:ring-blue-500 border-slate-600 bg-slate-900 rounded"
+                      className="h-4.5 w-4.5 text-blue-600 focus:ring-blue-500 border-slate-650 bg-slate-900 rounded"
                     />
-                    <span className="text-sm font-medium text-slate-300">Activar de inmediato</span>
+                    <span className="text-sm font-semibold text-slate-200">Activar y sincronizar credenciales de inmediato</span>
                   </label>
                 </div>
               </div>
 
               {/* Roles Designation Block */}
-              <div className="bg-slate-900/30 p-5 rounded-xl border border-slate-700/50 space-y-6">
-                <h3 className="text-sm font-bold text-slate-300 border-b border-slate-700 pb-2 uppercase tracking-wide">
-                  Designación de Directivos y Asignación de Suministro Exonerado
+              <div className="space-y-4">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center">
+                  <Award className="w-4.5 h-4.5 text-blue-500 mr-2" />
+                  Designación de Miembros y Asignación de Suministros
                 </h3>
-                
-                {/* 1. PRESIDENTE SELECT */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-4 border-b border-slate-800/40">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 flex items-center">
-                      <Shield className="w-4 h-4 text-blue-400 mr-1" /> Presidente (Rol ADMIN)
-                    </label>
-                    <select
-                      required
-                      value={presidente.clientId}
-                      onChange={(e) => setPresidente({ clientId: e.target.value, supplyCodeExonerado: '' })}
-                      className="mt-1 block w-full bg-[#0B0E14] border border-slate-600 rounded-md py-2 px-3 focus:outline-none text-slate-100 sm:text-sm"
-                    >
-                      <option value="">-- Seleccionar Socio --</option>
-                      {sociosHabilitados.map(s => (
-                        <option key={s.id} value={s.id}>{s.nombres} {s.apellidos} (DNI: {s.dni})</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300">Suministro para Exoneración Eléctrica</label>
-                    <select
-                      required={!!presidente.clientId}
-                      disabled={!presidente.clientId}
-                      value={presidente.supplyCodeExonerado}
-                      onChange={(e) => setPresidente(prev => ({ ...prev, supplyCodeExonerado: e.target.value }))}
-                      className="mt-1 block w-full bg-[#0B0E14] border border-slate-600 rounded-md py-2 px-3 focus:outline-none text-slate-100 sm:text-sm disabled:opacity-50"
-                    >
-                      <option value="">-- Seleccionar Suministro --</option>
-                      {getClientSupplies(presidente.clientId).map(code => (
-                        <option key={code} value={code}>Suministro: {code}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
 
-                {/* 2. SECRETARIO SELECT */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-4 border-b border-slate-800/40">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 flex items-center">
-                      <FileText className="w-4 h-4 text-indigo-400 mr-1" /> Secretario (Rol REUNIONES)
-                    </label>
-                    <select
-                      required
-                      value={secretario.clientId}
-                      onChange={(e) => setSecretario({ clientId: e.target.value, supplyCodeExonerado: '' })}
-                      className="mt-1 block w-full bg-[#0B0E14] border border-slate-600 rounded-md py-2 px-3 focus:outline-none text-slate-100 sm:text-sm"
-                    >
-                      <option value="">-- Seleccionar Socio --</option>
-                      {sociosHabilitados.map(s => (
-                        <option key={s.id} value={s.id}>{s.nombres} {s.apellidos} (DNI: {s.dni})</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300">Suministro para Exoneración Eléctrica</label>
-                    <select
-                      required={!!secretario.clientId}
-                      disabled={!secretario.clientId}
-                      value={secretario.supplyCodeExonerado}
-                      onChange={(e) => setSecretario(prev => ({ ...prev, supplyCodeExonerado: e.target.value }))}
-                      className="mt-1 block w-full bg-[#0B0E14] border border-slate-600 rounded-md py-2 px-3 focus:outline-none text-slate-100 sm:text-sm disabled:opacity-50"
-                    >
-                      <option value="">-- Seleccionar Suministro --</option>
-                      {getClientSupplies(secretario.clientId).map(code => (
-                        <option key={code} value={code}>Suministro: {code}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {/* President */}
+                  <SocioSearchSelect
+                    label="Presidente (Rol ADMIN)"
+                    value={presidente.clientId}
+                    onChange={(clientId) => setPresidente({ clientId, supplyCodeExonerado: '' })}
+                    onSupplyChange={(supplyCodeExonerado) => setPresidente(prev => ({ ...prev, supplyCodeExonerado }))}
+                    supplyValue={presidente.supplyCodeExonerado}
+                    socios={sociosHabilitados}
+                    getClientSupplies={getClientSupplies}
+                    currentRole="presidente"
+                    getAssignmentError={getAssignmentError}
+                    icon={Shield}
+                  />
 
-                {/* 3. TESORERO SELECT */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-4 border-b border-slate-800/40">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 flex items-center">
-                      <UserCheck className="w-4 h-4 text-amber-400 mr-1" /> Tesorero (Rol FINANZAS)
-                    </label>
-                    <select
-                      required
-                      value={tesorero.clientId}
-                      onChange={(e) => setTesorero({ clientId: e.target.value, supplyCodeExonerado: '' })}
-                      className="mt-1 block w-full bg-[#0B0E14] border border-slate-600 rounded-md py-2 px-3 focus:outline-none text-slate-100 sm:text-sm"
-                    >
-                      <option value="">-- Seleccionar Socio --</option>
-                      {sociosHabilitados.map(s => (
-                        <option key={s.id} value={s.id}>{s.nombres} {s.apellidos} (DNI: {s.dni})</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300">Suministro para Exoneración Eléctrica</label>
-                    <select
-                      required={!!tesorero.clientId}
-                      disabled={!tesorero.clientId}
-                      value={tesorero.supplyCodeExonerado}
-                      onChange={(e) => setTesorero(prev => ({ ...prev, supplyCodeExonerado: e.target.value }))}
-                      className="mt-1 block w-full bg-[#0B0E14] border border-slate-600 rounded-md py-2 px-3 focus:outline-none text-slate-100 sm:text-sm disabled:opacity-50"
-                    >
-                      <option value="">-- Seleccionar Suministro --</option>
-                      {getClientSupplies(tesorero.clientId).map(code => (
-                        <option key={code} value={code}>Suministro: {code}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
+                  {/* Secretary */}
+                  <SocioSearchSelect
+                    label="Secretario (Rol SECRETARIO)"
+                    value={secretario.clientId}
+                    onChange={(clientId) => setSecretario({ clientId, supplyCodeExonerado: '' })}
+                    onSupplyChange={(supplyCodeExonerado) => setSecretario(prev => ({ ...prev, supplyCodeExonerado }))}
+                    supplyValue={secretario.supplyCodeExonerado}
+                    socios={sociosHabilitados}
+                    getClientSupplies={getClientSupplies}
+                    currentRole="secretario"
+                    getAssignmentError={getAssignmentError}
+                    icon={FileText}
+                  />
 
-                {/* 4. FISCALIZADOR SELECT */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 flex items-center">
-                      <RefreshCw className="w-4 h-4 text-purple-400 mr-1" /> Fiscalizador (Rol CONSULTAS)
-                    </label>
-                    <select
-                      required
-                      value={fiscalizador.clientId}
-                      onChange={(e) => setFiscalizador({ clientId: e.target.value, supplyCodeExonerado: '' })}
-                      className="mt-1 block w-full bg-[#0B0E14] border border-slate-600 rounded-md py-2 px-3 focus:outline-none text-slate-100 sm:text-sm"
-                    >
-                      <option value="">-- Seleccionar Socio --</option>
-                      {sociosHabilitados.map(s => (
-                        <option key={s.id} value={s.id}>{s.nombres} {s.apellidos} (DNI: {s.dni})</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300">Suministro para Exoneración Eléctrica</label>
-                    <select
-                      required={!!fiscalizador.clientId}
-                      disabled={!fiscalizador.clientId}
-                      value={fiscalizador.supplyCodeExonerado}
-                      onChange={(e) => setFiscalizador(prev => ({ ...prev, supplyCodeExonerado: e.target.value }))}
-                      className="mt-1 block w-full bg-[#0B0E14] border border-slate-600 rounded-md py-2 px-3 focus:outline-none text-slate-100 sm:text-sm disabled:opacity-50"
-                    >
-                      <option value="">-- Seleccionar Suministro --</option>
-                      {getClientSupplies(fiscalizador.clientId).map(code => (
-                        <option key={code} value={code}>Suministro: {code}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
+                  {/* Treasurer */}
+                  <SocioSearchSelect
+                    label="Tesorero (Rol TESORERO)"
+                    value={tesorero.clientId}
+                    onChange={(clientId) => setTesorero({ clientId, supplyCodeExonerado: '' })}
+                    onSupplyChange={(supplyCodeExonerado) => setTesorero(prev => ({ ...prev, supplyCodeExonerado }))}
+                    supplyValue={tesorero.supplyCodeExonerado}
+                    socios={sociosHabilitados}
+                    getClientSupplies={getClientSupplies}
+                    currentRole="tesorero"
+                    getAssignmentError={getAssignmentError}
+                    icon={UserCheck}
+                  />
 
+                  {/* Auditor */}
+                  <SocioSearchSelect
+                    label="Fiscalizador (Rol FISCALIZADOR)"
+                    value={fiscalizador.clientId}
+                    onChange={(clientId) => setFiscalizador({ clientId, supplyCodeExonerado: '' })}
+                    onSupplyChange={(supplyCodeExonerado) => setFiscalizador(prev => ({ ...prev, supplyCodeExonerado }))}
+                    supplyValue={fiscalizador.supplyCodeExonerado}
+                    socios={sociosHabilitados}
+                    getClientSupplies={getClientSupplies}
+                    currentRole="fiscalizador"
+                    getAssignmentError={getAssignmentError}
+                    icon={RefreshCw}
+                  />
+
+                  {/* Vocal */}
+                  <SocioSearchSelect
+                    label="Vocal (Rol VOCAL)"
+                    value={vocal.clientId}
+                    onChange={(clientId) => setVocal({ clientId, supplyCodeExonerado: '' })}
+                    onSupplyChange={(supplyCodeExonerado) => setVocal(prev => ({ ...prev, supplyCodeExonerado }))}
+                    supplyValue={vocal.supplyCodeExonerado}
+                    socios={sociosHabilitados}
+                    getClientSupplies={getClientSupplies}
+                    currentRole="vocal"
+                    getAssignmentError={getAssignmentError}
+                    icon={Users}
+                  />
+                </div>
               </div>
+
+              {/* Dynamic Accounts Summary Preview Panel */}
+              {selectedSocioIds.length > 0 && (
+                <div className="bg-slate-900/40 p-5 rounded-2xl border border-slate-800 space-y-4 animate-fadeIn">
+                  <h4 className="text-xs font-bold text-slate-400 flex items-center uppercase tracking-wider">
+                    <UserCheck className="w-4 h-4 text-emerald-400 mr-2" />
+                    Vista Previa De Accesos Al Sistema
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                    {['presidente', 'secretario', 'tesorero', 'fiscalizador', 'vocal'].map(role => {
+                      const roleData = role === 'presidente' ? presidente : role === 'secretario' ? secretario : role === 'tesorero' ? tesorero : role === 'fiscalizador' ? fiscalizador : vocal;
+                      if (!roleData.clientId) return null;
+                      const client = clients.find(c => c.id === roleData.clientId);
+                      if (!client) return null;
+                      
+                      const existingAdmin = admins.find(a => a.dni === client.dni);
+                      const mappedRole = role === 'presidente' ? 'ADMIN' : role === 'secretario' ? 'SECRETARIO' : role === 'tesorero' ? 'TESORERO' : role === 'fiscalizador' ? 'FISCALIZADOR' : 'VOCAL';
+                      const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
+                      const generatedUser = `${(client.nombres.charAt(0) + (client.apellidos.split(' ')[0] || '')).toLowerCase().replace(/[^a-z0-9]/g, '')}${client.dni.slice(-2)}`;
+                      
+                      return (
+                        <div key={role} className="bg-[#0B0E14] p-3 rounded-xl border border-slate-800 flex flex-col justify-between space-y-2">
+                          <div>
+                            <div className="flex justify-between items-start">
+                              <span className="text-[10px] font-bold text-blue-400 tracking-wider uppercase">{roleLabel}</span>
+                              {existingAdmin ? (
+                                <Badge variant="success" className="text-[9px] px-1.5 py-0">Existente</Badge>
+                              ) : (
+                                <Badge variant="warning" className="text-[9px] px-1.5 py-0 bg-amber-500/15 text-amber-400">Crear Acceso</Badge>
+                              )}
+                            </div>
+                            <p className="text-xs font-semibold text-slate-100 mt-1 truncate">{client.nombres} {client.apellidos}</p>
+                          </div>
+                          
+                          <div className="text-[10px] pt-2 border-t border-slate-800/80 space-y-1">
+                            <p className="flex justify-between text-slate-400">
+                              <span>Usuario:</span>
+                              <span className="font-semibold font-mono text-slate-200">
+                                {existingAdmin ? `@${existingAdmin.username}` : `@${generatedUser}`}
+                              </span>
+                            </p>
+                            <p className="flex justify-between text-slate-400">
+                              <span>Rol ERP:</span>
+                              <span className="font-semibold text-slate-200">{mappedRole}</span>
+                            </p>
+                            {!existingAdmin && (
+                              <p className="flex justify-between text-slate-400">
+                                <span>Clave temporal:</span>
+                                <span className="font-semibold text-amber-400 bg-amber-500/10 px-1 rounded font-mono">Comite2026#</span>
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Alert policy */}
               <div className="bg-blue-500/10 border border-blue-500/30 p-4 rounded-lg flex space-x-3">
                 <AlertCircle className="w-5 h-5 text-blue-400 flex-shrink-0" />
                 <p className="text-xs text-blue-300 leading-normal">
-                  <strong>Nota Importante de Accesos y Exoneración:</strong> Activar un comité generará o habilitará de inmediato las credenciales de los socios elegidos con la contraseña por defecto <strong>Comite2026#</strong> (se les solicitará cambiarla en su primer login). Al mismo tiempo, sus consumos de energía en el suministro indicado pasará a ser S/ 0 automáticamente para las facturas comprendidas dentro del periodo indicado.
+                  <strong>Sincronización Automática e Historial:</strong> Guardar un comité directivo creará de forma inmediata las credenciales de acceso para aquellos miembros que aún no cuenten con usuario. Si ya poseen una cuenta, el sistema los vinculará automáticamente a su rol correspondiente respetando su contraseña actual. En el caso de cuentas nuevas, se les asignará la clave temporal <strong>Comite2026#</strong> y se les obligará el cambio de clave en su primer inicio de sesión. Las exoneraciones de cobro de luz (S/ 0 de consumo mensual) se aplicarán dentro del periodo de vigencia seleccionado.
                 </p>
               </div>
 
@@ -699,7 +1059,7 @@ export default function ComiteDirectivo() {
                   Cancelar
                 </Button>
                 <Button type="submit">
-                  Guardar Comité Directivo
+                  {editingId ? 'Actualizar Comité' : 'Guardar Comité Directivo'}
                 </Button>
               </div>
 
@@ -708,11 +1068,11 @@ export default function ComiteDirectivo() {
         </Card>
       )}
 
-      {/* 3. HISTORIAL DE GESTION DE COMITES DIRECTIVOS */}
+      {/* 3. HISTORIAL */}
       {activeTab === 'historial' && (
-        <Card>
+        <Card className="border-slate-800/65 bg-slate-950/20 shadow-xl">
           <CardHeader className="flex justify-between items-center sm:flex-row flex-col space-y-2 sm:space-y-0">
-            <CardTitle>Histórico de Comités Directivos</CardTitle>
+            <CardTitle className="text-lg font-bold">Histórico de Comités Directivos</CardTitle>
             <div className="relative w-full max-w-xs">
               <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Search className="h-4 w-4 text-slate-500" />
@@ -722,7 +1082,7 @@ export default function ComiteDirectivo() {
                 placeholder="Buscar comités..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="block w-full pl-9 pr-3 py-1.5 bg-[#0B0E14] border border-slate-700 rounded-md text-slate-100 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                className="block w-full pl-9 pr-3 py-1.5 bg-[#0B0E14] border border-slate-705 rounded-md text-slate-100 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
           </CardHeader>
@@ -757,6 +1117,7 @@ export default function ComiteDirectivo() {
                               <p>✍️ <span className="font-semibold text-slate-200">Sec:</span> {com.secretario.nombreCompleto}</p>
                               <p>💰 <span className="font-semibold text-slate-200">Tes:</span> {com.tesorero.nombreCompleto}</p>
                               <p>🔍 <span className="font-semibold text-slate-200">Fisc:</span> {com.fiscalizador.nombreCompleto}</p>
+                              {com.vocal && <p>👥 <span className="font-semibold text-slate-200">Voc:</span> {com.vocal.nombreCompleto}</p>}
                             </div>
                           </td>
                           <td className="px-4 py-4 text-xs text-slate-400 font-mono">
@@ -765,6 +1126,7 @@ export default function ComiteDirectivo() {
                               <p>S: {com.secretario.supplyCodeExonerado || '---'}</p>
                               <p>T: {com.tesorero.supplyCodeExonerado || '---'}</p>
                               <p>F: {com.fiscalizador.supplyCodeExonerado || '---'}</p>
+                              {com.vocal && <p>V: {com.vocal.supplyCodeExonerado || '---'}</p>}
                             </div>
                           </td>
                           <td className="px-4 py-4 text-xs whitespace-nowrap">
@@ -774,20 +1136,24 @@ export default function ComiteDirectivo() {
                           </td>
                           <td className="px-4 py-4 text-right text-xs whitespace-nowrap">
                             <div className="flex justify-end space-x-2">
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
-                                onClick={() => handleToggleActive(com.id, com.nombrePeriodo)} 
-                                className={`text-${com.activo ? 'orange' : 'emerald'}-400 border-${com.activo ? 'orange' : 'emerald'}-500/20 hover:bg-${com.activo ? 'orange' : 'emerald'}-500/10`}
-                              >
-                                {com.activo ? 'Desactivar' : 'Activar'}
-                              </Button>
-                              <Button variant="outline" size="sm" onClick={() => handleEdit(com)} className="text-blue-400 border-blue-500/20">
-                                <Edit2 className="w-3 h-3" />
-                              </Button>
-                              <Button variant="outline" size="sm" onClick={() => handleDelete(com.id, com.nombrePeriodo)} className="text-red-400 border-red-500/20 hover:bg-red-500/10">
-                                <Trash className="w-3 h-3" />
-                              </Button>
+                              {userRole === 'ADMIN' && (
+                                <>
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    onClick={() => handleToggleActive(com.id, com.nombrePeriodo)} 
+                                    className={`text-${com.activo ? 'orange' : 'emerald'}-400 border-${com.activo ? 'orange' : 'emerald'}-500/20 hover:bg-${com.activo ? 'orange' : 'emerald'}-500/10 bg-slate-900/40`}
+                                  >
+                                    {com.activo ? 'Desactivar' : 'Activar'}
+                                  </Button>
+                                  <Button variant="outline" size="sm" onClick={() => handleEdit(com)} className="text-blue-400 border-blue-500/20 bg-slate-900/40">
+                                    <Edit2 className="w-3 h-3" />
+                                  </Button>
+                                  <Button variant="outline" size="sm" onClick={() => handleDelete(com.id, com.nombrePeriodo)} className="text-red-400 border-red-500/20 hover:bg-red-500/10 bg-slate-900/40">
+                                    <Trash className="w-3 h-3" />
+                                  </Button>
+                                </>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -804,13 +1170,13 @@ export default function ComiteDirectivo() {
         </Card>
       )}
 
-      {/* 4. SECCION REPORTES DE COMITE */}
+      {/* 4. SECCION REPORTES */}
       {activeTab === 'reportes' && (
         <div className="space-y-6">
-          <Card>
+          <Card className="border-slate-800 bg-slate-950/20 shadow-xl">
             <CardHeader className="flex justify-between items-center sm:flex-row flex-col space-y-2 sm:space-y-0">
               <CardTitle>Reportes Consolidados de la Central</CardTitle>
-              <Button onClick={exportPDFReport} size="sm">
+              <Button onClick={exportPDFReport} size="sm" className="font-semibold">
                 <Download className="w-4 h-4 mr-1.5" /> Descargar Reporte Completo (PDF)
               </Button>
             </CardHeader>
@@ -818,18 +1184,18 @@ export default function ComiteDirectivo() {
               
               {/* Summary Indicators */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-slate-900/30 p-4 rounded-xl border border-slate-700/50">
-                  <span className="text-xs text-slate-400">Total Comités Registrados</span>
+                <div className="bg-[#0B0E14] p-4 rounded-xl border border-slate-800">
+                  <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Total Comités Registrados</span>
                   <p className="text-2xl font-bold text-slate-100 mt-1">{comites?.length || 0}</p>
                 </div>
-                <div className="bg-slate-900/30 p-4 rounded-xl border border-slate-700/50">
-                  <span className="text-xs text-slate-400">Socio-Clientes Elegibles</span>
+                <div className="bg-[#0B0E14] p-4 rounded-xl border border-slate-800">
+                  <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Socio-Clientes Elegibles</span>
                   <p className="text-2xl font-bold text-green-400 mt-1">{sociosHabilitados.length}</p>
                 </div>
-                <div className="bg-slate-900/30 p-4 rounded-xl border border-slate-700/50">
-                  <span className="text-xs text-slate-400">Suministros Exonerados Activos</span>
+                <div className="bg-[#0B0E14] p-4 rounded-xl border border-slate-800">
+                  <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Suministros Exonerados Activos</span>
                   <p className="text-2xl font-bold text-emerald-400 mt-1">
-                    {comiteVigente ? 4 : 0}
+                    {comiteVigente ? (comiteVigente.vocal ? 5 : 4) : 0}
                   </p>
                 </div>
               </div>
@@ -837,7 +1203,7 @@ export default function ComiteDirectivo() {
               {/* Active Exonerations Subtable */}
               <div className="space-y-3">
                 <h3 className="text-sm font-bold text-slate-300 flex items-center">
-                  <Zap className="w-4 h-4 text-emerald-400 mr-1.5" /> Padrón de Suministros con Exoneraciones Activas
+                  <Zap className="w-4.5 h-4.5 text-emerald-400 mr-1.5" /> Padrón de Suministros con Exoneraciones Activas
                 </h3>
                 {comiteVigente ? (
                   <div className="border border-slate-800 rounded-lg overflow-hidden">
@@ -857,6 +1223,7 @@ export default function ComiteDirectivo() {
                           { role: 'Secretario', m: comiteVigente.secretario },
                           { role: 'Tesorero', m: comiteVigente.tesorero },
                           { role: 'Fiscalizador', m: comiteVigente.fiscalizador },
+                          ...(comiteVigente.vocal ? [{ role: 'Vocal', m: comiteVigente.vocal }] : [])
                         ].map(({ role, m }) => (
                           <tr key={role} className="hover:bg-slate-900/30">
                             <td className="px-4 py-3 font-mono text-emerald-400 font-bold">{m.supplyCodeExonerado || '---'}</td>

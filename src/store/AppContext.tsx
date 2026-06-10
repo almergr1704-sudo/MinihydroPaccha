@@ -421,7 +421,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               activeComite.presidente,
               activeComite.secretario,
               activeComite.tesorero,
-              activeComite.fiscalizador
+              activeComite.fiscalizador,
+              activeComite.vocal
             ].filter(Boolean);
             if (members.some(m => m.supplyCodeExonerado === consumption.codigoSuministro)) {
               isExonerated = true;
@@ -647,14 +648,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         oldActiveComite.presidente?.clientId,
         oldActiveComite.secretario?.clientId,
         oldActiveComite.tesorero?.clientId,
-        oldActiveComite.fiscalizador?.clientId
+        oldActiveComite.fiscalizador?.clientId,
+        oldActiveComite.vocal?.clientId
       ].filter(Boolean);
 
       const newMemberIds = [
         comite.presidente?.clientId,
         comite.secretario?.clientId,
         comite.tesorero?.clientId,
-        comite.fiscalizador?.clientId
+        comite.fiscalizador?.clientId,
+        comite.vocal?.clientId
       ].filter(Boolean);
 
       oldMemberIds.forEach(oldId => {
@@ -677,6 +680,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     syncMember(comite.secretario, 'SECRETARIO');
     syncMember(comite.tesorero, 'TESORERO');
     syncMember(comite.fiscalizador, 'FISCALIZADOR');
+    if (comite.vocal) {
+      syncMember(comite.vocal, 'VOCAL');
+    }
 
     return updatedAdmins;
   };
@@ -687,7 +693,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       comite.presidente?.clientId,
       comite.secretario?.clientId,
       comite.tesorero?.clientId,
-      comite.fiscalizador?.clientId
+      comite.fiscalizador?.clientId,
+      comite.vocal?.clientId
     ].filter(Boolean);
 
     memberIds.forEach(id => {

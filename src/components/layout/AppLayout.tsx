@@ -34,6 +34,8 @@ export function AppLayout() {
     ? baseNavigation.filter(nav => ['Consumo & Facturación', 'Configuración'].includes(nav.name))
     : userRole === 'SECRETARIO'
     ? baseNavigation.filter(nav => ['Reuniones', 'Configuración'].includes(nav.name))
+    : userRole === 'VOCAL'
+    ? baseNavigation.filter(nav => ['Reportes', 'Configuración'].includes(nav.name))
     : userRole === 'TESORERO'
     ? baseNavigation.filter(nav => nav.name !== 'Usuarios' && nav.name !== 'Auditoría')
     : userRole === 'FISCALIZADOR'
@@ -150,7 +152,7 @@ export function AppLayout() {
                   <div className="ml-3 truncate max-w-[150px]">
                     <p className="text-sm font-medium text-white truncate" title={user?.email || 'Usuario'}>{user?.email || 'Admin User'}</p>
                     <p className="text-xs font-medium text-slate-400 group-hover:text-slate-300">
-                      {userRole === 'ADMIN' ? 'Administrador' : userRole === 'TESORERO' ? 'Tesorero' : userRole === 'OPERATOR' ? 'Operador' : userRole === 'SECRETARIO' ? 'Secretario' : 'Fiscalizador'}
+                      {userRole === 'ADMIN' ? 'Administrador' : userRole === 'TESORERO' ? 'Tesorero' : userRole === 'OPERATOR' ? 'Operador' : userRole === 'SECRETARIO' ? 'Secretario' : userRole === 'VOCAL' ? 'Vocal' : 'Fiscalizador'}
                     </p>
                   </div>
                 </div>

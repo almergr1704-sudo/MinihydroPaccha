@@ -137,6 +137,7 @@ export interface Committee {
   secretario: CommitteeMember;
   tesorero: CommitteeMember;
   fiscalizador: CommitteeMember;
+  vocal?: CommitteeMember;
   activo: boolean; 
   createdBy: string;
   createdAt: string;
