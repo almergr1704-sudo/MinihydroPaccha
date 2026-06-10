@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { AppState, Client, Consumption, Transaction, Meeting, ClientType, Fine, AuditLog, Committee, CommitteeMember } from './types';
+import { AppState, Client, Consumption, Transaction, Meeting, ClientType, Fine, AuditLog, Committee, CommitteeMember, Trabajador, PagoSueldo } from './types';
 import { normalizeSupplyCode } from '../lib/utils';
 import bcrypt from 'bcryptjs';
 
@@ -9,6 +9,8 @@ interface AppContextType extends AppState {
   mustChangePassword?: boolean;
   loadingAuth: boolean;
   comites: Committee[];
+  trabajadores: Trabajador[];
+  pagosSueldos: PagoSueldo[];
   addCommittee: (committee: Omit<Committee, 'id' | 'createdBy' | 'createdAt'>) => Promise<void>;
   updateCommittee: (id: string, updates: Partial<Committee>) => Promise<void>;
   deleteCommittee: (id: string) => Promise<void>;
@@ -34,6 +36,9 @@ interface AppContextType extends AppState {
   setSupplySocioStatus: (supplyCode: string, isSocio: boolean) => Promise<void>;
   login: (email: string) => void;
   logout: () => void;
+  addTrabajador: (trabajador: Omit<Trabajador, 'id' | 'fechaRegistro'>) => Promise<void>;
+  updateTrabajador: (id: string, updates: Partial<Trabajador>) => Promise<void>;
+  addPagoSueldo: (pago: Omit<PagoSueldo, 'id' | 'fechaPago' | 'comprobante' | 'createdBy'>) => Promise<PagoSueldo>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -52,6 +57,8 @@ const initialData: AppState = {
   auditLogs: [],
   suppliesInfo: [],
   comites: [],
+  trabajadores: [],
+  pagosSueldos: [],
   settings: {
     costoSocio: 0.20,
     costoUsuario: 0.30,
@@ -78,6 +85,8 @@ const getLocalData = (): AppState => {
         suppliesInfo: parsed.suppliesInfo || initialData.suppliesInfo,
         settings: { ...initialData.settings, ...(parsed.settings || {}) },
         comites: parsed.comites || [],
+        trabajadores: parsed.trabajadores || [],
+        pagosSueldos: parsed.pagosSueldos || [],
       };
     } catch (e) {
       console.error('Failed to parse local data', e);
@@ -110,6 +119,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     if (!data.comites) {
       data.comites = [];
+    }
+    if (!data.trabajadores) {
+      data.trabajadores = [];
+    }
+    if (!data.pagosSueldos) {
+      data.pagosSueldos = [];
     }
     
     // Ensure default admin exists
@@ -825,6 +840,116 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  const addTrabajador = async (trabajador: Omit<Trabajador, 'id' | 'fechaRegistro'>) => {
+    if (!trabajador.nombres || !trabajador.nombres.trim() || !trabajador.apellidos || !trabajador.apellidos.trim()) {
+      throw new Error('Nombres y Apellidos no pueden estar vacíos.');
+    }
+    if (!trabajador.dni || !/^\d{8}$/.test(trabajador.dni)) {
+      throw new Error('El DNI debe tener exactamente 8 dígitos numéricos.');
+    }
+    const existing = (state.trabajadores || []).find(t => t.dni === trabajador.dni);
+    if (existing) {
+      throw new Error('El DNI ingresado ya pertenece a un trabajador registrado.');
+    }
+    if (trabajador.sueldoMensual <= 0) {
+      throw new Error('El sueldo mensual debe ser mayor a cero.');
+    }
+
+    const nTrabajador: Trabajador = {
+      ...trabajador,
+      id: `TRAB-${Date.now()}`,
+      fechaRegistro: new Date().toISOString(),
+      createdBy: user?.email || 'Admin'
+    };
+
+    const newTrabajadores = [...(state.trabajadores || []), nTrabajador];
+    persistState({ ...state, trabajadores: newTrabajadores });
+    setTimeout(() => addAuditLog('CREAR', 'SISTEMA', `Registró al trabajador de planta: ${nTrabajador.nombres} ${nTrabajador.apellidos}`), 0);
+  };
+
+  const updateTrabajador = async (id: string, updates: Partial<Trabajador>) => {
+    if (updates.nombres !== undefined && (!updates.nombres || !updates.nombres.trim())) {
+      throw new Error('El nombre no puede estar vacío.');
+    }
+    if (updates.apellidos !== undefined && (!updates.apellidos || !updates.apellidos.trim())) {
+      throw new Error('El apellido no puede estar vacío.');
+    }
+    if (updates.dni !== undefined) {
+      if (!updates.dni || !/^\d{8}$/.test(updates.dni)) {
+        throw new Error('El DNI debe tener exactamente 8 dígitos numéricos.');
+      }
+      const existing = (state.trabajadores || []).find(t => t.dni === updates.dni && t.id !== id);
+      if (existing) {
+        throw new Error('El DNI ingresado ya pertenece a otro trabajador registrado.');
+      }
+    }
+    if (updates.sueldoMensual !== undefined && updates.sueldoMensual <= 0) {
+      throw new Error('El sueldo mensual debe ser mayor a cero.');
+    }
+
+    const newTrabajadores = (state.trabajadores || []).map(t => t.id === id ? { ...t, ...updates } : t);
+    persistState({ ...state, trabajadores: newTrabajadores });
+    setTimeout(() => addAuditLog('ACTUALIZAR', 'SISTEMA', `Actualizó información del trabajador ID: ${id}`), 0);
+  };
+
+  const addPagoSueldo = async (pago: Omit<PagoSueldo, 'id' | 'fechaPago' | 'comprobante' | 'createdBy'>) => {
+    const worker = (state.trabajadores || []).find(t => t.id === pago.trabajadorId);
+    if (!worker) {
+      throw new Error('El trabajador seleccionado no existe.');
+    }
+    if (worker.estado !== 'ACTIVO') {
+      throw new Error('Solo los trabajadores activos pueden recibir pagos de remuneración.');
+    }
+
+    const alreadyPaid = (state.pagosSueldos || []).some(
+      p => p.trabajadorId === pago.trabajadorId && p.mesPagado === pago.mesPagado
+    );
+    if (alreadyPaid) {
+      const [year, month] = pago.mesPagado.split('-');
+      const monthNames = [
+        'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+      ];
+      const monthName = monthNames[parseInt(month, 10) - 1] || month;
+      throw new Error(`El trabajador ya tiene registrado el pago de sueldo correspondiente al mes de ${monthName}/${year}.`);
+    }
+
+    const compNo = `S-${Date.now().toString().slice(-6)}`;
+    const nPago: PagoSueldo = {
+      ...pago,
+      id: `PAG-${Date.now()}`,
+      fechaPago: new Date().toISOString(),
+      comprobante: compNo,
+      createdBy: user?.email || 'Admin'
+    };
+
+    const newPagos = [...(state.pagosSueldos || []), nPago];
+
+    const egresoTx: Transaction = {
+      id: `TX-EG-${Date.now()}`,
+      tipo: 'EGRESO',
+      categoria: 'SUELDOS',
+      monto: Number(pago.monto),
+      fecha: new Date().toISOString(),
+      descripcion: pago.observaciones || `PAGO DE SUELDO - MES: ${pago.mesPagado} - TRABAJADOR: ${pago.trabajadorNombreCompleto}`,
+      destinatario: pago.trabajadorNombreCompleto,
+      createdBy: user?.email || 'Admin',
+      comprobante: compNo,
+      metodoPago: 'EFECTIVO'
+    };
+
+    const newTransactions = [...(state.transactions || []), egresoTx];
+
+    persistState({
+      ...state,
+      pagosSueldos: newPagos,
+      transactions: newTransactions
+    });
+
+    setTimeout(() => addAuditLog('CREAR', 'FINANZAS', `Registró pago de sueldo a: ${pago.trabajadorNombreCompleto} por el mes ${pago.mesPagado}`), 0);
+    return nPago;
+  };
+
   const updateSettings = async (settings: any) => {
     persistState({
       ...state,
@@ -837,6 +962,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     <AppContext.Provider value={{
       ...state,
       comites: state.comites || [],
+      trabajadores: state.trabajadores || [],
+      pagosSueldos: state.pagosSueldos || [],
       user,
       userRole,
       mustChangePassword,
@@ -865,7 +992,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addCommittee,
       updateCommittee,
       deleteCommittee,
-      toggleCommitteeStatus
+      toggleCommitteeStatus,
+      addTrabajador,
+      updateTrabajador,
+      addPagoSueldo
     }}>
       {children}
     </AppContext.Provider>

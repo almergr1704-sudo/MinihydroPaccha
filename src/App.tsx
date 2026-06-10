@@ -7,6 +7,7 @@ import { ConfirmProvider } from './components/ui/ConfirmDialog';
 
 import Dashboard from './pages/Dashboard';
 import Clientes from './pages/Clientes';
+import Trabajadores from './pages/Trabajadores';
 import VentaServicios from './pages/VentaServicios';
 import Consumo from './pages/Consumo';
 import Finanzas from './pages/Finanzas';
@@ -85,6 +86,7 @@ export default function App() {
             <Route path="/" element={<AuthGuard><AppLayout /></AuthGuard>}>
               <Route index element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><Dashboard /></RoleGuard>} />
               <Route path="clientes" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><Clientes /></RoleGuard>} />
+              <Route path="trabajadores" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><Trabajadores /></RoleGuard>} />
               <Route path="servicios" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><VentaServicios /></RoleGuard>} />
               <Route path="consumo" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR', 'OPERATOR']}><Consumo /></RoleGuard>} />
               <Route path="finanzas" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><Finanzas /></RoleGuard>} />

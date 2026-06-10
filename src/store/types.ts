@@ -109,6 +109,36 @@ export interface SupplyInfo {
   fechaSocio?: string;
 }
 
+export interface Trabajador {
+  id: string;
+  nombres: string;
+  apellidos: string;
+  dni: string;
+  cargo: string;
+  sueldoMensual: number;
+  telefono?: string;
+  correo?: string;
+  direccion?: string;
+  observaciones?: string;
+  estado: 'ACTIVO' | 'INACTIVO';
+  fechaRegistro: string;
+  createdBy?: string;
+}
+
+export interface PagoSueldo {
+  id: string;
+  trabajadorId: string;
+  trabajadorNombreCompleto: string;
+  trabajadorDni: string;
+  trabajadorCargo: string;
+  monto: number;
+  mesPagado: string; // Formato YYYY-MM
+  fechaPago: string; // ISO String
+  createdBy: string;
+  comprobante: string;
+  observaciones?: string;
+}
+
 export interface AppState {
   clients: Client[];
   consumptions: Consumption[];
@@ -120,6 +150,8 @@ export interface AppState {
   auditLogs: AuditLog[];
   suppliesInfo: SupplyInfo[];
   comites?: Committee[];
+  trabajadores?: Trabajador[];
+  pagosSueldos?: PagoSueldo[];
 }
 
 export interface CommitteeMember {

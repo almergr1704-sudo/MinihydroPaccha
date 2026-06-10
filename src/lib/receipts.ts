@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import { Transaction, Client } from '../store/types';
+import { Transaction, Client, PagoSueldo } from '../store/types';
 
 /**
  * Generates and downloads a standardized payment receipt in 80mm ticket format.
@@ -250,6 +250,186 @@ export function generateGeneralPaymentReceiptPDF(transaction: Transaction, clien
     return true;
   } catch (error) {
     console.error('Error generating general unified receipt:', error);
+    return false;
+  }
+}
+
+export function generatePayrollReceiptPDF(payment: PagoSueldo): boolean {
+  try {
+    const doc = new jsPDF({
+      unit: 'mm',
+      format: [80, 165]
+    });
+
+    const centerX = 40;
+
+    // --- ENCABEZADO INSTITUCIONAL UNIFORME ---
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text('BOLETA DE PAGO DE SUELDO', centerX, 12, { align: 'center' });
+    
+    doc.setFontSize(9);
+    doc.text('Mini Central Hidroeléctrica Paccha', centerX, 17, { align: 'center' });
+    
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.text('Servicio de Energía Eléctrica Autogestionado', centerX, 21, { align: 'center' });
+    doc.text('Asoc. de Usuarios de la Microcuenca Paccha', centerX, 25, { align: 'center' });
+    doc.text('Chota, Cajamarca - RUC: 20608945231', centerX, 29, { align: 'center' });
+    
+    // Separator line
+    doc.setLineWidth(0.2);
+    doc.setDrawColor(100, 116, 139);
+    doc.line(5, 32, 75, 32);
+    
+    // --- DATOS DEL COMPROBANTE ---
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.text('DATOS DE LA OPERACIÓN:', 5, 36);
+    
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Nro Recibo Planilla: ${payment.comprobante}`, 5, 41);
+    
+    const fechaFormatted = payment.fechaPago 
+      ? new Date(payment.fechaPago).toLocaleString('es-PE') 
+      : new Date().toLocaleString('es-PE');
+    doc.text(`Fecha Emisión: ${fechaFormatted}`, 5, 46);
+    
+    const registradoPor = payment.createdBy || 'Caja Central';
+    doc.text(`Registrado por: ${registradoPor}`, 5, 51);
+
+    // Payment state
+    doc.setFont('helvetica', 'bold');
+    doc.text('Estado del Pago:', 5, 56);
+    doc.setTextColor(16, 185, 129); // Emerald-500 style
+    doc.text('PAGADO / CONFORME', 31, 56);
+    doc.setTextColor(0, 0, 0); // Reset color
+    
+    doc.setLineWidth(0.2);
+    doc.line(5, 59, 75, 59);
+
+    // --- DATOS DEL TRABAJADOR ---
+    doc.setFont('helvetica', 'bold');
+    doc.text('DATOS DEL TRABAJADOR:', 5, 63);
+    
+    doc.setFont('helvetica', 'normal');
+    const workerName = payment.trabajadorNombreCompleto;
+    const workerLines = doc.splitTextToSize(workerName, 68);
+    doc.text(workerLines, 5, 68);
+    
+    const workerLinesOffset = (workerLines.length - 1) * 4;
+    const nextY = 73 + workerLinesOffset;
+    
+    doc.text(`DNI: ${payment.trabajadorDni}`, 5, nextY);
+    doc.text(`Cargo / Puesto: ${payment.trabajadorCargo}`, 5, nextY + 4);
+
+    // Format billing month
+    const [year, month] = payment.mesPagado.split('-');
+    const monthNames = [
+      'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+    ];
+    const monthName = monthNames[parseInt(month, 10) - 1] || month;
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Mes Remunerado: ${monthName} / ${year}`, 5, nextY + 8);
+    doc.setFont('helvetica', 'normal');
+
+    doc.line(5, nextY + 11, 75, nextY + 11);
+
+    const finalInfoStartY = nextY + 11;
+
+    // --- DETALLE DE PAGO / CONCEPTO ---
+    doc.setFont('helvetica', 'bold');
+    doc.text('CONCEPTO / DETALLE:', 5, finalInfoStartY + 4);
+    doc.text('TOTAL', 65, finalInfoStartY + 4);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.text('PAGO DE REMUNERACIÓN', 5, finalInfoStartY + 9);
+    
+    doc.setFont('helvetica', 'normal');
+    const cleanDesc = payment.observaciones || `Sueldo básico correspondiente al mes de ${monthName} ${year}`;
+    const splitDesc = doc.splitTextToSize(cleanDesc, 56);
+    doc.text(splitDesc, 5, finalInfoStartY + 14);
+    
+    const finalAmountStr = `S/ ${(payment.monto || 0).toFixed(2)}`;
+    doc.setFont('helvetica', 'bold');
+    doc.text(finalAmountStr, 62, finalInfoStartY + 14);
+    
+    const descHeight = (splitDesc.length - 1) * 4;
+    const finalTableY = finalInfoStartY + 18 + descHeight;
+    
+    doc.line(5, finalTableY, 75, finalTableY);
+    
+    // Total block
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text('TOTAL DEVENGO:', 5, finalTableY + 5);
+    doc.text(`S/ ${(payment.monto || 0).toFixed(2)}`, 62, finalTableY + 5);
+    
+    // --- ESTADO Y DETALLES DEL SISTEMA ERP ---
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.text('* Boleta electrónica provista por el módulo de planillas.', 5, finalTableY + 11);
+    
+    // Draw an elegant vector simulated QR code
+    const qrX = centerX - 11;
+    const qrY = finalTableY + 14;
+    const qrSize = 22;
+    
+    // Draw outer boundary and standard alignment corners for genuine look
+    doc.setDrawColor(30, 41, 59);
+    doc.setLineWidth(0.4);
+    doc.rect(qrX, qrY, qrSize, qrSize);
+    
+    // Draw QR finders
+    doc.setFillColor(0, 0, 0);
+    // Top-left
+    doc.rect(qrX + 1, qrY + 1, 5, 5);
+    doc.setFillColor(255, 255, 255);
+    doc.rect(qrX + 1.8, qrY + 1.8, 3.4, 3.4);
+    doc.setFillColor(0, 0, 0);
+    doc.rect(qrX + 2.5, qrY + 2.5, 2, 2);
+
+    // Top-right
+    doc.rect(qrX + qrSize - 6, qrY + 1, 5, 5);
+    doc.setFillColor(255, 255, 255);
+    doc.rect(qrX + qrSize - 5.2, qrY + 1.8, 3.4, 3.4);
+    doc.setFillColor(0, 0, 0);
+    doc.rect(qrX + qrSize - 4.5, qrY + 2.5, 2, 2);
+
+    // Bottom-left
+    doc.rect(qrX + 1, qrY + qrSize - 6, 5, 5);
+    doc.setFillColor(255, 255, 255);
+    doc.rect(qrX + 1.8, qrY + qrSize - 5.2, 3.4, 3.4);
+    doc.setFillColor(0, 0, 0);
+    doc.rect(qrX + 2.5, qrY + qrSize - 4.5, 2, 2);
+    
+    // Draw randomly styled code lines to realistically stand in for pixels
+    doc.rect(qrX + 8, qrY + 2, 2, 1, 'F');
+    doc.rect(qrX + 12, qrY + 3, 1, 2, 'F');
+    doc.rect(qrX + 10, qrY + 6, 2, 1, 'F');
+    doc.rect(qrX + 8, qrY + 9, 3, 1, 'F');
+    doc.rect(qrX + 13, qrY + 8, 2, 2, 'F');
+    doc.rect(qrX + 9, qrY + 12, 1, 3, 'F');
+    doc.rect(qrX + 11, qrY + 11, 3, 1, 'F');
+    doc.rect(qrX + 16, qrY + 9, 1, 4, 'F');
+    doc.rect(qrX + 14, qrY + 14, 4, 2, 'F');
+    doc.rect(qrX + 8, qrY + 17, 2, 1, 'F');
+    doc.rect(qrX + 11, qrY + 18, 3, 1, 'F');
+    doc.rect(qrX + 16, qrY + 17, 2, 2, 'F');
+
+    // Footers
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'italic');
+    doc.text('¡Gracias por su valioso servicio para la comunidad!', centerX, qrY + qrSize + 5, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.text('MiniCentral Hidroeléctrica Paccha ERP - Planillas', centerX, qrY + qrSize + 9, { align: 'center' });
+
+    doc.save(`Boleta_Pago_${payment.comprobante}.pdf`);
+    return true;
+  } catch (error) {
+    console.error('Error generating payroll paycheck print:', error);
     return false;
   }
 }

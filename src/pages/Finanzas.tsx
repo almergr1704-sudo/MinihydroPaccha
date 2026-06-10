@@ -11,14 +11,30 @@ import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { TransactionType, Transaction } from '../store/types';
 import { toast } from 'react-hot-toast';
-import { generateGeneralPaymentReceiptPDF } from '../lib/receipts';
+import { generateGeneralPaymentReceiptPDF, generatePayrollReceiptPDF } from '../lib/receipts';
+import { Briefcase } from 'lucide-react';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
 export default function Finanzas() {
   const { confirm } = useConfirm();
-  const { transactions, addTransaction, clients, consumptions, payConsumption, fines, payFine, settings, updateClient, userRole, toggleTransactionConciliado } = useAppContext();
-  const [isModalOpen, setIsModalOpen] = useState<false | 'INGRESO' | 'EGRESO' | 'APTOS_CORTE'>(false);
+  const { 
+    transactions, 
+    addTransaction, 
+    clients, 
+    consumptions, 
+    payConsumption, 
+    fines, 
+    payFine, 
+    settings, 
+    updateClient, 
+    userRole, 
+    toggleTransactionConciliado,
+    trabajadores = [],
+    pagosSueldos = [],
+    addPagoSueldo
+  } = useAppContext();
+  const [isModalOpen, setIsModalOpen] = useState<false | 'INGRESO' | 'EGRESO' | 'APTOS_CORTE' | 'PAGO_SUELDO'>(false);
   const [filterType, setFilterType] = useState<TransactionType | 'TODOS'>('INGRESO');
   const [selectedMes, setSelectedMes] = useState(''); // Empty means All time
   const [clientSearch, setClientSearch] = useState('');
@@ -67,12 +83,74 @@ export default function Finanzas() {
     }
   };
 
+  const [sueldoForm, setSueldoForm] = useState({
+    trabajadorId: '',
+    trabajadorNombreCompleto: '',
+    trabajadorDni: '',
+    trabajadorCargo: '',
+    mesPagado: (() => {
+      const today = new Date();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      return `${today.getFullYear()}-${mm}`;
+    })(),
+    monto: 0,
+    observaciones: ''
+  });
+
   const closeModal = () => {
     setIsModalOpen(false);
     setShowOnlyAptForCut(false);
     setFormData({ tipo: 'INGRESO', categoria: 'OTROS', monto: '', descripcion: '', destinatario: '' });
     setSelectedClientId('');
     setClientSearch('');
+    setSueldoForm({
+      trabajadorId: '',
+      trabajadorNombreCompleto: '',
+      trabajadorDni: '',
+      trabajadorCargo: '',
+      mesPagado: (() => {
+        const today = new Date();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        return `${today.getFullYear()}-${mm}`;
+      })(),
+      monto: 0,
+      observaciones: ''
+    });
+  };
+
+  const handleSueldoSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sueldoForm.trabajadorId) {
+      toast.error('Por favor, seleccione un trabajador de planta.');
+      return;
+    }
+    if (sueldoForm.monto <= 0) {
+      toast.error('Monto de remuneración inválido.');
+      return;
+    }
+    if (!sueldoForm.mesPagado) {
+      toast.error('Seleccione el mes remunerado.');
+      return;
+    }
+
+    const confirmTx = await confirm({
+      title: 'Confirmar Pago de Planilla',
+      message: `¿Está seguro de registrar este pago de sueldo por S/ ${sueldoForm.monto.toFixed(2)} a ${sueldoForm.trabajadorNombreCompleto} por el mes de ${sueldoForm.mesPagado}?`,
+      type: 'confirm',
+      confirmLabel: 'Registrar y Emitir',
+      cancelLabel: 'Cancelar'
+    });
+    if (!confirmTx) return;
+
+    try {
+      const nPago = await addPagoSueldo(sueldoForm);
+      // Trigger PDF Receipt boleta de pago
+      generatePayrollReceiptPDF(nPago);
+      toast.success('Pago de sueldo registrado y boleta descargada exitosamente.');
+      closeModal();
+    } catch (err: any) {
+      toast.error(err.message || 'Error al registrar remuneración.');
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -350,6 +428,10 @@ export default function Finanzas() {
           </Button>
           {userRole !== 'FISCALIZADOR' && (
             <>
+              <Button onClick={() => { setIsModalOpen('PAGO_SUELDO'); }} className="bg-blue-600 hover:bg-blue-500 text-white border-0">
+                <Briefcase className="-ml-1 mr-2 h-4 w-4" aria-hidden="true" />
+                Pago de Sueldos
+              </Button>
               <Button onClick={() => { setFormData({...formData, tipo: 'INGRESO', categoria: 'OTROS'}); setIsModalOpen('INGRESO'); }} className="bg-emerald-600 hover:bg-emerald-500 text-white border-0">
                 <Plus className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
                 Nuevo Cobro
@@ -853,6 +935,139 @@ export default function Finanzas() {
                     <Button type="submit" className="w-full sm:ml-3 sm:w-auto">Guardar Transacción</Button>
                   )}
                   <Button type="button" variant="outline" onClick={closeModal} className="mt-3 w-full sm:mt-0 sm:w-auto">Cerrar</Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isModalOpen === 'PAGO_SUELDO' && (
+        <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 bg-[#07090E] bg-opacity-80 transition-opacity" aria-hidden="true" onClick={closeModal}></div>
+
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+            <div className="inline-block align-bottom bg-[#111622] rounded-xl border border-slate-800 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+              <form onSubmit={handleSueldoSubmit}>
+                <div className="p-6 space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                      <Briefcase className="h-5 w-5 text-blue-500" />
+                      Registrar Pago de Sueldo
+                    </h3>
+                    <span className="text-[10px] text-slate-500">Módulo de Planillas</span>
+                  </div>
+
+                  {/* Worker Select */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300">Seleccionar Trabajador de Planta <span className="text-red-500">*</span></label>
+                    <select
+                      required
+                      className="mt-1 block w-full py-2 px-3 border border-slate-800 bg-[#0C101A] rounded-lg text-xs text-slate-100 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                      value={sueldoForm.trabajadorId}
+                      onChange={(e) => {
+                        const tId = e.target.value;
+                        const t = trabajadores.find((item: any) => item.id === tId);
+                        if (t) {
+                          setSueldoForm({
+                            ...sueldoForm,
+                            trabajadorId: tId,
+                            trabajadorNombreCompleto: `${t.apellidos}, ${t.nombres}`,
+                            trabajadorDni: t.dni,
+                            trabajadorCargo: t.cargo,
+                            monto: t.sueldoMensual
+                          });
+                        } else {
+                          setSueldoForm({
+                            ...sueldoForm,
+                            trabajadorId: '',
+                            trabajadorNombreCompleto: '',
+                            trabajadorDni: '',
+                            trabajadorCargo: '',
+                            monto: 0
+                          });
+                        }
+                      }}
+                    >
+                      <option value="">-- Seleccionar Trabajador Activo --</option>
+                      {trabajadores.filter((t: any) => t.estado === 'ACTIVO').map((t: any) => (
+                        <option key={t.id} value={t.id}>
+                          {t.apellidos}, {t.nombres} - {t.cargo} (S/ {t.sueldoMensual.toFixed(2)})
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-slate-500 mt-1">Solo se enumeran los trabajadores con estado Activo.</p>
+                  </div>
+
+                  {sueldoForm.trabajadorId && (
+                    <div className="bg-slate-900/60 p-3 rounded-lg border border-slate-800 grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-slate-500 block">DNI</span>
+                        <span className="text-slate-200 font-semibold">{sueldoForm.trabajadorDni}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block">Cargo</span>
+                        <span className="text-slate-200 font-semibold">{sueldoForm.trabajadorCargo}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Month input selector */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300">Mes a Remunerar <span className="text-red-500">*</span></label>
+                    <input
+                      type="month"
+                      required
+                      className="mt-1 block w-full py-2 px-3 border border-slate-800 bg-[#0C101A] rounded-lg text-xs text-slate-100 outline-none focus:ring-1 focus:ring-blue-500"
+                      value={sueldoForm.mesPagado}
+                      onChange={(e) => setSueldoForm({ ...sueldoForm, mesPagado: e.target.value })}
+                    />
+                  </div>
+
+                  {/* Wages Amount */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 font-sans">Monto del Sueldo (S/)</label>
+                    <input
+                      type="number"
+                      required
+                      disabled
+                      className="mt-1 block w-full py-2 px-3 border border-slate-800 bg-slate-900 rounded-lg text-xs text-emerald-400 font-bold outline-none cursor-not-allowed"
+                      placeholder="Carga automática"
+                      value={sueldoForm.monto || ''}
+                    />
+                    <p className="text-[10px] text-slate-500 mt-1">El monto se carga de manera fija según las condiciones contractuales.</p>
+                  </div>
+
+                  {/* Observations */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300">Observaciones o Notas del Pago</label>
+                    <textarea
+                      rows={2}
+                      className="mt-1 block w-full py-2 px-3 border border-slate-800 bg-[#0C101A] rounded-lg text-xs text-slate-100 outline-none focus:ring-1 focus:ring-blue-500"
+                      placeholder="Ej. Planilla regular del mes..."
+                      value={sueldoForm.observaciones}
+                      onChange={(e) => setSueldoForm({ ...sueldoForm, observaciones: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="bg-slate-900/60 px-6 py-3 sm:flex sm:flex-row-reverse sm:gap-2 border-t border-slate-800">
+                  <Button
+                    type="submit"
+                    className="w-full inline-flex justify-center bg-blue-600 hover:bg-blue-500 text-white sm:w-auto border-0"
+                  >
+                    Registrar y Emitir Boleta
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={closeModal}
+                    className="mt-3 w-full sm:mt-0 sm:w-auto"
+                  >
+                    Cancelar
+                  </Button>
                 </div>
               </form>
             </div>
