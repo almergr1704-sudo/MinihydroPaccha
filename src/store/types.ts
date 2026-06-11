@@ -40,6 +40,7 @@ export interface Consumption {
   estadoPago: PaymentStatus;
   observacion?: string;
   createdBy?: string; // Para trazabilidad/auditoría
+  reciboNo?: string; // REC-AAAA-MM-NNNN
 }
 
 export interface Transaction {

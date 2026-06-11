@@ -174,7 +174,10 @@ export default function Consumo() {
     const exportData = consumptionsList.map(cons => {
       const client = clients.find(c => c.id === cons.clientId);
       const clientName = client?.nombre ? client.nombre : `${client?.nombres || ''} ${client?.apellidos || ''}`;
+      const [yearPart, monthPart] = cons.mes.split('-');
+      const displayReciboNo = cons.reciboNo || `REC-${yearPart}-${monthPart}-${cons.id.slice(-4).toUpperCase()}`;
       return {
+        'Nro Recibo': displayReciboNo,
         Periodo: cons.mes,
         Cliente: clientName,
         DNI: client?.dni,
@@ -205,7 +208,10 @@ export default function Consumo() {
     const tableData = consumptionsList.map(cons => {
       const client = clients.find(c => c.id === cons.clientId);
       const clientName = client?.nombre ? client.nombre : `${client?.nombres || ''} ${client?.apellidos || ''}`;
+      const [yearPart, monthPart] = cons.mes.split('-');
+      const displayReciboNo = cons.reciboNo || `REC-${yearPart}-${monthPart}-${cons.id.slice(-4).toUpperCase()}`;
       return [
+        displayReciboNo,
         clientName,
         cons.codigoSuministro || '',
         cons.kwh?.toString() || '0',
@@ -216,7 +222,7 @@ export default function Consumo() {
 
     autoTable(doc, {
       startY: 30,
-      head: [['Cliente', 'Suministro', 'kWh', 'Monto', 'Estado']],
+      head: [['Nro Recibo', 'Cliente', 'Suministro', 'kWh', 'Monto', 'Estado']],
       body: tableData,
     });
 
@@ -566,8 +572,11 @@ export default function Consumo() {
       doc.setTextColor(0, 0, 0); // Reset
     }
 
+    const [yearPart, monthPart] = cons.mes.split('-');
+    const displayReciboNo = cons.reciboNo || `REC-${yearPart}-${monthPart}-${cons.id.slice(-4).toUpperCase()}`;
+
     doc.setFontSize(10);
-    doc.text(`Suministro: ${codSuministro} | Tipo: ${client.tipo}`, 14, yOffset + 12);
+    doc.text(`Suministro: ${codSuministro} | Tipo: ${client.tipo} | N° Recibo: ${displayReciboNo}`, 14, yOffset + 12);
     
     doc.setFontSize(9);
     doc.text(`Fecha Emisión: ${format(new Date(), 'dd MMM yyyy')} | Periodo: ${cons.mes} | Estado: ${cons.estadoPago}`, 14, yOffset + 18);
@@ -933,7 +942,10 @@ export default function Consumo() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-slate-100 font-semibold">{cons.kwh} kWh</div>
-                        <div className="text-xs text-slate-400 text-emerald-400">
+                        <div className="text-xs text-amber-400 font-mono font-semibold">
+                          {cons.reciboNo || `REC-${cons.mes.split('-')[0]}-${cons.mes.split('-')[1]}-${cons.id.slice(-4).toUpperCase()}`}
+                        </div>
+                        <div className="text-[11px] text-slate-400">
                           {cons.mes} • {format(parseISO(cons.fechaLectura), 'dd MMM yyyy', { locale: es })}
                         </div>
                       </td>

@@ -74,9 +74,58 @@ const getLocalData = (): AppState => {
   if (data) {
     try {
       const parsed = JSON.parse(data);
+      const consumptionsList: Consumption[] = parsed.consumptions || initialData.consumptions;
+      let updatedSomething = false;
+
+      // Group consumptions by mes (billing period "YYYY-MM")
+      const groups: { [mes: string]: Consumption[] } = {};
+      consumptionsList.forEach(c => {
+        if (!groups[c.mes]) {
+          groups[c.mes] = [];
+        }
+        groups[c.mes].push(c);
+      });
+
+      Object.keys(groups).forEach(mes => {
+        const sorted = [...groups[mes]].sort((a, b) => {
+          if (a.fechaLectura !== b.fechaLectura) return a.fechaLectura.localeCompare(b.fechaLectura);
+          return a.id.localeCompare(b.id);
+        });
+
+        let counter = 1;
+
+        // Collect existing valid names to avoid collisions
+        const takenNumbers = new Set<string>();
+        sorted.forEach(c => {
+          if (c.reciboNo && /^REC-\d{4}-\d{2}-\d{4}$/.test(c.reciboNo)) {
+            takenNumbers.add(c.reciboNo);
+          }
+        });
+
+        sorted.forEach(c => {
+          if (!c.reciboNo || !/^REC-\d{4}-\d{2}-\d{4}$/.test(c.reciboNo)) {
+            const [year, month] = c.mes.split('-');
+            let proposed = `REC-${year}-${month}-${counter.toString().padStart(4, '0')}`;
+            while (takenNumbers.has(proposed)) {
+              counter++;
+              proposed = `REC-${year}-${month}-${counter.toString().padStart(4, '0')}`;
+            }
+            c.reciboNo = proposed;
+            takenNumbers.add(proposed);
+            updatedSomething = true;
+            counter++;
+          }
+        });
+      });
+
+      if (updatedSomething) {
+        parsed.consumptions = consumptionsList;
+        localStorage.setItem('erp_data', JSON.stringify(parsed));
+      }
+
       return {
         clients: parsed.clients || initialData.clients,
-        consumptions: parsed.consumptions || initialData.consumptions,
+        consumptions: consumptionsList,
         transactions: parsed.transactions || initialData.transactions,
         meetings: parsed.meetings || initialData.meetings,
         admins: parsed.admins || initialData.admins,
@@ -499,13 +548,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const minimoAplica = settings.consumoMinimo !== undefined ? settings.consumoMinimo : 6;
       let montoCalculado = isExonerated ? 0 : (consumption.kwh || 0) * tarifa;
       if (!isExonerated && montoCalculado < minimoAplica) {
-        montoCalculado = minimoAplica;
+         montoCalculado = minimoAplica;
+      }
+
+      // Generate sequence number (correlativo) for this billing period (mes)
+      const [year, month] = consumption.mes.split('-');
+      const monthConsumptions = currentState.consumptions.filter(c => c.mes === consumption.mes);
+
+      let nextCorrelative = 1;
+      monthConsumptions.forEach(c => {
+        if (c.reciboNo) {
+          const parts = c.reciboNo.split('-');
+          if (parts.length === 4) {
+            const num = parseInt(parts[3], 10);
+            if (!isNaN(num) && num >= nextCorrelative) {
+              nextCorrelative = num + 1;
+            }
+          }
+        }
+      });
+
+      let nextNumberStr = nextCorrelative.toString().padStart(4, '0');
+      let finalReciboNo = `REC-${year}-${month}-${nextNumberStr}`;
+
+      while (currentState.consumptions.some(c => c.reciboNo === finalReciboNo)) {
+        nextCorrelative++;
+        nextNumberStr = nextCorrelative.toString().padStart(4, '0');
+        finalReciboNo = `REC-${year}-${month}-${nextNumberStr}`;
       }
       
       const newConsumption: Consumption = {
         ...consumption,
         id: generateId(),
         kwh: consumption.kwh || 0,
+        reciboNo: finalReciboNo,
         montoCalculado,
         estadoPago: 'PENDIENTE',
         createdBy: user?.email || 'Unknown',

@@ -169,7 +169,8 @@ export default function Recibos() {
     const clientDni = client?.dni || '';
     const clientDireccion = client ? `${client.direccion} ${client.numeroDireccion ? `N° ${client.numeroDireccion}` : ''}` : '';
     const clientMedidor = client?.numeroMedidor || 'No registrado';
-    const compNo = `R-CON-${cons.mes.replace('-', '')}-${cons.id.slice(-4).toUpperCase()}`;
+    const [yearPart, monthPart] = cons.mes.split('-');
+    const compNo = cons.reciboNo || `REC-${yearPart}-${monthPart}-${cons.id.slice(-4).toUpperCase()}`;
 
     // Determine state
     let estado: VirtualReceipt['estado'] = cons.estadoPago === 'PAGADO' ? 'PAGADO' : 'PENDIENTE';
@@ -331,7 +332,7 @@ export default function Recibos() {
       return false;
     }
 
-    // 2. Quick search filter matching client, dni, supply number, meter code, receipt index, concept
+    // 2. Quick search filter matching client, dni, supply number, meter code, receipt index, concept, year, month
     if (searchTerm) {
       const searchNormalized = normalizeSearchText(searchTerm);
       const invoiceNo = normalizeSearchText(item.comprobanteNo);
@@ -342,6 +343,18 @@ export default function Recibos() {
       const meter = normalizeSearchText(item.clientMedidor);
       const concept = normalizeSearchText(item.concepto);
 
+      // Get Month Name / Year / Month number
+      let dateObj: Date | null = null;
+      try {
+        if (item.fecha) {
+          dateObj = parseISO(item.fecha);
+        }
+      } catch (err) {}
+      
+      const monthLabel = dateObj ? format(dateObj, 'MMMM', { locale: es }) : '';
+      const yearLabel = dateObj ? format(dateObj, 'yyyy') : '';
+      const monthNumberLabel = dateObj ? format(dateObj, 'MM') : '';
+
       const matches = 
         invoiceNo.includes(searchNormalized) ||
         clientName.includes(searchNormalized) ||
@@ -349,7 +362,10 @@ export default function Recibos() {
         supply.includes(searchNormalized) ||
         address.includes(searchNormalized) ||
         meter.includes(searchNormalized) ||
-        concept.includes(searchNormalized);
+        concept.includes(searchNormalized) ||
+        normalizeSearchText(monthLabel).includes(searchNormalized) ||
+        yearLabel.includes(searchNormalized) ||
+        monthNumberLabel === searchNormalized;
 
       if (!matches) return false;
     }
