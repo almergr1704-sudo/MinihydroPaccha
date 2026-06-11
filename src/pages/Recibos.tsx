@@ -15,8 +15,7 @@ import {
   Filter,
   Download,
   Printer,
-  Mail,
-  Trash2,
+  Ban,
   Calendar,
   X,
   FileText,
@@ -117,12 +116,8 @@ export default function Recibos() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // Modals state
+  // Selected receipt state (can be used for tracking or further details if needed)
   const [selectedReceipt, setSelectedReceipt] = useState<VirtualReceipt | null>(null);
-  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
-  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
-  const [emailAddress, setEmailAddress] = useState('');
-  const [sendingEmail, setSendingEmail] = useState(false);
 
   // Reset all search criteria
   const handleResetFilters = () => {
@@ -616,28 +611,6 @@ export default function Recibos() {
     }
   };
 
-  // Open email mock sender modal
-  const handleOpenEmailModal = (item: VirtualReceipt) => {
-    setSelectedReceipt(item);
-    const client = clients.find(c => c.id === item.clientId);
-    setEmailAddress(client?.correo || '');
-    setIsEmailModalOpen(true);
-  };
-
-  // Mock email submission
-  const handleSendEmail = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!emailAddress) return;
-    setSendingEmail(true);
-
-    setTimeout(() => {
-      setSendingEmail(false);
-      setIsEmailModalOpen(false);
-      toast.success(`El comprobante ${selectedReceipt?.comprobanteNo} ha sido enviado exitosamente al correo ${emailAddress}.`);
-      addAuditLog('REPORTE', 'FINANZAS', `Envió comprobante ${selectedReceipt?.comprobanteNo} a ${emailAddress}`);
-    }, 1200);
-  };
-
   // Perform receipt voiding / annulment
   const handleAnnulReceipt = async (item: VirtualReceipt) => {
     const isAdminOrTesorero = userRole === 'ADMIN' || userRole === 'TESORERO';
@@ -675,12 +648,6 @@ export default function Recibos() {
     } catch (err: any) {
       toast.error(err.message || 'Error al anular comprobante.');
     }
-  };
-
-  // Open a printable popup/dialog or beautiful window.print context
-  const handlePrintReceipt = (item: VirtualReceipt) => {
-    setSelectedReceipt(item);
-    setIsPrintModalOpen(true);
   };
 
   // Dynamic status badges
@@ -894,33 +861,33 @@ export default function Recibos() {
       </Card>
 
       {/* RESULTS TABLE */}
-      <Card className="bg-[#0f131a] border-slate-800 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-800">
+      <Card className="bg-[#0f131a] border-slate-800 overflow-hidden shadow-xl rounded-xl">
+        <div className="overflow-x-auto w-full">
+          <table className="w-full divide-y divide-slate-800 table-fixed md:table-auto">
             <thead className="bg-[#141b25]">
               <tr>
-                <th scope="col" className="px-6 py-3.5 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">
+                <th scope="col" className="px-3 py-3 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider w-[120px] md:w-[140px]">
                   N° Recibo
                 </th>
-                <th scope="col" className="px-6 py-3.5 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">
+                <th scope="col" className="px-3 py-3 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider w-[90px] md:w-[110px]">
                   Fecha
                 </th>
-                <th scope="col" className="px-6 py-3.5 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">
+                <th scope="col" className="px-3 py-3 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider min-w-[130px] md:min-w-[180px]">
                   Cliente / Trabajador
                 </th>
-                <th scope="col" className="px-6 py-3.5 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">
+                <th scope="col" className="px-3 py-3 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider w-[80px] md:w-[100px]">
                   Suministro
                 </th>
-                <th scope="col" className="px-6 py-3.5 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">
+                <th scope="col" className="px-3 py-3 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider min-w-[150px] md:min-w-[220px]">
                   Concepto / Operación
                 </th>
-                <th scope="col" className="px-6 py-3.5 text-right text-xs font-bold text-slate-400 uppercase tracking-wider">
+                <th scope="col" className="px-3 py-3 text-right text-[11px] font-bold text-slate-400 uppercase tracking-wider w-[80px] md:w-[100px]">
                   Monto
                 </th>
-                <th scope="col" className="px-6 py-3.5 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">
+                <th scope="col" className="px-3 py-3 text-center text-[11px] font-bold text-slate-400 uppercase tracking-wider w-[75px] md:w-[95px]">
                   Estado
                 </th>
-                <th scope="col" className="px-6 py-3.5 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">
+                <th scope="col" className="px-3 py-3 text-center text-[11px] font-bold text-slate-400 uppercase tracking-wider w-[70px] md:w-[90px]">
                   Acciones
                 </th>
               </tr>
@@ -928,72 +895,50 @@ export default function Recibos() {
             <tbody className="divide-y divide-slate-800 bg-[#0f131a]">
               {paginatedReceipts.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-10 text-center text-slate-500 text-sm">
+                  <td colSpan={8} className="px-3 py-10 text-center text-slate-500 text-sm">
                     No se encontraron comprobantes que coincidan con los filtros de búsqueda establecidos.
                   </td>
                 </tr>
               ) : (
                 paginatedReceipts.map(item => (
                   <tr key={item.uniqueId} className="hover:bg-[#161c26]/60 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-blue-400 font-mono">
+                    <td className="px-3 py-2.5 text-sm font-semibold text-blue-400 font-mono break-all leading-tight">
                       {item.comprobanteNo}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-400">
+                    <td className="px-3 py-2.5 text-xs text-slate-400 leading-tight">
                       {item.fecha ? format(parseISO(item.fecha), "dd MMM yyyy, HH:mm", { locale: es }) : '-'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-semibold text-slate-300">{item.clientName}</div>
-                      <div className="text-[11px] text-slate-500 font-mono">DNI: {item.clientDni || 'No req'}</div>
+                    <td className="px-3 py-2.5">
+                      <div className="text-xs sm:text-sm font-semibold text-slate-300 break-words line-clamp-2">{item.clientName}</div>
+                      <div className="text-[10px] text-slate-500 font-mono">DNI: {item.clientDni || 'No req'}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-300 font-semibold font-mono">
+                    <td className="px-3 py-2.5 text-xs text-slate-300 font-semibold font-mono leading-tight break-all">
                       {item.codigoSuministro || '-'}
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="text-xs text-slate-300 font-semibold truncate max-w-[240px]" title={item.concepto}>
+                    <td className="px-3 py-2.5">
+                      <div className="text-xs text-slate-300 font-medium break-words max-w-[280px]">
                         {item.concepto}
                       </div>
-                      <div className="text-[10px] text-slate-500 truncate mt-0.5">Operador: {item.registradoPor}</div>
+                      <div className="text-[9px] text-slate-500 mt-0.5">Operador: {item.registradoPor}</div>
                     </td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-right text-sm font-bold ${
+                    <td className={`px-3 py-2.5 text-right text-xs sm:text-sm font-bold ${
                       item.sourceType === 'EGRESO' || item.sourceType === 'PAGO_SUELDO' ? 'text-red-400' : 'text-emerald-400'
                     }`}>
                       {item.sourceType === 'EGRESO' || item.sourceType === 'PAGO_SUELDO' ? '-' : '+'}{formatCurrency(item.monto)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                    <td className="px-3 py-2.5 text-center">
                       {renderStatusBadge(item.estado)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center space-x-1.5">
-                      {/* Ver Recibo */}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handlePrintReceipt(item)}
-                        title="Visualizar Comprobante"
-                        className="px-1.5 py-1 text-slate-400 hover:text-white"
-                      >
-                        <FileText className="h-4 w-4" />
-                      </Button>
-
-                      {/* Descargar PDF */}
+                    <td className="px-3 py-2.5 text-center space-x-1">
+                      {/* Visualizar / Descargar PDF */}
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => handleDownloadPDF(item)}
-                        title="Descargar PDF"
-                        className="px-1.5 py-1 text-blue-400 hover:text-blue-300"
+                        title="Visualizar / Descargar PDF"
+                        className="p-1.5 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
                       >
-                        <Download className="h-4 w-4" />
-                      </Button>
-
-                      {/* Enviar Correo */}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleOpenEmailModal(item)}
-                        title="Enviar por correo electrónico"
-                        className="px-1.5 py-1 text-emerald-400 hover:text-emerald-300"
-                      >
-                        <Mail className="h-4 w-4" />
+                        <FileText className="h-4 w-4" />
                       </Button>
 
                       {/* Anular Comprobante */}
@@ -1003,9 +948,9 @@ export default function Recibos() {
                           size="sm"
                           onClick={() => handleAnnulReceipt(item)}
                           title="Anular Comprobante"
-                          className="px-1.5 py-1 text-red-500 hover:text-red-400 hover:bg-red-500/10"
+                          className="p-1.5 text-amber-500 hover:text-amber-400 hover:bg-amber-500/10"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Ban className="h-4 w-4" />
                         </Button>
                       )}
                     </td>
@@ -1033,195 +978,6 @@ export default function Recibos() {
         )}
       </Card>
 
-      {/* MODAL 1: TICKET LOOKUP & PRINT PREVIEW MODAL */}
-      {isPrintModalOpen && selectedReceipt && (
-        <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 bg-slate-900 bg-opacity-75 transition-opacity" onClick={() => setIsPrintModalOpen(false)}></div>
-            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            
-            <div className="inline-block align-bottom bg-[#0B0E14] rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full border border-slate-800">
-              <div className="bg-[#121620] px-4 py-3 border-b border-slate-800 flex justify-between items-center">
-                <h3 className="text-sm font-bold text-slate-200">Reimpresión y Vista previa</h3>
-                <button onClick={() => setIsPrintModalOpen(false)} className="text-slate-400 hover:text-white">
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-
-              {/* Printable Ticket Area */}
-              <div id="print-area" className="p-6 bg-white text-slate-900 font-sans mx-auto max-w-sm rounded border border-slate-200 my-4 shadow-sm select-all">
-                {/* Embedded dynamic CSS for print context */}
-                <style dangerouslySetInnerHTML={{__html: `
-                  @media print {
-                    body * { visibility: hidden; }
-                    #print-area, #print-area * { visibility: visible; }
-                    #print-area { position: absolute; left: 0; top: 0; width: 100%; }
-                  }
-                `}} />
-
-                <div className="text-center space-y-1">
-                  <h4 className="text-base font-bold font-mono tracking-tight uppercase border-b-2 border-slate-900 pb-1.5">
-                    {selectedReceipt.sourceType === 'EGRESO' ? 'COMPROBANTE DE EGRESO' : 'COMPROBANTE DE PAGO'}
-                  </h4>
-                  <p className="text-[13px] font-bold">Mini Central Hidroeléctrica Paccha</p>
-                  <p className="text-[10px] text-slate-600 leading-tight">Asoc. de Usuarios de la Microcuenca Paccha</p>
-                  <p className="text-[10px] text-slate-500">Chota, Cajamarca - RUC: 20608945231</p>
-                </div>
-
-                <div className="border-t border-dashed border-slate-900 my-3"></div>
-
-                {/* Operation Details */}
-                <div className="text-xs space-y-1.5 font-mono">
-                  <p className="font-bold">DATOS DE LA OPERACIÓN:</p>
-                  <p>Nro Recibo: <span className="font-bold">{selectedReceipt.comprobanteNo}</span></p>
-                  <p>Fecha Emisión: {selectedReceipt.fecha ? new Date(selectedReceipt.fecha).toLocaleString('es-PE') : '-'}</p>
-                  <p>Operador: {selectedReceipt.registradoPor}</p>
-                  <p className="flex items-center gap-1.5">
-                    Condición: {' '}
-                    <span className="font-bold">
-                      {selectedReceipt.estado === 'ANULADO' ? 'ANULADO / EXTINTO' : 'PAGADO / CONFORME'}
-                    </span>
-                  </p>
-                </div>
-
-                <div className="border-t border-dashed border-slate-900 my-3"></div>
-
-                {/* Client Details */}
-                <div className="text-xs space-y-1.5 font-mono">
-                  <p className="font-bold">DATOS DEL ADQUIRIENTE:</p>
-                  <p>Nombres: {selectedReceipt.clientName}</p>
-                  <p>DNI/RUC: {selectedReceipt.clientDni || 'No registrado'}</p>
-                  <p>Suministro: {selectedReceipt.codigoSuministro}</p>
-                  <p className="leading-tight text-slate-700">Dirección: {selectedReceipt.clientDireccion || 'Paccha'}</p>
-                </div>
-
-                <div className="border-t border-dashed border-slate-900 my-3"></div>
-
-                {/* Concepts Detail Table */}
-                <div className="text-xs font-mono space-y-1.5">
-                  <p className="font-bold">DETALLE CARGOS:</p>
-                  <div className="flex justify-between font-bold border-b border-slate-200 pb-0.5">
-                    <span>Descripción</span>
-                    <span>Subtotal</span>
-                  </div>
-                  <div className="flex justify-between items-start gap-2 pt-0.5 leading-tight">
-                    <span className="text-slate-700 uppercase">{selectedReceipt.concepto}</span>
-                    <span className="font-bold">S/ {selectedReceipt.monto.toFixed(2)}</span>
-                  </div>
-                </div>
-
-                <div className="border-t border-dashed border-slate-900 my-3"></div>
-
-                {/* Financial footer summary block */}
-                <div className="text-xs font-mono flex justify-between items-center font-bold">
-                  <span>TOTAL OPERACIÓN:</span>
-                  <span className="text-sm">S/ {selectedReceipt.monto.toFixed(2)}</span>
-                </div>
-
-                <div className="border-t border-dashed border-slate-430 my-3"></div>
-
-                {/* QR Code and Institutional messages */}
-                <div className="text-center space-y-2 mt-2">
-                  <div className="inline-block p-1.5 border-2 border-slate-900 rounded mx-auto bg-white">
-                    {/* Visual canvas grid representing the unique QR */}
-                    <div className="grid grid-cols-5 gap-0.5 h-16 w-16 bg-slate-900 p-0.5 text-white">
-                      <div className="bg-white"></div><div className="bg-slate-950"></div><div className="bg-white"></div><div className="bg-white"></div><div className="bg-white"></div>
-                      <div className="bg-white"></div><div className="bg-white"></div><div className="bg-white"></div><div className="bg-white font-mono"></div><div className="bg-slate-950"></div>
-                      <div className="bg-slate-950"></div><div className="bg-slate-950"></div><div className="bg-white"></div><div className="bg-white"></div><div className="bg-white"></div>
-                      <div className="bg-white"></div><div className="bg-white"></div><div className="bg-slate-950"></div><div className="bg-slate-950"></div><div className="bg-white"></div>
-                      <div className="bg-slate-950"></div><div className="bg-white"></div><div className="bg-white"></div><div className="bg-white"></div><div className="bg-slate-950"></div>
-                    </div>
-                  </div>
-                  <p className="text-[9px] text-slate-500 leading-tight italic font-mono">
-                    * El presente documento constituye constancia oficial de autogestión de aguas y energía eléctrica. Conservar.
-                  </p>
-                </div>
-              </div>
-
-              {/* Modal footer controls */}
-              <div className="bg-[#121620] px-4 py-3.5 border-t border-slate-800 flex justify-end gap-2">
-                <Button variant="outline" size="sm" onClick={() => setIsPrintModalOpen(false)}>
-                  Cerrar
-                </Button>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => window.print()}
-                  className="flex items-center gap-1.5"
-                >
-                  <Printer className="h-4 w-4" />
-                  Imprimir Comprobante
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 2: MOCK SEND EMAIL MODAL */}
-      {isEmailModalOpen && selectedReceipt && (
-        <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 bg-slate-900 bg-opacity-75 transition-opacity" onClick={() => setIsEmailModalOpen(false)}></div>
-            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-
-            <div className="inline-block align-bottom bg-[#0B0E14] rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full border border-slate-800">
-              <form onSubmit={handleSendEmail}>
-                <div className="bg-[#121620] px-4 py-3 border-b border-slate-800 flex justify-between items-center">
-                  <h3 className="text-sm font-bold text-slate-200">Enviar Comprobante por Correo</h3>
-                  <button type="button" onClick={() => setIsEmailModalOpen(false)} className="text-slate-400 hover:text-white">
-                    <X className="h-5 w-5" />
-                  </button>
-                </div>
-
-                <div className="p-6 space-y-4">
-                  <div className="flex items-center gap-3 p-3 bg-blue-500/10 border border-blue-500/20 text-xs text-blue-400 rounded-lg">
-                    <FileText className="h-5 w-5 text-blue-500 flex-shrink-0" />
-                    <div>
-                      <p className="font-semibold">Comprobante No: {selectedReceipt.comprobanteNo}</p>
-                      <p className="text-slate-400">Concepto: {selectedReceipt.concepto}</p>
-                      <p className="text-slate-400">Destinatario: {selectedReceipt.clientName}</p>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-1.5">
-                      Dirección de Correo Electrónico
-                    </label>
-                    <input
-                      type="email"
-                      required
-                      value={emailAddress}
-                      onChange={e => setEmailAddress(e.target.value)}
-                      placeholder="nombre@correo.com"
-                      className="w-full text-sm bg-[#161c26] border border-slate-800 rounded-lg p-2.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                    />
-                  </div>
-                </div>
-
-                <div className="bg-[#121620] px-4 py-3 flex justify-end gap-2 border-t border-slate-800">
-                  <Button type="button" variant="outline" size="sm" onClick={() => setIsEmailModalOpen(false)}>
-                    Cancelar
-                  </Button>
-                  <Button type="submit" variant="primary" size="sm" disabled={sendingEmail} className="flex items-center gap-1.5">
-                    {sendingEmail ? (
-                      <>
-                        <Activity className="h-4 w-4 animate-spin" />
-                        Enviando...
-                      </>
-                    ) : (
-                      <>
-                        <Mail className="h-4 w-4" />
-                        Enviar Correo
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
