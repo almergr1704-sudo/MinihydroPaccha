@@ -12,7 +12,7 @@ import * as XLSX from 'xlsx';
 import { TransactionType, Transaction } from '../store/types';
 import { toast } from 'react-hot-toast';
 import { generateGeneralPaymentReceiptPDF, generatePayrollReceiptPDF } from '../lib/receipts';
-import { Briefcase } from 'lucide-react';
+import { Briefcase, Printer } from 'lucide-react';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
@@ -67,6 +67,39 @@ export default function Finanzas() {
     } catch (error) {
       console.error('Error generating PDF:', error);
       toast.error('Error al generar comprobante.', { id: toastId });
+    }
+  };
+
+  const handleReprintLastReceipt = () => {
+    const allItems: { type: 'TX' | 'PAYROLL', date: string, payload: any }[] = [];
+    
+    transactions.forEach(t => {
+      allItems.push({ type: 'TX', date: t.fecha || '', payload: t });
+    });
+    
+    (pagosSueldos || []).forEach(p => {
+      allItems.push({ type: 'PAYROLL', date: p.fechaPago || '', payload: p });
+    });
+    
+    if (allItems.length === 0) {
+      toast.error('No se han registrado cobros o pagos en el sistema aún.');
+      return;
+    }
+    
+    allItems.sort((a, b) => b.date.localeCompare(a.date));
+    const latest = allItems[0];
+    
+    const toastId = toast.loading('Reimprimiendo último recibo de cobranza o planilla registrada...');
+    try {
+      if (latest.type === 'PAYROLL') {
+        generatePayrollReceiptPDF(latest.payload);
+      } else {
+        const client = clients.find(c => c.id === latest.payload.clientId);
+        generateGeneralPaymentReceiptPDF(latest.payload, client);
+      }
+      toast.success('Último comprobante reimpreso correctamente.', { id: toastId });
+    } catch {
+      toast.error('Error al reimprimir comprobante.', { id: toastId });
     }
   };
 
@@ -415,6 +448,10 @@ export default function Finanzas() {
           </Button>
           {userRole !== 'FISCALIZADOR' && (
             <>
+              <Button onClick={handleReprintLastReceipt} className="bg-amber-600 hover:bg-amber-500 text-white border-0">
+                <Printer className="-ml-1 mr-2 h-4 w-4" aria-hidden="true" />
+                Reimprimir Último Recibo
+              </Button>
               <Button onClick={() => { setIsModalOpen('PAGO_SUELDO'); }} className="bg-blue-600 hover:bg-blue-500 text-white border-0">
                 <Briefcase className="-ml-1 mr-2 h-4 w-4" aria-hidden="true" />
                 Pago de Sueldos

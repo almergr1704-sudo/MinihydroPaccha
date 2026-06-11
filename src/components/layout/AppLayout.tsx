@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { 
-  Menu, X, Home, Users, Zap, DollarSign, Calendar, Settings, FileText, Activity, LogOut, History, PlusCircle, Briefcase
+  Menu, X, Home, Users, Zap, DollarSign, Calendar, Settings, FileText, Activity, LogOut, History, PlusCircle, Briefcase, Receipt
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAppContext } from '../../store/AppContext';
@@ -13,6 +13,7 @@ const baseNavigation = [
   { name: 'Trabajadores de Planta', href: '/trabajadores', icon: Briefcase },
   { name: 'Venta de Nuevo Servicio', href: '/servicios', icon: PlusCircle },
   { name: 'Consumo & Facturación', href: '/consumo', icon: Zap },
+  { name: 'Consulta de Recibos', href: '/recibos', icon: Receipt },
   { name: 'Finanzas', href: '/finanzas', icon: DollarSign },
   { name: 'Reuniones', href: '/reuniones', icon: Calendar },
   { name: 'Reportes', href: '/reportes', icon: FileText },
@@ -32,7 +33,7 @@ export function AppLayout() {
   const userInitial = user?.email ? user.email.charAt(0).toUpperCase() : 'U';
 
   const baseNavFiltered = userRole === 'OPERATOR' 
-    ? baseNavigation.filter(nav => ['Consumo & Facturación', 'Configuración'].includes(nav.name))
+    ? baseNavigation.filter(nav => ['Consumo & Facturación', 'Consulta de Recibos', 'Configuración'].includes(nav.name))
     : userRole === 'SECRETARIO'
     ? baseNavigation.filter(nav => ['Reuniones', 'Configuración'].includes(nav.name))
     : userRole === 'VOCAL'

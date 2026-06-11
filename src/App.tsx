@@ -17,6 +17,7 @@ import Usuarios from './pages/Usuarios';
 import Auditoria from './pages/Auditoria';
 import Configuracion from './pages/Configuracion';
 import Login from './pages/Login';
+import Recibos from './pages/Recibos';
 
 import { FileText, Download } from 'lucide-react';
 
@@ -97,6 +98,7 @@ export default function App() {
               <Route path="trabajadores" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><Trabajadores /></RoleGuard>} />
               <Route path="servicios" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><VentaServicios /></RoleGuard>} />
               <Route path="consumo" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR', 'OPERATOR']}><Consumo /></RoleGuard>} />
+              <Route path="recibos" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR', 'OPERATOR']}><Recibos /></RoleGuard>} />
               <Route path="finanzas" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><Finanzas /></RoleGuard>} />
               <Route path="reuniones" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR', 'SECRETARIO']}><Reuniones /></RoleGuard>} />
               <Route path="reportes" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR', 'VOCAL']}><Reportes /></RoleGuard>} />

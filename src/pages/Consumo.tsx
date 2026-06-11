@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Plus, Check, FileText, Download, Upload, AlertCircle } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Button, Card, CardContent, Badge, Pagination } from '../components/ui';
@@ -13,6 +14,7 @@ import { Consumption } from '../store/types';
 import { toast } from 'react-hot-toast';
 
 export default function Consumo() {
+  const navigate = useNavigate();
   const { confirm } = useConfirm();
   const { clients, consumptions, addConsumption, deleteConsumption, settings, userRole, suppliesInfo } = useAppContext();
   const [historyClientSuministro, setHistoryClientSuministro] = useState<{ clientId: string, codigoSuministro: string, clientName: string } | null>(null);
@@ -953,12 +955,15 @@ export default function Consumo() {
                           {cons.estadoPago}
                         </Badge>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2 flex items-center justify-end">
                         {userRole !== 'OPERATOR' && cons.estadoPago === 'PENDIENTE' && (
                           <Button size="sm" variant="ghost" className="text-red-500 hover:bg-red-500/10 hover:text-red-400 mr-2" onClick={() => handleAnularRecibo(cons)}>
                             Anular
                           </Button>
                         )}
+                        <Button size="sm" variant="ghost" className="hover:text-amber-400 text-amber-500/95" onClick={() => navigate(`/recibos?supplyCode=${cons.codigoSuministro || client?.codigoSuministro}`)}>
+                          Buscador
+                        </Button>
                         <Button size="sm" variant="ghost" className="text-blue-600" onClick={() => handleGenerateReceipt(cons)}>
                           <Download className="h-4 w-4 mr-1" /> Imprimir Recibo
                         </Button>

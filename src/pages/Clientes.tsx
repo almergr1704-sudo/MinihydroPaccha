@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Plus, Search, User, Filter, Upload, Download, FileWarning, AlertCircle } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Button, Card, CardContent, Badge, Pagination } from '../components/ui';
@@ -10,6 +11,7 @@ import { toast } from 'react-hot-toast';
 import { generateGeneralPaymentReceiptPDF } from '../lib/receipts';
 
 export default function Clientes() {
+  const navigate = useNavigate();
   const { confirm } = useConfirm();
   const { clients, addClient, updateClient, transferSupply, markSupplyAsSocio, suppliesInfo, settings, consumptions, fines, addTransaction, userRole, meetings } = useAppContext();
   const [searchTerm, setSearchTerm] = useState('');
@@ -596,6 +598,13 @@ export default function Clientes() {
                            Reactivar
                          </button>
                        )}
+                      <button 
+                        onClick={() => navigate(`/recibos?clientId=${client.id}`)}
+                        className="text-amber-500 hover:text-amber-400 mr-3 font-semibold"
+                        title="Ver Historial de Recibos"
+                      >
+                        Recibos
+                      </button>
                       {userRole !== 'FISCALIZADOR' && (
                         <button 
                           onClick={() => openEditModal(client)}

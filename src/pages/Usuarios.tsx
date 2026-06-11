@@ -52,7 +52,16 @@ export default function Usuarios() {
     setCreatingUser(true);
     
     try {
-      const newUsername = (newNombres.charAt(0) + (newApellidos.split(' ')[0] || '')).toLowerCase().replace(/[^a-z0-9]/g, '') + (newDni.slice(-2) || '');
+      const usernameBase = (newNombres.charAt(0) + (newApellidos.split(' ')[0] || '')).toLowerCase().replace(/[^a-z0-9]/g, '');
+      let newResultUsername = usernameBase;
+      let counter = 1;
+      let usernameExists = admins.some(a => (a.username || '').trim().toLowerCase() === newResultUsername.toLowerCase());
+      while (usernameExists) {
+        newResultUsername = `${usernameBase}${counter}`;
+        counter++;
+        usernameExists = admins.some(a => (a.username || '').trim().toLowerCase() === newResultUsername.toLowerCase());
+      }
+      const newUsername = newResultUsername;
       
       await addAdmin({
          email: (newEmail || `${newUsername}@paccha.local`).toLowerCase(),

@@ -205,6 +205,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         throw new Error('El DNI ingresado ya se encuentra registrado en otro usuario.');
       }
     }
+    if (updates.username) {
+      const uClean = updates.username.trim().toLowerCase();
+      const existing = state.admins.find(a => (a.username || '').trim().toLowerCase() === uClean && a.id !== id);
+      if (existing) {
+        throw new Error(`El nombre de usuario "${updates.username}" ya se encuentra registrado por otro usuario.`);
+      }
+    }
+    if (updates.email) {
+      const eClean = updates.email.trim().toLowerCase();
+      const existing = state.admins.find(a => (a.email || '').trim().toLowerCase() === eClean && a.id !== id);
+      if (existing) {
+        throw new Error(`El correo electrónico "${updates.email}" ya se encuentra registrado por otro usuario.`);
+      }
+    }
     const newAdmins = state.admins.map(a => a.id === id ? { ...a, ...updates, updatedAt: new Date().toISOString(), updatedBy: user?.email || 'Unknown' } : a);
     persistState({ ...state, admins: newAdmins });
     setTimeout(() => addAuditLog('ACTUALIZAR', 'USUARIOS', `Actualizó usuario administrativo ${id}`), 0);
@@ -214,9 +228,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!admin.dni || !/^\d{8}$/.test(admin.dni)) {
       throw new Error('El DNI debe tener exactamente 8 dígitos numéricos.');
     }
-    const existing = state.admins.find(a => a.dni === admin.dni);
-    if (existing) {
+    const existingDni = state.admins.find(a => a.dni === admin.dni);
+    if (existingDni) {
       throw new Error('El DNI ya se encuentra registrado en el sistema.');
+    }
+
+    if (admin.username) {
+      const uClean = admin.username.trim().toLowerCase();
+      const existingUsername = state.admins.find(a => (a.username || '').trim().toLowerCase() === uClean);
+      if (existingUsername) {
+        throw new Error(`El nombre de usuario "${admin.username}" ya se encuentra registrado.`);
+      }
+    }
+
+    if (admin.email) {
+      const eClean = admin.email.trim().toLowerCase();
+      const existingEmail = state.admins.find(a => (a.email || '').trim().toLowerCase() === eClean);
+      if (existingEmail) {
+        throw new Error(`El correo electrónico "${admin.email}" ya se encuentra registrado.`);
+      }
     }
     
     const newAdmin = {
@@ -279,6 +309,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addClient = async (client: Omit<Client, 'id' | 'fechaRegistro'>): Promise<Client> => {
+    if (client.dni && client.dni.trim() !== '') {
+      const existing = state.clients.find(c => c.dni === client.dni.trim());
+      if (existing) {
+        throw new Error(`El DNI/RUC ${client.dni} ya se encuentra registrado.`);
+      }
+    }
+
     const rawSupplies = client.suministros?.length ? client.suministros : [client.codigoSuministro].filter(Boolean);
     const suppliesToCheck = (rawSupplies as string[]).map(normalizeSupplyCode).filter(Boolean);
     for (const sup of suppliesToCheck) {
@@ -331,6 +368,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateClient = async (id: string, updates: Partial<Client>) => {
+    if (updates.dni && updates.dni.trim() !== '') {
+      const existing = state.clients.find(c => c.dni === updates.dni!.trim() && c.id !== id);
+      if (existing) {
+        throw new Error(`El DNI/RUC ${updates.dni} ya se encuentra registrado.`);
+      }
+    }
+
     if (updates.suministros || updates.codigoSuministro) {
        const clientBeingUpdated = state.clients.find(c => c.id === id);
        const rawSupplies = updates.suministros?.length ? updates.suministros : (updates.codigoSuministro ? [updates.codigoSuministro] : (clientBeingUpdated?.suministros || [clientBeingUpdated?.codigoSuministro]).filter(Boolean));
@@ -538,6 +582,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addTransaction = async (transaction: Omit<Transaction, 'id' | 'fecha'>) => {
+    if (transaction.comprobante && transaction.comprobante.trim() !== '') {
+      const exists = state.transactions.some(
+        t => t.comprobante?.trim().toLowerCase() === transaction.comprobante!.trim().toLowerCase()
+      );
+      if (exists) {
+        throw new Error(`El comprobante correlativo "${transaction.comprobante}" ya se encuentra registrado.`);
+      }
+    }
+
     const newTx: Transaction = {
       ...transaction,
       id: generateId(),
@@ -566,6 +619,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addMeeting = async (meeting: Omit<Meeting, 'id'>) => {
+    if (meeting.fecha) {
+      const exists = state.meetings.some(m => m.fecha === meeting.fecha);
+      if (exists) {
+        throw new Error(`Ya existe una reunión o asamblea programada para la fecha y hora seleccionada.`);
+      }
+    }
+
     const newMeeting: Meeting = {
       ...meeting,
       id: generateId(),
@@ -635,7 +695,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const firstName = client.nombres || '';
         const lastName = client.apellidos || '';
         const usernameBase = (firstName.charAt(0) + (lastName.split(' ')[0] || '')).toLowerCase().replace(/[^a-z0-9]/g, '');
-        const finalUsername = `${usernameBase}${dni.slice(-2) || '00'}`;
+        
+        let finalUsername = usernameBase;
+        let counter = 1;
+        let usernameExists = updatedAdmins.some(a => (a.username || '').trim().toLowerCase() === finalUsername.toLowerCase());
+        while (usernameExists) {
+          finalUsername = `${usernameBase}${counter}`;
+          counter++;
+          usernameExists = updatedAdmins.some(a => (a.username || '').trim().toLowerCase() === finalUsername.toLowerCase());
+        }
+
         const tempPassword = `Comite2026#`;
         const hashedPassword = bcrypt.hashSync(tempPassword, 10);
 
@@ -729,6 +798,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addCommittee = async (committee: Omit<Committee, 'id' | 'createdBy' | 'createdAt'>) => {
+    const exists = (state.comites || []).some(
+      c => c.nombrePeriodo.trim().toLowerCase() === committee.nombrePeriodo.trim().toLowerCase()
+    );
+    if (exists) {
+      throw new Error(`Ya existe un comité registrado para el período de elección "${committee.nombrePeriodo}".`);
+    }
+
     setState(prev => {
       const id = generateId();
       const newComite: Committee = {
@@ -757,6 +833,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateCommittee = async (id: string, updates: Partial<Committee>) => {
+    if (updates.nombrePeriodo) {
+      const exists = (state.comites || []).some(
+        c => c.id !== id && c.nombrePeriodo.trim().toLowerCase() === updates.nombrePeriodo!.trim().toLowerCase()
+      );
+      if (exists) {
+        throw new Error(`Ya existe otro comité registrado para el período de elección "${updates.nombrePeriodo}".`);
+      }
+    }
+
     setState(prev => {
       let updatedComites = [...(prev.comites || [])];
       let updatedAdmins = [...prev.admins];
@@ -914,7 +999,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       throw new Error(`El trabajador ya tiene registrado el pago de sueldo correspondiente al mes de ${monthName}/${year}.`);
     }
 
-    const compNo = `S-${Date.now().toString().slice(-6)}`;
+    let compNo = `S-${Date.now().toString().slice(-6)}`;
+    let existsComp = (state.pagosSueldos || []).some(p => p.comprobante === compNo) ||
+                     (state.transactions || []).some(t => t.comprobante === compNo);
+    let offset = 1;
+    while (existsComp) {
+      compNo = `S-${(Date.now() + offset).toString().slice(-6)}`;
+      existsComp = (state.pagosSueldos || []).some(p => p.comprobante === compNo) ||
+                   (state.transactions || []).some(t => t.comprobante === compNo);
+      offset++;
+    }
+
     const nPago: PagoSueldo = {
       ...pago,
       id: `PAG-${Date.now()}`,
