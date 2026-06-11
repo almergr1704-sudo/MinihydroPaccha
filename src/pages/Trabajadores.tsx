@@ -560,7 +560,7 @@ export default function Trabajadores() {
                         </td>
                         <td className="px-6 py-3.5 whitespace-nowrap text-slate-400">{payment.createdBy}</td>
                         <td className="px-6 py-3.5 whitespace-nowrap font-mono text-teal-400 font-semibold">
-                          S/ {payment.monto.toFixed(2)}
+                          S/ {(payment.monto || 0).toFixed(2)}
                         </td>
                         <td className="px-6 py-3.5 whitespace-nowrap">
                           <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-[10px] font-bold">
@@ -596,7 +596,7 @@ export default function Trabajadores() {
 
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
 
-            <div className="inline-block align-bottom bg-[#111622] rounded-xl border border-slate-800 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+            <div className="relative z-10 inline-block align-bottom bg-[#111622] rounded-xl border border-slate-800 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
               <form onSubmit={handleWorkerSubmit}>
                 <div className="p-6 space-y-4">
                   <div className="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -758,7 +758,7 @@ export default function Trabajadores() {
             <div className="fixed inset-0 bg-[#07090E] bg-opacity-80 transition-opacity" onClick={() => setSelectedWorker(null)}></div>
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
 
-            <div className="inline-block align-bottom bg-[#111622] rounded-xl border border-slate-800 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
+            <div className="relative z-10 inline-block align-bottom bg-[#111622] rounded-xl border border-slate-800 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
               <div className="p-6 space-y-4">
                 <div className="flex items-start justify-between border-b border-slate-800 pb-3">
                   <div>
@@ -785,7 +785,7 @@ export default function Trabajadores() {
                   </div>
                   <div>
                     <span className="text-slate-500 block">Sueldo</span>
-                    <span className="text-emerald-400 font-bold">S/ {selectedWorker.sueldoMensual.toFixed(2)}</span>
+                    <span className="text-emerald-400 font-bold">S/ {(selectedWorker.sueldoMensual || 0).toFixed(2)}</span>
                   </div>
                   <div>
                     <span className="text-slate-500 block">Estado</span>
@@ -829,7 +829,7 @@ export default function Trabajadores() {
 
                             <div className="flex items-center gap-3">
                               <span className="font-mono text-teal-400 font-bold whitespace-nowrap">
-                                S/ {p.monto.toFixed(2)}
+                                S/ {(p.monto || 0).toFixed(2)}
                               </span>
                               <button
                                 onClick={() => generatePayrollReceiptPDF(p)}
