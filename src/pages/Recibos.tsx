@@ -455,8 +455,11 @@ export default function Recibos() {
           doc.setTextColor(0, 0, 0);
         }
 
+        const [yearPart, monthPart] = cons.mes.split('-');
+        const displayReciboNo = cons.reciboNo || `REC-${yearPart}-${monthPart}-${cons.id.slice(-4).toUpperCase()}`;
+
         doc.setFontSize(10);
-        doc.text(`Suministro: ${codSuministro} | Tipo: ${client.tipo}`, 14, yOffset + 12);
+        doc.text(`Recibo: ${displayReciboNo} | Suministro: ${codSuministro} | Tipo: ${client.tipo}`, 14, yOffset + 12);
         doc.setFontSize(9);
         doc.text(`Fecha Emisión: ${format(parseISO(cons.fechaLectura), 'dd MMM yyyy', { locale: es })} | Periodo: ${cons.mes} | Estado: ${item.estado}`, 14, yOffset + 18);
 

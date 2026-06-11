@@ -336,8 +336,11 @@ export default function Consumo() {
         doc.setTextColor(0, 0, 0); // Reset
       }
 
+      const [yearPart, monthPart] = selectedMes.split('-');
+      const displayReciboNo = currentReading?.reciboNo || `REC-${yearPart}-${monthPart}-${currentReading?.id ? currentReading.id.slice(-4).toUpperCase() : '0000'}`;
+
       doc.setFontSize(10);
-      doc.text(`Suministro: ${codigoSuministro} | Tipo: ${client.tipo}`, 14, yOffset + 12);
+      doc.text(`Recibo: ${displayReciboNo} | Suministro: ${codigoSuministro} | Tipo: ${client.tipo}`, 14, yOffset + 12);
       
       const docState = currentReading ? currentReading.estadoPago : 'PENDIENTE';
       doc.setFontSize(9);
@@ -576,7 +579,7 @@ export default function Consumo() {
     const displayReciboNo = cons.reciboNo || `REC-${yearPart}-${monthPart}-${cons.id.slice(-4).toUpperCase()}`;
 
     doc.setFontSize(10);
-    doc.text(`Suministro: ${codSuministro} | Tipo: ${client.tipo} | N° Recibo: ${displayReciboNo}`, 14, yOffset + 12);
+    doc.text(`Recibo: ${displayReciboNo} | Suministro: ${codSuministro} | Tipo: ${client.tipo}`, 14, yOffset + 12);
     
     doc.setFontSize(9);
     doc.text(`Fecha Emisión: ${format(new Date(), 'dd MMM yyyy')} | Periodo: ${cons.mes} | Estado: ${cons.estadoPago}`, 14, yOffset + 18);
