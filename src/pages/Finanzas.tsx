@@ -162,7 +162,8 @@ export default function Finanzas() {
       monto: Number(formData.monto),
       descripcion: formData.descripcion,
       destinatario: formData.tipo === 'EGRESO' ? formData.destinatario : undefined,
-      clientId: selectedClientId || undefined
+      clientId: selectedClientId || undefined,
+      codigoSuministro: selectedSupplyCode || undefined
     };
     
     await addTransaction(newTx);
@@ -202,14 +203,29 @@ export default function Finanzas() {
 
     const totalAmount = txForReport.reduce((acc, t) => acc + t.monto, 0);
 
-    tableData = txForReport.map(t => [
-      format(parseISO(t.fecha), 'dd/MM/yyyy HH:mm'),
-      t.categoria.replace('_', ' '),
-      t.descripcion,
-      formatCurrency(t.monto)
-    ]);
-    tableData.push(['TOTAL GENERAL', '', '', formatCurrency(totalAmount)]);
-    headParams = [['Fecha', 'Categoría', 'Descripción', type === 'INGRESO' ? 'Monto Ingreso' : 'Monto Egreso']];
+    tableData = txForReport.map(t => {
+      const client = clients.find(c => c.id === t.clientId);
+      const clientName = client ? `${client.apellidos}, ${client.nombres.slice(0, 8)}.` : '';
+      let supplyCode = t.codigoSuministro || '';
+      if (!supplyCode && t.referencia) {
+        const match = t.referencia.match(/SUM-\d+/i);
+        if (match) supplyCode = match[0].toUpperCase();
+      }
+      if (!supplyCode && t.descripcion) {
+        const match = t.descripcion.match(/SUM-\d+/i);
+        if (match) supplyCode = match[0].toUpperCase();
+      }
+      const clientAndSupply = [supplyCode, clientName].filter(Boolean).join(' - ');
+      return [
+        format(parseISO(t.fecha), 'dd/MM/yyyy HH:mm'),
+        t.categoria.replace('_', ' '),
+        clientAndSupply || t.destinatario || 'N/A',
+        t.descripcion,
+        formatCurrency(t.monto)
+      ];
+    });
+    tableData.push(['TOTAL GENERAL', '', '', '', formatCurrency(totalAmount)]);
+    headParams = [['Fecha', 'Categoría', 'Cliente / Suministro', 'Descripción', type === 'INGRESO' ? 'Monto Ingreso' : 'Monto Egreso']];
 
     autoTable(doc, {
       startY: selectedMes ? 35 : 30,
@@ -265,35 +281,69 @@ export default function Finanzas() {
     const reportEgresos = filteredTransactions.filter(t => t.tipo === 'EGRESO').reduce((acc, t) => acc + t.monto, 0);
 
     if (filterType === 'TODOS') {
-      exportData = filteredTransactions.map(t => ({
-        Fecha: format(parseISO(t.fecha), 'dd/MM/yyyy HH:mm'),
-        Categoría: t.categoria.replace('_', ' '),
-        Descripción: t.descripcion,
-        Destinatario: t.destinatario || '',
-        'Ingreso (S/)': t.tipo === 'INGRESO' ? t.monto : 0,
-        'Egreso (S/)': t.tipo === 'EGRESO' ? t.monto : 0
-      }));
+      exportData = filteredTransactions.map(t => {
+        const client = clients.find(c => c.id === t.clientId);
+        const clientName = client ? `${client.apellidos}, ${client.nombres}` : '';
+        let supplyCode = t.codigoSuministro || '';
+        if (!supplyCode && t.referencia) {
+          const match = t.referencia.match(/SUM-\d+/i);
+          if (match) supplyCode = match[0].toUpperCase();
+        }
+        if (!supplyCode && t.descripcion) {
+          const match = t.descripcion.match(/SUM-\d+/i);
+          if (match) supplyCode = match[0].toUpperCase();
+        }
+        return {
+          Fecha: format(parseISO(t.fecha), 'dd/MM/yyyy HH:mm'),
+          Comprobante: t.comprobante || '',
+          Suministro: supplyCode || 'N/A',
+          Cliente: clientName || t.destinatario || 'General',
+          Categoría: t.categoria.replace('_', ' '),
+          Descripción: t.descripcion,
+          'Ingreso (S/)': t.tipo === 'INGRESO' ? t.monto : 0,
+          'Egreso (S/)': t.tipo === 'EGRESO' ? t.monto : 0
+        };
+      });
       exportData.push({
         Fecha: 'TOTAL GENERAL',
+        Comprobante: '',
+        Suministro: '',
+        Cliente: '',
         Categoría: '',
         Descripción: '',
-        Destinatario: '',
         'Ingreso (S/)': reportIngresos,
         'Egreso (S/)': reportEgresos
       });
     } else {
-      exportData = filteredTransactions.map(t => ({
-        Fecha: format(parseISO(t.fecha), 'dd/MM/yyyy HH:mm'),
-        Categoría: t.categoria.replace('_', ' '),
-        Descripción: t.descripcion,
-        Destinatario: t.destinatario || '',
-        [filterType === 'INGRESO' ? 'Monto Ingreso (S/)' : 'Monto Egreso (S/)']: t.monto
-      }));
+      exportData = filteredTransactions.map(t => {
+        const client = clients.find(c => c.id === t.clientId);
+        const clientName = client ? `${client.apellidos}, ${client.nombres}` : '';
+        let supplyCode = t.codigoSuministro || '';
+        if (!supplyCode && t.referencia) {
+          const match = t.referencia.match(/SUM-\d+/i);
+          if (match) supplyCode = match[0].toUpperCase();
+        }
+        if (!supplyCode && t.descripcion) {
+          const match = t.descripcion.match(/SUM-\d+/i);
+          if (match) supplyCode = match[0].toUpperCase();
+        }
+        return {
+          Fecha: format(parseISO(t.fecha), 'dd/MM/yyyy HH:mm'),
+          Comprobante: t.comprobante || '',
+          Suministro: supplyCode || 'N/A',
+          Cliente: clientName || t.destinatario || 'General',
+          Categoría: t.categoria.replace('_', ' '),
+          Descripción: t.descripcion,
+          [filterType === 'INGRESO' ? 'Monto Ingreso (S/)' : 'Monto Egreso (S/)']: t.monto
+        };
+      });
       exportData.push({
         Fecha: 'TOTAL GENERAL',
+        Comprobante: '',
+        Suministro: '',
+        Cliente: '',
         Categoría: '',
         Descripción: '',
-        Destinatario: '',
         [filterType === 'INGRESO' ? 'Monto Ingreso (S/)' : 'Monto Egreso (S/)']: filterType === 'INGRESO' ? reportIngresos : reportEgresos
       });
     }
@@ -869,7 +919,8 @@ export default function Finanzas() {
                                           categoria: 'RECONEXION',
                                           monto: reconexionFee,
                                           descripcion: 'Cobro y pago por reconexión de servicio',
-                                          clientId: selectedClientId
+                                          clientId: selectedClientId,
+                                          codigoSuministro: selectedSupplyCode || undefined
                                         });
                                         await updateClient(selectedClientId, { estado: 'ACTIVO' });
                                         toast.success('Cobro realizado y servicio reactivado exitosamente.');

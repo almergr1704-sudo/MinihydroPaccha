@@ -167,7 +167,8 @@ export default function Clientes() {
             categoria: 'RECONEXION',
             monto: settings.costoReconexion,
             descripcion: 'Cobro y pago por reconexión de servicio',
-            clientId: editingId
+            clientId: editingId,
+            codigoSuministro: client?.codigoSuministro || (client?.suministros && client.suministros.length > 0 ? client.suministros[0] : undefined)
           });
         }
       }
@@ -887,6 +888,7 @@ export default function Clientes() {
                     monto: Number(transferState.monto || 0),
                     descripcion: transferState.observacion || `Cambio de Titularidad - Suministro ${normalizeSupplyCode(transferState.supplyCode)}`,
                     clientId: finalToClientId,
+                    codigoSuministro: normalizeSupplyCode(transferState.supplyCode),
                     comprobante: compNo,
                     referencia: `Transferencia Suministro: ${normalizeSupplyCode(transferState.supplyCode)}`,
                     fecha: new Date().toISOString(),
@@ -900,6 +902,7 @@ export default function Clientes() {
                     monto: Number(transferState.monto || 0),
                     descripcion: txRaw.descripcion,
                     clientId: finalToClientId,
+                    codigoSuministro: normalizeSupplyCode(transferState.supplyCode),
                     comprobante: compNo,
                     referencia: txRaw.referencia,
                     metodoPago: 'EFECTIVO'

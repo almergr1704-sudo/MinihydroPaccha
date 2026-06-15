@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../store/AppContext';
 import { Card, CardContent, Badge, Button, Pagination } from '../components/ui';
-import { formatCurrency, normalizeSearchText } from '../lib/utils';
+import { formatCurrency, normalizeSearchText, getExonerationClassification } from '../lib/utils';
 import { generateGeneralPaymentReceiptPDF, generatePayrollReceiptPDF } from '../lib/receipts';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -66,7 +66,8 @@ export default function Recibos() {
     suppliesInfo,
     userRole,
     addAuditLog,
-    deleteConsumption
+    deleteConsumption,
+    comites
   } = useAppContext();
 
   const location = useLocation();
@@ -541,20 +542,41 @@ export default function Recibos() {
         const minimoAplica = settings?.consumoMinimo ?? 6;
         const esMinimo = currentKwh * tarifaAplicada < minimoAplica;
 
+        const classification = getExonerationClassification(comites, codSuministro, cons.mes);
+        let labelCons = 'Consumo Eléctrico';
+        if (classification === 'EXONERATED') {
+          labelCons += ' - EXONERADO (Comité Directivo)';
+        } else if (classification === 'PRE_EXONERATION') {
+          labelCons += ' - (Anterior a Exoneración Directiva)';
+        } else if (classification === 'POST_EXONERATION') {
+          labelCons += ' - (Posterior a Exoneración Directiva)';
+        } else if (esMinimo) {
+          labelCons += ` (Mín. S/ ${minimoAplica.toFixed(2)})`;
+        }
+
         const tableBody: any[][] = [];
         tableBody.push([
-          'Consumo Eléctrico' + (esMinimo ? ` (Mín. S/ ${minimoAplica.toFixed(2)})` : ''),
+          labelCons,
           currentKwh.toString(), tarifaAplicada.toFixed(2), formatCurrency(cons.montoCalculado)
         ]);
 
         if (debtInfo.previousUnpaid && debtInfo.previousUnpaid.length > 0) {
-          const totalDeudaAnterior = debtInfo.previousUnpaid.reduce((acc, unpaid) => acc + unpaid.montoCalculado, 0);
-          const numMeses = debtInfo.previousUnpaid.length;
-          const textoDeuda = `Deuda Anterior (${numMeses} mes${numMeses === 1 ? '' : 'es'})`;
-          tableBody.push([
-            { content: textoDeuda, styles: { fontStyle: 'bold', textColor: [220, 38, 38] } },
-            '-', '-', formatCurrency(totalDeudaAnterior)
-          ]);
+          debtInfo.previousUnpaid.forEach(unpaid => {
+            const unpaidClass = getExonerationClassification(comites, codSuministro, unpaid.mes);
+            let unpaidLabel = `Deuda Pendiente ${unpaid.mes}`;
+            if (unpaidClass === 'EXONERATED') {
+              unpaidLabel += ' - EXONERADA';
+            } else if (unpaidClass === 'PRE_EXONERATION') {
+              unpaidLabel += ' - ANTERIOR A EXONERACIÓN';
+            } else if (unpaidClass === 'POST_EXONERATION') {
+              unpaidLabel += ' - POSTERIOR A EXONERACIÓN';
+            }
+            
+            tableBody.push([
+              { content: unpaidLabel, styles: { fontStyle: 'bold', textColor: [220, 38, 38] } },
+              (unpaid.kwh || 0).toString(), '-', formatCurrency(unpaid.montoCalculado)
+            ]);
+          });
         }
 
         const totalAPagar = cons.montoCalculado + debtInfo.totalDeuda;
@@ -921,6 +943,29 @@ export default function Recibos() {
                     <td className="px-3 py-2.5">
                       <div className="text-xs text-slate-300 font-medium break-words max-w-[280px]">
                         {item.concepto}
+                        {item.sourceType === 'CONSUMO' && (() => {
+                          const classification = getExonerationClassification(comites, item.codigoSuministro, item.rawPayload?.mes);
+                          if (classification === 'EXONERATED') {
+                            return (
+                              <span className="block mt-1 text-[10px] font-bold text-emerald-400 bg-emerald-950/40 border border-emerald-500/20 px-1.5 py-0.5 rounded w-fit">
+                                Exonerado (Comité Directivo)
+                              </span>
+                            );
+                          } else if (classification === 'PRE_EXONERATION') {
+                            return (
+                              <span className="block mt-1 text-[10px] font-bold text-orange-400 bg-orange-950/40 border border-orange-500/20 px-1.5 py-0.5 rounded w-fit">
+                                Anterior a Exoneración Directiva
+                              </span>
+                            );
+                          } else if (classification === 'POST_EXONERATION') {
+                            return (
+                              <span className="block mt-1 text-[10px] font-bold text-slate-400 bg-slate-900/40 border border-slate-700 px-1.5 py-0.5 rounded w-fit">
+                                Posterior a Exoneración Directiva
+                              </span>
+                            );
+                          }
+                          return null;
+                        })()}
                       </div>
                       <div className="text-[9px] text-slate-500 mt-0.5">Operador: {item.registradoPor}</div>
                     </td>

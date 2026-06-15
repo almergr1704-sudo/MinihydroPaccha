@@ -114,6 +114,7 @@ export default function VentaServicios() {
           descripcion: formData.observacionPago,
           fecha: new Date().toISOString(),
           clientId: finalClientId,
+          codigoSuministro: normalizeSupplyCode(formData.codigoSuministro),
           referencia: `Venta Suministro: ${normalizeSupplyCode(formData.codigoSuministro)}`,
           comprobante: `VS-${Date.now().toString().slice(-6)}`,
           metodoPago: 'EFECTIVO'

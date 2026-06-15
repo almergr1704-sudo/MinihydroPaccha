@@ -145,3 +145,74 @@ export const render3DPieChartToDataURL = (
 
   return canvas.toDataURL('image/png');
 };
+
+export function getMonthFollowing(dateString: string): string {
+  if (!dateString) return '';
+  const parts = dateString.split('-');
+  if (parts.length < 2) return '';
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10);
+  let nextMonth = month + 1;
+  let nextYear = year;
+  if (nextMonth > 12) {
+    nextMonth = 1;
+    nextYear += 1;
+  }
+  return `${nextYear}-${nextMonth.toString().padStart(2, '0')}`;
+}
+
+export function getMonthOf(dateString: string): string {
+  if (!dateString) return '';
+  const parts = dateString.split('-');
+  if (parts.length < 2) return '';
+  return `${parts[0]}-${parts[1]}`;
+}
+
+export function getExonerationClassification(
+  comites: any[] | undefined,
+  supplyCode: string | undefined,
+  mes: string | undefined
+): 'PRE_EXONERATION' | 'EXONERATED' | 'POST_EXONERATION' | 'NORMAL' {
+  if (!comites || !supplyCode || !mes) return 'NORMAL';
+  
+  // Find all committees where this supply was exonerated
+  const relevantComites = comites.filter(comite => {
+    const members = [
+      comite.presidente,
+      comite.secretario,
+      comite.tesorero,
+      comite.fiscalizador,
+      comite.vocal
+    ].filter(Boolean);
+    return members.some(m => m.supplyCodeExonerado === supplyCode);
+  });
+  
+  if (relevantComites.length === 0) return 'NORMAL';
+  
+  // Sort them chronologically by fechaInicio
+  relevantComites.sort((a, b) => a.fechaInicio.localeCompare(b.fechaInicio));
+  
+  let isWithin = false;
+  let isPre = false;
+  let isPost = false;
+  
+  for (const comite of relevantComites) {
+    const exStart = getMonthFollowing(comite.fechaInicio);
+    const exEnd = getMonthOf(comite.fechaFin);
+    
+    if (mes >= exStart && mes <= exEnd) {
+      isWithin = true;
+      break;
+    } else if (mes < exStart) {
+      isPre = true;
+    } else if (mes > exEnd) {
+      isPost = true;
+    }
+  }
+  
+  if (isWithin) return 'EXONERATED';
+  if (isPre && !isPost) return 'PRE_EXONERATION';
+  if (isPost) return 'POST_EXONERATION';
+  return 'NORMAL';
+}
+

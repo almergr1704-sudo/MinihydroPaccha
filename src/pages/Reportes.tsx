@@ -189,23 +189,55 @@ export default function Reportes() {
   const handleExportExcel = () => {
     const txSorted = [...filteredTransactions].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
 
-    const ingresosData = txSorted.filter(t => t.tipo === 'INGRESO').map(t => ({
-      Fecha: format(new Date(t.fecha), 'dd/MM/yyyy HH:mm'),
-      Categoría: t.categoria,
-      Descripción: t.descripcion,
-      'Ingreso (S/)': t.monto
-    }));
+    const ingresosData = txSorted.filter(t => t.tipo === 'INGRESO').map(t => {
+      const client = clients.find(c => c.id === t.clientId);
+      const clientName = client ? `${client.apellidos}, ${client.nombres}` : '';
+      let supplyCode = t.codigoSuministro || '';
+      if (!supplyCode && t.referencia) {
+        const match = t.referencia.match(/SUM-\d+/i);
+        if (match) supplyCode = match[0].toUpperCase();
+      }
+      if (!supplyCode && t.descripcion) {
+        const match = t.descripcion.match(/SUM-\d+/i);
+        if (match) supplyCode = match[0].toUpperCase();
+      }
+      return {
+        Fecha: format(new Date(t.fecha), 'dd/MM/yyyy HH:mm'),
+        Comprobante: t.comprobante || '',
+        Suministro: supplyCode || 'N/A',
+        Cliente: clientName || 'General',
+        Categoría: t.categoria,
+        Descripción: t.descripcion,
+        'Ingreso (S/)': t.monto
+      };
+    });
     const totalIngresosMonto = txSorted.filter(t => t.tipo === 'INGRESO').reduce((acc, t) => acc + t.monto, 0);
-    ingresosData.push({ Fecha: 'TOTAL GENERAL', Categoría: '', Descripción: '', 'Ingreso (S/)': totalIngresosMonto });
+    ingresosData.push({ Fecha: 'TOTAL GENERAL', Comprobante: '', Suministro: '', Cliente: '', Categoría: '', Descripción: '', 'Ingreso (S/)': totalIngresosMonto });
 
-    const egresosData = txSorted.filter(t => t.tipo === 'EGRESO').map(t => ({
-      Fecha: format(new Date(t.fecha), 'dd/MM/yyyy HH:mm'),
-      Categoría: t.categoria,
-      Descripción: t.descripcion,
-      'Egreso (S/)': t.monto
-    }));
+    const egresosData = txSorted.filter(t => t.tipo === 'EGRESO').map(t => {
+      const client = clients.find(c => c.id === t.clientId);
+      const clientName = client ? `${client.apellidos}, ${client.nombres}` : '';
+      let supplyCode = t.codigoSuministro || '';
+      if (!supplyCode && t.referencia) {
+        const match = t.referencia.match(/SUM-\d+/i);
+        if (match) supplyCode = match[0].toUpperCase();
+      }
+      if (!supplyCode && t.descripcion) {
+        const match = t.descripcion.match(/SUM-\d+/i);
+        if (match) supplyCode = match[0].toUpperCase();
+      }
+      return {
+        Fecha: format(new Date(t.fecha), 'dd/MM/yyyy HH:mm'),
+        Comprobante: t.comprobante || '',
+        Suministro: supplyCode || 'N/A',
+        'Cliente / Destinatario': clientName || t.destinatario || 'General',
+        Categoría: t.categoria,
+        Descripción: t.descripcion,
+        'Egreso (S/)': t.monto
+      };
+    });
     const totalEgresosMonto = txSorted.filter(t => t.tipo === 'EGRESO').reduce((acc, t) => acc + t.monto, 0);
-    egresosData.push({ Fecha: 'TOTAL GENERAL', Categoría: '', Descripción: '', 'Egreso (S/)': totalEgresosMonto });
+    egresosData.push({ Fecha: 'TOTAL GENERAL', Comprobante: '', Suministro: '', 'Cliente / Destinatario': '', Categoría: '', Descripción: '', 'Egreso (S/)': totalEgresosMonto });
 
     const consolidatedMap: Record<string, { categoria: string, ingreso: number, egreso: number }> = {};
     txSorted.forEach(t => {

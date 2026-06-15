@@ -109,26 +109,34 @@ export function generateGeneralPaymentReceiptPDF(transaction: Transaction, clien
       const addressLinesOffset = (addressLines.length - 1) * 4;
       const supplyY = nextY + 12 + addressLinesOffset;
 
-      // Código Suministro: Mantener únicamente en Venta de Suministros, Transferencia o relacionados
-      const isSupplyRelated = 
-        transaction.categoria === 'VENTA_SERVICIO' || 
-        transaction.categoria === 'TRANSFERENCIA' ||
-        (transaction.referencia && /SUM-\d+/i.test(transaction.referencia)) ||
-        (transaction.descripcion && /SUM-\d+/i.test(transaction.descripcion));
+      // Get the specific supply code associated with this operation
+      let specificSupplyCode: string | undefined = transaction.codigoSuministro;
 
-      if (isSupplyRelated) {
-        let supplyCode = 'No aplica';
-        if (client.suministros && client.suministros.length > 0) {
-          supplyCode = client.suministros.join(', ');
-        } else if (client.codigoSuministro) {
-          supplyCode = client.codigoSuministro;
-        } else if (transaction.referencia && (transaction.referencia.includes('SUM-') || transaction.referencia.includes('Suministro'))) {
-          const match = transaction.referencia.match(/SUM-\d+/i);
-          if (match) supplyCode = match[0].toUpperCase();
+      // Extract from referencia if we don't have it directly but it's present as a pattern
+      if (!specificSupplyCode && transaction.referencia) {
+        const match = transaction.referencia.match(/SUM-\d+/i);
+        if (match) specificSupplyCode = match[0].toUpperCase();
+      }
+
+      // Extract from descripcion as fallback
+      if (!specificSupplyCode && transaction.descripcion) {
+        const match = transaction.descripcion.match(/SUM-\d+/i);
+        if (match) specificSupplyCode = match[0].toUpperCase();
+      }
+
+      // If it's a supply-related category but we still don't have any specific supply code,
+      // fallback to client's primary supply code (only if client has exactly one supply, otherwise it's ambiguous)
+      if (!specificSupplyCode && (transaction.categoria === 'VENTA_SERVICIO' || transaction.categoria === 'TRANSFERENCIA')) {
+        if (client.codigoSuministro) {
+          specificSupplyCode = client.codigoSuministro;
+        } else if (client.suministros && client.suministros.length === 1) {
+          specificSupplyCode = client.suministros[0];
         }
-        
+      }
+
+      if (specificSupplyCode) {
         doc.setFont('helvetica', 'bold');
-        doc.text(`Código Suministro: ${supplyCode}`, 5, supplyY);
+        doc.text(`Código Suministro: ${specificSupplyCode}`, 5, supplyY);
         doc.setFont('helvetica', 'normal');
         doc.line(5, supplyY + 3, 75, supplyY + 3);
         finalInfoStartY = supplyY + 8;

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { AppState, Client, Consumption, Transaction, Meeting, ClientType, Fine, AuditLog, Committee, CommitteeMember, Trabajador, PagoSueldo } from './types';
-import { normalizeSupplyCode } from '../lib/utils';
+import { normalizeSupplyCode, getExonerationClassification, getMonthFollowing, getMonthOf } from '../lib/utils';
 import bcrypt from 'bcryptjs';
 
 interface AppContextType extends AppState {
@@ -515,29 +515,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const client = currentState.clients.find(c => c.id === consumption.clientId);
       if (!client) return currentState;
 
-      // Check if this supply is currently exonerated by an active committee
-      let isExonerated = false;
-      if (currentState.comites) {
-        const activeComite = currentState.comites.find(c => c.activo);
-        if (activeComite) {
-          // Check if consumption.mes falls within comite period
-          const compDate = new Date(`${consumption.mes}-02`);
-          const start = new Date(activeComite.fechaInicio);
-          const end = new Date(activeComite.fechaFin);
-          if (compDate >= start && compDate <= end) {
-            const members = [
-              activeComite.presidente,
-              activeComite.secretario,
-              activeComite.tesorero,
-              activeComite.fiscalizador,
-              activeComite.vocal
-            ].filter(Boolean);
-            if (members.some(m => m.supplyCodeExonerado === consumption.codigoSuministro)) {
-              isExonerated = true;
-            }
-          }
-        }
-      }
+      // Check if this supply is currently exonerated by a committee
+      const exonerationClass = getExonerationClassification(currentState.comites, consumption.codigoSuministro, consumption.mes);
+      const isExonerated = exonerationClass === 'EXONERATED';
 
       const settings = currentState.settings || initialData.settings;
       const isSocio = currentState.suppliesInfo.find(s => s.codigo === consumption.codigoSuministro)?.isSocio ?? (client.tipo === 'SOCIO');
@@ -611,6 +591,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       monto: consumption.montoCalculado,
       descripcion: `Pago Consumo ${consumption.mes}`,
       clientId: consumption.clientId,
+      codigoSuministro: consumption.codigoSuministro,
     });
     addAuditLog('ACTUALIZAR', 'CONSUMOS', `Pagó recibo de ${consumption.montoCalculado} para suministro ${consumption.codigoSuministro}`);
   };
@@ -873,6 +854,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return updatedAdmins;
   };
 
+  const logCommitteeExonerations = (comite: Committee, registrar: string) => {
+    const membersList = [
+      { role: 'Presidente', m: comite.presidente },
+      { role: 'Secretario', m: comite.secretario },
+      { role: 'Tesorero', m: comite.tesorero },
+      { role: 'Fiscalizador', m: comite.fiscalizador },
+      comite.vocal ? { role: 'Vocal', m: comite.vocal } : null
+    ].filter(Boolean) as { role: string; m: CommitteeMember }[];
+
+    const firstExMonth = getMonthFollowing(comite.fechaInicio);
+    const lastExMonth = getMonthOf(comite.fechaFin);
+
+    membersList.forEach(({ role, m }) => {
+      if (m?.supplyCodeExonerado) {
+        addAuditLog(
+          'CREAR',
+          'SISTEMA',
+          `Beneficio de Exoneración Otorgado - Beneficiario: ${m.nombreCompleto}, Cargo: ${role.toUpperCase()}, Suministro: ${m.supplyCodeExonerado}, Inicio: ${firstExMonth}-01, Término: ${lastExMonth}, Registrado por: ${registrar}`
+        );
+      }
+    });
+  };
+
   const addCommittee = async (committee: Omit<Committee, 'id' | 'createdBy' | 'createdAt'>) => {
     const exists = (state.comites || []).some(
       c => c.nombrePeriodo.trim().toLowerCase() === committee.nombrePeriodo.trim().toLowerCase()
@@ -903,7 +907,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const newState = { ...prev, comites: updatedComites, admins: updatedAdmins };
       setLocalData(newState);
-      setTimeout(() => addAuditLog('CREAR', 'SISTEMA', `Registró nuevo comité: ${committee.nombrePeriodo}`), 0);
+      setTimeout(() => {
+        addAuditLog('CREAR', 'SISTEMA', `Registró nuevo comité: ${committee.nombrePeriodo}`);
+        logCommitteeExonerations(newComite, user?.email || 'Unknown');
+      }, 0);
       return newState;
     });
   };
@@ -946,7 +953,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const newState = { ...prev, comites: updatedComites, admins: updatedAdmins };
       setLocalData(newState);
-      setTimeout(() => addAuditLog('ACTUALIZAR', 'SISTEMA', `Actualizó comité: ${mergedComite.nombrePeriodo}`), 0);
+      setTimeout(() => {
+        addAuditLog('ACTUALIZAR', 'SISTEMA', `Actualizó comité: ${mergedComite.nombrePeriodo}`);
+        logCommitteeExonerations(mergedComite, user?.email || 'Unknown');
+      }, 0);
       return newState;
     });
   };

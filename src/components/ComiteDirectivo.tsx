@@ -1181,70 +1181,134 @@ export default function ComiteDirectivo() {
               </Button>
             </CardHeader>
             <CardContent className="space-y-6">
-              
-              {/* Summary Indicators */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-[#0B0E14] p-4 rounded-xl border border-slate-800">
-                  <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Total Comités Registrados</span>
-                  <p className="text-2xl font-bold text-slate-100 mt-1">{comites?.length || 0}</p>
-                </div>
-                <div className="bg-[#0B0E14] p-4 rounded-xl border border-slate-800">
-                  <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Socio-Clientes Elegibles</span>
-                  <p className="text-2xl font-bold text-green-400 mt-1">{sociosHabilitados.length}</p>
-                </div>
-                <div className="bg-[#0B0E14] p-4 rounded-xl border border-slate-800">
-                  <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Suministros Exonerados Activos</span>
-                  <p className="text-2xl font-bold text-emerald-400 mt-1">
-                    {comiteVigente ? (comiteVigente.vocal ? 5 : 4) : 0}
-                  </p>
-                </div>
-              </div>
+              {(() => {
+                const allExonerations = (comites || []).flatMap(c => {
+                  const isVigente = c.activo;
+                  const members = [
+                    { role: 'Presidente', m: c.presidente },
+                    { role: 'Secretario', m: c.secretario },
+                    { role: 'Tesorero', m: c.tesorero },
+                    { role: 'Fiscalizador', m: c.fiscalizador },
+                    ...(c.vocal ? [{ role: 'Vocal', m: c.vocal }] : [])
+                  ].filter(x => x?.m) as { role: string; m: any }[];
+                  return members.map(({ role, m }) => ({
+                    committeePeriod: c.nombrePeriodo,
+                    fechaInicio: c.fechaInicio,
+                    fechaFin: c.fechaFin,
+                    role,
+                    m,
+                    isVigente,
+                  }));
+                }).filter(item => item.m.supplyCodeExonerado);
 
-              {/* Active Exonerations Subtable */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-bold text-slate-300 flex items-center">
-                  <Zap className="w-4.5 h-4.5 text-emerald-400 mr-1.5" /> Padrón de Suministros con Exoneraciones Activas
-                </h3>
-                {comiteVigente ? (
-                  <div className="border border-slate-800 rounded-lg overflow-hidden">
-                    <table className="min-w-full divide-y divide-slate-800 text-xs">
-                      <thead className="bg-slate-900">
-                        <tr>
-                          <th className="px-4 py-2.5 text-left text-slate-300">Suministro</th>
-                          <th className="px-4 py-2.5 text-left text-slate-300">Socio Directivo</th>
-                          <th className="px-4 py-2.5 text-left text-slate-300">Cargo</th>
-                          <th className="px-4 py-2.5 text-left text-slate-300">Periodo Vigencia</th>
-                          <th className="px-4 py-2.5 text-left text-slate-300">Exención Cobertura</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800 bg-slate-950/20">
-                        {[
-                          { role: 'Presidente', m: comiteVigente.presidente },
-                          { role: 'Secretario', m: comiteVigente.secretario },
-                          { role: 'Tesorero', m: comiteVigente.tesorero },
-                          { role: 'Fiscalizador', m: comiteVigente.fiscalizador },
-                          ...(comiteVigente.vocal ? [{ role: 'Vocal', m: comiteVigente.vocal }] : [])
-                        ].map(({ role, m }) => (
-                          <tr key={role} className="hover:bg-slate-900/30">
-                            <td className="px-4 py-3 font-mono text-emerald-400 font-bold">{m.supplyCodeExonerado || '---'}</td>
-                            <td className="px-4 py-3 text-slate-100 font-semibold">{m.nombreCompleto}</td>
-                            <td className="px-4 py-3 text-slate-300">{role}</td>
-                            <td className="px-4 py-3 text-slate-400">{comiteVigente.fechaInicio} a {comiteVigente.fechaFin}</td>
-                            <td className="px-4 py-3 text-emerald-500 font-medium whitespace-nowrap">
-                              ✓ 100% Consumo Eléctrico
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                return (
+                  <div className="space-y-6">
+                    {/* Summary Indicators */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="bg-[#0B0E14] p-4 rounded-xl border border-slate-800">
+                        <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Total Comités Registrados</span>
+                        <p className="text-2xl font-bold text-slate-100 mt-1">{comites?.length || 0}</p>
+                      </div>
+                      <div className="bg-[#0B0E14] p-4 rounded-xl border border-slate-800">
+                        <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Socio-Clientes Elegibles</span>
+                        <p className="text-2xl font-bold text-green-400 mt-1">{sociosHabilitados.length}</p>
+                      </div>
+                      <div className="bg-[#0B0E14] p-4 rounded-xl border border-slate-800">
+                        <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Suministros Exonerados Activos</span>
+                        <p className="text-2xl font-bold text-emerald-400 mt-1">
+                          {comiteVigente ? (comiteVigente.vocal ? 5 : 4) : 0}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Active Exonerations Subtable */}
+                    <div className="space-y-3">
+                      <h3 className="text-sm font-bold text-slate-300 flex items-center">
+                        <Zap className="w-4.5 h-4.5 text-emerald-400 mr-1.5" /> Padrón de Suministros con Exoneraciones Activas
+                      </h3>
+                      {comiteVigente ? (
+                        <div className="border border-slate-800 rounded-lg overflow-hidden">
+                          <table className="min-w-full divide-y divide-slate-800 text-xs">
+                            <thead className="bg-slate-900">
+                              <tr>
+                                <th className="px-4 py-2.5 text-left text-slate-300">Suministro</th>
+                                <th className="px-4 py-2.5 text-left text-slate-300">Socio Directivo</th>
+                                <th className="px-4 py-2.5 text-left text-slate-300">Cargo</th>
+                                <th className="px-4 py-2.5 text-left text-slate-300">Periodo Vigencia</th>
+                                <th className="px-4 py-2.5 text-left text-slate-300">Exención Cobertura</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-800 bg-slate-950/20">
+                              {[
+                                { role: 'Presidente', m: comiteVigente.presidente },
+                                { role: 'Secretario', m: comiteVigente.secretario },
+                                { role: 'Tesorero', m: comiteVigente.tesorero },
+                                { role: 'Fiscalizador', m: comiteVigente.fiscalizador },
+                                ...(comiteVigente.vocal ? [{ role: 'Vocal', m: comiteVigente.vocal }] : [])
+                              ].map(({ role, m }) => (
+                                <tr key={role} className="hover:bg-slate-900/30">
+                                  <td className="px-4 py-3 font-mono text-emerald-400 font-bold">{m.supplyCodeExonerado || '---'}</td>
+                                  <td className="px-4 py-3 text-slate-100 font-semibold">{m.nombreCompleto}</td>
+                                  <td className="px-4 py-3 text-slate-300">{role}</td>
+                                  <td className="px-4 py-3 text-slate-400">{comiteVigente.fechaInicio} a {comiteVigente.fechaFin}</td>
+                                  <td className="px-4 py-3 text-emerald-500 font-medium whitespace-nowrap">
+                                    ✓ 100% Consumo Eléctrico
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-500 bg-slate-900/20 p-4 border border-slate-800 rounded">
+                          No hay suministros exonerados actualmente porque no existe un comité directivo en vigencia.
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Historical Exonerations Subtable */}
+                    <div className="space-y-3 pt-4 border-t border-slate-800/60">
+                      <h3 className="text-sm font-bold text-slate-300 flex items-center">
+                        <History className="w-4.5 h-4.5 text-slate-400 mr-1.5" /> Historial de Exoneraciones Otorgadas (Gestiones Anteriores)
+                      </h3>
+                      {allExonerations.filter(e => !e.isVigente).length > 0 ? (
+                        <div className="border border-slate-800 rounded-lg overflow-hidden">
+                          <table className="min-w-full divide-y divide-slate-800 text-xs">
+                            <thead className="bg-slate-900">
+                              <tr>
+                                <th className="px-4 py-2.5 text-left text-slate-300">Suministro</th>
+                                <th className="px-4 py-2.5 text-left text-slate-300">Socio Directivo</th>
+                                <th className="px-4 py-2.5 text-left text-slate-300">Cargo</th>
+                                <th className="px-4 py-2.5 text-left text-slate-300">Gestión Periodo</th>
+                                <th className="px-4 py-2.5 text-left text-slate-300">Fechas Elegibles</th>
+                                <th className="px-4 py-2.5 text-left text-slate-300">Estado</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-800 bg-slate-950/20">
+                              {allExonerations.filter(e => !e.isVigente).map((e, index) => (
+                                <tr key={index} className="hover:bg-slate-900/30">
+                                  <td className="px-4 py-3 font-mono text-slate-400 font-bold">{e.m.supplyCodeExonerado}</td>
+                                  <td className="px-4 py-3 text-slate-300 font-semibold">{e.m.nombreCompleto}</td>
+                                  <td className="px-4 py-3 text-slate-400">{e.role}</td>
+                                  <td className="px-4 py-3 text-slate-400 font-medium">{e.committeePeriod}</td>
+                                  <td className="px-4 py-3 text-slate-400">{e.fechaInicio} a {e.fechaFin}</td>
+                                  <td className="px-4 py-3 text-slate-500 font-medium whitespace-nowrap">
+                                    Histórico Inactivo
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-500 bg-slate-900/20 p-4 border border-slate-800 rounded">
+                          No existen registros históricos de exoneraciones de gestiones anteriores.
+                        </p>
+                      )}
+                    </div>
                   </div>
-                ) : (
-                  <p className="text-xs text-slate-500 bg-slate-900/20 p-4 border border-slate-800 rounded">
-                    No hay suministros exonerados actualmente porque no existe un comité directivo en vigencia.
-                  </p>
-                )}
-              </div>
-
+                );
+              })()}
             </CardContent>
           </Card>
         </div>

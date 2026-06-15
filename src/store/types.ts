@@ -52,6 +52,7 @@ export interface Transaction {
   descripcion: string;
   destinatario?: string; // For egresos
   clientId?: string; // If associated with a specific client (e.g. payment, fine)
+  codigoSuministro?: string; // The specific supply code associated with this transaction
   createdBy?: string; // Para trazabilidad/auditoría
   conciliado?: boolean; // Para conciliación bancaria/caja
   referencia?: string;
