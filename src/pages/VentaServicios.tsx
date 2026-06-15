@@ -116,7 +116,7 @@ export default function VentaServicios() {
           clientId: finalClientId,
           codigoSuministro: normalizeSupplyCode(formData.codigoSuministro),
           referencia: `Venta Suministro: ${normalizeSupplyCode(formData.codigoSuministro)}`,
-          comprobante: `VS-${Date.now().toString().slice(-6)}`,
+          comprobante: '',
           metodoPago: 'EFECTIVO'
         });
       }

@@ -880,35 +880,19 @@ export default function Clientes() {
                     suministros: [transferState.supplyCode]
                   };
 
-                  const compNo = `TR-${Date.now().toString().slice(-6)}`;
-                  const txRaw = {
-                    id: `TX-${Date.now().toString().slice(-6)}`,
-                    tipo: 'INGRESO' as const,
-                    categoria: 'TRANSFERENCIA' as const,
+                  const actualTx = await addTransaction({
+                    tipo: 'INGRESO',
+                    categoria: 'TRANSFERENCIA',
                     monto: Number(transferState.monto || 0),
                     descripcion: transferState.observacion || `Cambio de Titularidad - Suministro ${normalizeSupplyCode(transferState.supplyCode)}`,
                     clientId: finalToClientId,
                     codigoSuministro: normalizeSupplyCode(transferState.supplyCode),
-                    comprobante: compNo,
+                    comprobante: '',
                     referencia: `Transferencia Suministro: ${normalizeSupplyCode(transferState.supplyCode)}`,
-                    fecha: new Date().toISOString(),
-                    createdBy: 'Caja Central',
-                    metodoPago: 'EFECTIVO' as const
-                  };
-
-                  await addTransaction({
-                    tipo: 'INGRESO',
-                    categoria: 'TRANSFERENCIA',
-                    monto: Number(transferState.monto || 0),
-                    descripcion: txRaw.descripcion,
-                    clientId: finalToClientId,
-                    codigoSuministro: normalizeSupplyCode(transferState.supplyCode),
-                    comprobante: compNo,
-                    referencia: txRaw.referencia,
                     metodoPago: 'EFECTIVO'
                   });
 
-                  generateGeneralPaymentReceiptPDF(txRaw, destClientInfo as any);
+                  generateGeneralPaymentReceiptPDF(actualTx, destClientInfo as any);
                   toast.success('Suministro transferido con éxito.');
                   setIsTransferModalOpen(false);
                 } catch(error: any) {

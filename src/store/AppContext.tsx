@@ -1,7 +1,19 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { AppState, Client, Consumption, Transaction, Meeting, ClientType, Fine, AuditLog, Committee, CommitteeMember, Trabajador, PagoSueldo } from './types';
 import { normalizeSupplyCode, getExonerationClassification, getMonthFollowing, getMonthOf } from '../lib/utils';
+import { 
+  collection, 
+  doc, 
+  setDoc, 
+  updateDoc, 
+  deleteDoc, 
+  onSnapshot, 
+  runTransaction,
+  writeBatch
+} from 'firebase/firestore';
+import { db } from './firebase';
 import bcrypt from 'bcryptjs';
+import { toast } from 'react-hot-toast';
 
 interface AppContextType extends AppState {
   user: any;
@@ -23,7 +35,7 @@ interface AppContextType extends AppState {
   payConsumption: (consumptionId: string) => Promise<void>;
   addFine: (fine: Omit<Fine, 'id' | 'estadoPago' | 'fecha'>) => Promise<void>;
   payFine: (fineId: string) => Promise<void>;
-  addTransaction: (transaction: Omit<Transaction, 'id' | 'fecha'>) => Promise<void>;
+  addTransaction: (transaction: Omit<Transaction, 'id' | 'fecha'>) => Promise<Transaction>;
   toggleTransactionConciliado: (id: string) => Promise<void>;
   addMeeting: (meeting: Omit<Meeting, 'id'>) => Promise<void>;
   updateMeeting: (id: string, meeting: Partial<Meeting>) => Promise<void>;
@@ -42,10 +54,6 @@ interface AppContextType extends AppState {
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
-
-const TARIFA_SOCIO = 0.20;
-const TARIFA_USUARIO = 0.30;
-const MULTA_FALTA = 40;
 
 const initialData: AppState = {
   clients: [],
@@ -69,63 +77,14 @@ const initialData: AppState = {
   }
 };
 
-const getLocalData = (): AppState => {
+const getLocalLegacyData = (): AppState => {
   const data = localStorage.getItem('erp_data');
   if (data) {
     try {
       const parsed = JSON.parse(data);
-      const consumptionsList: Consumption[] = parsed.consumptions || initialData.consumptions;
-      let updatedSomething = false;
-
-      // Group consumptions by mes (billing period "YYYY-MM")
-      const groups: { [mes: string]: Consumption[] } = {};
-      consumptionsList.forEach(c => {
-        if (!groups[c.mes]) {
-          groups[c.mes] = [];
-        }
-        groups[c.mes].push(c);
-      });
-
-      Object.keys(groups).forEach(mes => {
-        const sorted = [...groups[mes]].sort((a, b) => {
-          if (a.fechaLectura !== b.fechaLectura) return a.fechaLectura.localeCompare(b.fechaLectura);
-          return a.id.localeCompare(b.id);
-        });
-
-        let counter = 1;
-
-        // Collect existing valid names to avoid collisions
-        const takenNumbers = new Set<string>();
-        sorted.forEach(c => {
-          if (c.reciboNo && /^REC-\d{4}-\d{2}-\d{4}$/.test(c.reciboNo)) {
-            takenNumbers.add(c.reciboNo);
-          }
-        });
-
-        sorted.forEach(c => {
-          if (!c.reciboNo || !/^REC-\d{4}-\d{2}-\d{4}$/.test(c.reciboNo)) {
-            const [year, month] = c.mes.split('-');
-            let proposed = `REC-${year}-${month}-${counter.toString().padStart(4, '0')}`;
-            while (takenNumbers.has(proposed)) {
-              counter++;
-              proposed = `REC-${year}-${month}-${counter.toString().padStart(4, '0')}`;
-            }
-            c.reciboNo = proposed;
-            takenNumbers.add(proposed);
-            updatedSomething = true;
-            counter++;
-          }
-        });
-      });
-
-      if (updatedSomething) {
-        parsed.consumptions = consumptionsList;
-        localStorage.setItem('erp_data', JSON.stringify(parsed));
-      }
-
       return {
         clients: parsed.clients || initialData.clients,
-        consumptions: consumptionsList,
+        consumptions: parsed.consumptions || initialData.consumptions,
         transactions: parsed.transactions || initialData.transactions,
         meetings: parsed.meetings || initialData.meetings,
         admins: parsed.admins || initialData.admins,
@@ -151,47 +110,26 @@ const setLocalData = (data: AppState) => {
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<any>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
+  const isInitialRef = useRef<Record<string, boolean>>({});
 
   const [state, setState] = useState<AppState>(() => {
-    const data = getLocalData();
-    if (!data.fines) {
-      data.fines = []; // fallback for legacy data
-    }
-    if (!data.auditLogs) {
-      data.auditLogs = []; // fallback
-    }
-    if (!data.settings) {
-      data.settings = initialData.settings;
-    }
-    if (!data.suppliesInfo) {
-      data.suppliesInfo = [];
-    }
-    if (!data.comites) {
-      data.comites = [];
-    }
-    if (!data.trabajadores) {
-      data.trabajadores = [];
-    }
-    if (!data.pagosSueldos) {
-      data.pagosSueldos = [];
-    }
-    
-    // Ensure default admin exists
+    const data = getLocalLegacyData();
+    // Default admin backup
     const hasAdmin = data.admins.find((a: any) => a.email === 'admin@paccha.local');
     if (!hasAdmin) {
       data.admins.push({
         id: 'admin_default',
         email: 'admin@paccha.local',
         username: 'admin',
-        password: 'ALANgaona2010@', // Will be plain or handled by backward compatibility check
+        password: 'ALANgaona2010@',
         role: 'ADMIN',
         nombres: 'Super',
         apellidos: 'Admin',
-        mustChangePassword: true
+        mustChangePassword: true,
+        estado: 'ACTIVO'
       });
       setLocalData(data);
     }
-    
     return data;
   });
 
@@ -207,34 +145,139 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setLoadingAuth(false);
   }, []);
 
-  const persistState = (newState: AppState) => {
-    setState(newState);
-    setLocalData(newState);
-  };
+  // Connect to Firestore and Subscribe in Real-Time
+  useEffect(() => {
+    const unsubscribes: (() => void)[] = [];
+
+    const subCollection = <T extends { id: string }>(
+      colName: string, 
+      stateKey: keyof AppState,
+      label: string,
+      getName?: (item: T) => string
+    ) => {
+      isInitialRef.current[colName] = true;
+      
+      const unsub = onSnapshot(collection(db, colName), (snapshot) => {
+        // Migration/Seeding of empty firestore collections
+        if (snapshot.empty) {
+          const local = getLocalLegacyData();
+          let legacyItems = (local[stateKey] || []) as any[];
+          
+          if (stateKey === 'admins') {
+            const hasAdmin = legacyItems.some((a: any) => a.email === 'admin@paccha.local');
+            if (!hasAdmin) {
+              legacyItems.push({
+                id: 'admin_default',
+                email: 'admin@paccha.local',
+                username: 'admin',
+                password: 'ALANgaona2010@',
+                role: 'ADMIN',
+                nombres: 'Super',
+                apellidos: 'Admin',
+                mustChangePassword: true,
+                estado: 'ACTIVO'
+              });
+            }
+          }
+
+          if (legacyItems.length > 0) {
+            legacyItems.forEach((item: any) => {
+              setDoc(doc(db, colName, item.id), item);
+            });
+            return;
+          }
+        }
+
+        const items = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as any));
+        
+        // Notify user about real-time concurrency modifications by other operators
+        if (!isInitialRef.current[colName]) {
+          snapshot.docChanges().forEach((change) => {
+            if (change.type === 'modified') {
+              const data = { id: change.doc.id, ...change.doc.data() } as T;
+              const updatedBy = (data as any).updatedBy || (data as any).createdBy || 'otro operador';
+              if (updatedBy !== user?.email) {
+                const nameStr = getName ? getName(data) : change.doc.id;
+                toast.success(`[Sincronización] El/la "${nameStr}" en ${label} ha sido actualizado/a en tiempo real por ${updatedBy}.`, { id: change.doc.id });
+              }
+            } else if (change.type === 'added') {
+              const data = { id: change.doc.id, ...change.doc.data() } as T;
+              const createdBy = (data as any).createdBy || 'otro operador';
+              if (createdBy !== user?.email) {
+                const nameStr = getName ? getName(data) : change.doc.id;
+                toast.success(`[Sincronización] Se registró "${nameStr}" en ${label} por ${createdBy}.`, { id: change.doc.id });
+              }
+            } else if (change.type === 'removed') {
+              toast.error(`[Sincronización] El registro "${change.doc.id}" ha sido eliminado/a de ${label} por otro operador.`, { id: change.doc.id + '-del' });
+            }
+          });
+        }
+        
+        isInitialRef.current[colName] = false;
+
+        setState(prev => {
+          const newState = { ...prev, [stateKey]: items };
+          setLocalData(newState);
+          return newState;
+        });
+      }, (error) => {
+        console.error(`Error subscribing to ${colName}:`, error);
+      });
+
+      unsubscribes.push(unsub);
+    };
+
+    subCollection<Client>('clients', 'clients', 'Socios/Usuarios', (c) => `${c.nombres} ${c.apellidos}`);
+    subCollection<Consumption>('consumptions', 'consumptions', 'Ficha de Lectura', (c) => c.reciboNo || c.id);
+    subCollection<Transaction>('transactions', 'transactions', 'Registro Contable', (t) => t.comprobante || `S/ ${t.monto} - ${t.categoria}`);
+    subCollection<Meeting>('meetings', 'meetings', 'Convocatorias', (m) => m.motivo);
+    subCollection<Fine>('fines', 'fines', 'Cobro de Multas', (f) => `${f.motivo} (S/ ${f.monto})`);
+    subCollection<any>('admins', 'admins', 'Cuentas de Usuarios', (a) => a.username || a.email);
+    subCollection<AuditLog>('auditLogs', 'auditLogs', 'Trazas de Auditoría', (x) => `${x.accion} - ${x.modulo}`);
+    subCollection<any>('suppliesInfo', 'suppliesInfo', 'Categoría de Suministros', (s) => s.codigo);
+    subCollection<Committee>('comites', 'comites', 'Comité Directivo', (c) => c.nombrePeriodo);
+    subCollection<Trabajador>('trabajadores', 'trabajadores', 'Trabajador de Planta', (t) => `${t.nombres} ${t.apellidos}`);
+    subCollection<PagoSueldo>('pagosSueldos', 'pagosSueldos', 'Boleta de Remuneración', (p) => p.comprobante || p.trabajadorNombreCompleto);
+
+    const unsubSettings = onSnapshot(doc(db, 'settings', 'global'), (docSnap) => {
+      if (docSnap.exists()) {
+        setState(prev => {
+          const newState = { ...prev, settings: docSnap.data() as AppState['settings'] };
+          setLocalData(newState);
+          return newState;
+        });
+      } else {
+        const local = getLocalLegacyData();
+        const s = local.settings || initialData.settings;
+        setDoc(doc(db, 'settings', 'global'), s);
+      }
+    });
+    unsubscribes.push(unsubSettings);
+
+    return () => {
+      unsubscribes.forEach(unsub => unsub());
+    };
+  }, [user?.email]);
 
   const addAuditLog = (accion: AuditLog['accion'], modulo: AuditLog['modulo'], detalles: string) => {
-    setState(prev => {
-      const newLog: AuditLog = {
-        id: `AL${Date.now()}${Math.floor(1000 + Math.random() * 9000)}`,
-        fecha: new Date().toISOString(),
-        usuario: user?.email || 'Sistema',
-        accion,
-        modulo,
-        detalles
-      };
-      const newState = { ...prev, auditLogs: [newLog, ...(prev.auditLogs || [])] };
-      setLocalData(newState);
-      return newState;
-    });
+    const newLogId = `AL${Date.now()}${Math.floor(1000 + Math.random() * 9000)}`;
+    const newLog: AuditLog = {
+      id: newLogId,
+      fecha: new Date().toISOString(),
+      usuario: user?.email || 'Sistema',
+      accion,
+      modulo,
+      detalles
+    };
+    setDoc(doc(db, 'auditLogs', newLogId), newLog);
   };
 
   const login = (email: string) => {
     const newUser = { email, uid: 'local_uid' };
     setUser(newUser);
     localStorage.setItem('erp_user', JSON.stringify(newUser));
-    // Cannot call addAuditLog yet because user state might not be updated, but we can do it asynchronously
     setTimeout(() => {
-        addAuditLog('LOGIN', 'SISTEMA', `Inicio de sesión de ${email}`);
+      addAuditLog('LOGIN', 'SISTEMA', `Inicio de sesión de ${email}`);
     }, 100);
   };
 
@@ -246,8 +289,65 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const generateId = () => Math.random().toString(36).substr(2, 9);
 
+  // Atomic transactions sequential database sequences
+  const getNextSequenceNumber = async (prefix: string, keySuffix?: string): Promise<string> => {
+    const counterId = keySuffix ? `${prefix}-${keySuffix}` : prefix;
+    const docRef = doc(db, 'counters', counterId);
+
+    return runTransaction(db, async (txn) => {
+      const docSnap = await txn.get(docRef);
+      let nextNum = 1;
+      if (docSnap.exists()) {
+        nextNum = docSnap.data().currentCount + 1;
+      } else {
+        if (prefix === 'REC' && keySuffix) {
+          const existing = state.consumptions
+            .filter(c => c.mes === keySuffix && c.reciboNo)
+            .map(c => {
+              const parts = c.reciboNo!.split('-');
+              return parts.length === 4 ? parseInt(parts[3], 10) : 0;
+            })
+            .filter(n => !isNaN(n));
+          const max = existing.length > 0 ? Math.max(...existing) : 0;
+          nextNum = max + 1;
+        } else if (prefix === 'S') {
+          const existing = (state.pagosSueldos || [])
+            .map(p => p.comprobante)
+            .filter(c => c && c.startsWith('S-'))
+            .map(c => parseInt(c.slice(2), 10))
+            .filter(n => !isNaN(n));
+          const max = existing.length > 0 ? Math.max(...existing) : 1000;
+          nextNum = max + 1;
+        } else if (prefix === 'VS') {
+          const existing = state.transactions
+            .map(t => t.comprobante)
+            .filter(c => c && c.startsWith('VS-'))
+            .map(c => parseInt(c.slice(3), 10))
+            .filter(n => !isNaN(n));
+          const max = existing.length > 0 ? Math.max(...existing) : 1000;
+          nextNum = max + 1;
+        } else if (prefix === 'TR') {
+          const existing = state.transactions
+            .map(t => t.comprobante)
+            .filter(c => c && c.startsWith('TR-'))
+            .map(c => parseInt(c.slice(3), 10))
+            .filter(n => !isNaN(n));
+          const max = existing.length > 0 ? Math.max(...existing) : 1000;
+          nextNum = max + 1;
+        }
+      }
+
+      txn.set(docRef, { currentCount: nextNum });
+      
+      if (prefix === 'REC') {
+        return `REC-${keySuffix}-${nextNum.toString().padStart(4, '0')}`;
+      } else {
+        return `${prefix}-${nextNum.toString().padStart(6, '0')}`;
+      }
+    });
+  };
+
   const updateAdmin = async (id: string, updates: Partial<any>) => {
-    // Validate DNI duplicate if updating
     if (updates.dni) {
       const existing = state.admins.find(a => a.dni === updates.dni && a.id !== id);
       if (existing) {
@@ -268,9 +368,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         throw new Error(`El correo electrónico "${updates.email}" ya se encuentra registrado por otro usuario.`);
       }
     }
-    const newAdmins = state.admins.map(a => a.id === id ? { ...a, ...updates, updatedAt: new Date().toISOString(), updatedBy: user?.email || 'Unknown' } : a);
-    persistState({ ...state, admins: newAdmins });
-    setTimeout(() => addAuditLog('ACTUALIZAR', 'USUARIOS', `Actualizó usuario administrativo ${id}`), 0);
+
+    const adminDoc = doc(db, 'admins', id);
+    await updateDoc(adminDoc, {
+      ...updates,
+      updatedAt: new Date().toISOString(),
+      updatedBy: user?.email || 'Unknown'
+    });
+    addAuditLog('ACTUALIZAR', 'USUARIOS', `Actualizó usuario administrativo ${id}`);
   };
 
   const addAdmin = async (admin: any) => {
@@ -297,10 +402,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         throw new Error(`El correo electrónico "${admin.email}" ya se encuentra registrado.`);
       }
     }
-    
+
+    const newId = `admin_${generateId()}`;
     const newAdmin = {
       ...admin,
-      id: generateId(),
+      id: newId,
       estado: 'ACTIVO',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -308,53 +414,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updatedBy: user?.email || 'Unknown',
     };
     
-    persistState({
-      ...state,
-      admins: [...state.admins, newAdmin]
-    });
-    setTimeout(() => addAuditLog('CREAR', 'USUARIOS', `Creó usuario administrativo ${admin.email || admin.username}`), 0);
+    await setDoc(doc(db, 'admins', newId), newAdmin);
+    addAuditLog('CREAR', 'USUARIOS', `Creó usuario administrativo ${admin.email || admin.username}`);
   };
 
   const markSupplyAsSocio = async (supplyCode: string) => {
-    setState(prev => {
-      if (prev.suppliesInfo.some(s => s.codigo === supplyCode && s.isSocio)) return prev;
-      const newSocioInfo = {
-        codigo: supplyCode,
-        isSocio: true,
-        fechaSocio: new Date().toISOString()
-      };
-      
-      const exists = prev.suppliesInfo.some(s => s.codigo === supplyCode);
-      const newSuppliesInfo = exists ? 
-        prev.suppliesInfo.map(s => s.codigo === supplyCode ? newSocioInfo : s) : 
-        [...prev.suppliesInfo, newSocioInfo];
-        
-      const newState = { ...prev, suppliesInfo: newSuppliesInfo };
-      setLocalData(newState);
-      setTimeout(() => addAuditLog('ACTUALIZAR', 'SOCIOS', `Asignó condición de SOCIO permanente al suministro ${supplyCode}`), 0);
-      return newState;
-    });
+    if (state.suppliesInfo.some(s => s.codigo === supplyCode && s.isSocio)) return;
+    const newSocioInfo = {
+      codigo: supplyCode,
+      isSocio: true,
+      fechaSocio: new Date().toISOString()
+    };
+    await setDoc(doc(db, 'suppliesInfo', supplyCode), newSocioInfo);
+    addAuditLog('ACTUALIZAR', 'SOCIOS', `Asignó condición de SOCIO permanente al suministro ${supplyCode}`);
   };
 
   const setSupplySocioStatus = async (supplyCode: string, isSocio: boolean) => {
-    setState(prev => {
-      if (prev.suppliesInfo.some(s => s.codigo === supplyCode && s.isSocio === isSocio)) return prev;
-      const newSocioInfo = {
-        codigo: supplyCode,
-        isSocio,
-        fechaSocio: isSocio ? new Date().toISOString() : undefined
-      };
-      
-      const exists = prev.suppliesInfo.some(s => s.codigo === supplyCode);
-      const newSuppliesInfo = exists ? 
-        prev.suppliesInfo.map(s => s.codigo === supplyCode ? { ...s, ...newSocioInfo } : s) : 
-        [...prev.suppliesInfo, newSocioInfo];
-        
-      const newState = { ...prev, suppliesInfo: newSuppliesInfo };
-      setLocalData(newState);
-      setTimeout(() => addAuditLog('ACTUALIZAR', 'SOCIOS', `Definió condición de ${isSocio ? 'SOCIO' : 'USUARIO'} al suministro ${supplyCode}`), 0);
-      return newState;
-    });
+    if (state.suppliesInfo.some(s => s.codigo === supplyCode && s.isSocio === isSocio)) return;
+    const newSocioInfo = {
+      codigo: supplyCode,
+      isSocio,
+      fechaSocio: isSocio ? new Date().toISOString() : undefined
+    };
+    await setDoc(doc(db, 'suppliesInfo', supplyCode), newSocioInfo);
+    addAuditLog('ACTUALIZAR', 'SOCIOS', `Definió condición de ${isSocio ? 'SOCIO' : 'USUARIO'} al suministro ${supplyCode}`);
   };
 
   const addClient = async (client: Omit<Client, 'id' | 'fechaRegistro'>): Promise<Client> => {
@@ -384,35 +467,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
      }
     }
 
+    const newId = generateId();
     const newClient: Client = {
       ...client,
       codigoSuministro: client.codigoSuministro ? normalizeSupplyCode(client.codigoSuministro) : undefined,
       suministros: client.suministros?.map(normalizeSupplyCode),
-      id: generateId(),
+      id: newId,
       fechaRegistro: new Date().toISOString(),
       createdBy: user?.email || 'Unknown'
     };
-    setState(prev => {
-      let newSuppliesInfo = prev.suppliesInfo;
-      if (client.tipo === 'SOCIO') {
-         const suppliesToMark = client.suministros?.length ? client.suministros : [client.codigoSuministro].filter(Boolean);
-         suppliesToMark.forEach(sup => {
-            if (!sup) return;
-            if (!newSuppliesInfo.some(s => s.codigo === sup && s.isSocio)) {
-              newSuppliesInfo = [...newSuppliesInfo.filter(s => s.codigo !== sup), {
-                 codigo: sup,
-                 isSocio: true,
-                 fechaSocio: new Date().toISOString()
-              }];
-            }
-         });
-      }
 
-      const newState = { ...prev, clients: [...prev.clients, newClient], suppliesInfo: newSuppliesInfo };
-      setLocalData(newState);
-      setTimeout(() => addAuditLog('CREAR', 'SOCIOS', `Creó socio/usuario: ${client.dni}`), 0);
-      return newState;
-    });
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'clients', newId), newClient);
+
+    if (client.tipo === 'SOCIO') {
+      const suppliesToMark = client.suministros?.length ? client.suministros : [client.codigoSuministro].filter(Boolean);
+      suppliesToMark.forEach(sup => {
+        if (!sup) return;
+        if (!state.suppliesInfo.some(s => s.codigo === sup && s.isSocio)) {
+          const item = {
+            codigo: sup,
+            isSocio: true,
+            fechaSocio: new Date().toISOString()
+          };
+          batch.set(doc(db, 'suppliesInfo', sup), item);
+        }
+      });
+    }
+
+    await batch.commit();
+    addAuditLog('CREAR', 'SOCIOS', `Creó socio/usuario: ${client.dni}`);
     return newClient;
   };
 
@@ -455,135 +539,107 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
        updates.suministros = updates.suministros.map(s => normalizeSupplyCode(s));
     }
 
-    setState(prev => {
-      const newClients = prev.clients.map(c => c.id === id ? { ...c, ...updates } : c);
-      const newState = { ...prev, clients: newClients };
-      setLocalData(newState);
-      setTimeout(() => addAuditLog('ACTUALIZAR', 'SOCIOS', `Actualizó socio/usuario: ${id}`), 0);
-      return newState;
+    const clientDoc = doc(db, 'clients', id);
+    await updateDoc(clientDoc, {
+      ...updates,
+      updatedBy: user?.email || 'Unknown'
     });
+    addAuditLog('ACTUALIZAR', 'SOCIOS', `Actualizó socio/usuario: ${id}`);
   };
 
   const transferSupply = async (fromClientId: string, toClientId: string, supplyCodeRaw: string) => {
     const supplyCode = normalizeSupplyCode(supplyCodeRaw);
-    setState(currentState => {
-      const fromClient = currentState.clients.find(c => c.id === fromClientId);
-      const toClient = currentState.clients.find(c => c.id === toClientId);
-      
-      if (!fromClient || !toClient) return currentState;
+    const fromClient = state.clients.find(c => c.id === fromClientId);
+    const toClient = state.clients.find(c => c.id === toClientId);
+    
+    if (!fromClient || !toClient) return;
 
-      const newClients = currentState.clients.map(c => {
-        if (c.id === fromClientId) {
-          const sums = c.suministros || [];
-          const newSums = sums.filter(s => normalizeSupplyCode(s) !== supplyCode);
-          const oldCodigoNorm = normalizeSupplyCode(c.codigoSuministro || '');
-          const newCodigo = oldCodigoNorm === supplyCode && newSums.length === 0 ? '' : (oldCodigoNorm === supplyCode ? newSums[0] : c.codigoSuministro);
-          return { ...c, suministros: newSums, codigoSuministro: newCodigo };
-        }
-        if (c.id === toClientId) {
-          const sums = c.suministros || [];
-          if (!sums.map(s => normalizeSupplyCode(s)).includes(supplyCode)) {
-             return { 
-                ...c, 
-                suministros: [...sums, supplyCode],
-                codigoSuministro: c.codigoSuministro ? c.codigoSuministro : supplyCode 
-             };
-          }
-        }
-        return c;
-      });
+    const toName = toClient.nombre || `${toClient.nombres || ''} ${toClient.apellidos || ''}`;
+    
+    const fromSums = fromClient.suministros || [];
+    const newFromSums = fromSums.filter(s => normalizeSupplyCode(s) !== supplyCode);
+    const oldFromCodigoNorm = normalizeSupplyCode(fromClient.codigoSuministro || '');
+    const newFromCodigo = oldFromCodigoNorm === supplyCode && newFromSums.length === 0 ? '' : (oldFromCodigoNorm === supplyCode ? newFromSums[0] : fromClient.codigoSuministro);
 
-      const newConsumptions = currentState.consumptions.map(c => {
-        if (c.clientId === fromClientId && normalizeSupplyCode(c.codigoSuministro) === supplyCode) {
-          return { ...c, clientId: toClientId };
-        }
-        return c;
-      });
+    const toSums = toClient.suministros || [];
+    const newToSums = toSums.map(s => normalizeSupplyCode(s)).includes(supplyCode) ? toSums : [...toSums, supplyCode];
+    const newToCod = toClient.codigoSuministro ? toClient.codigoSuministro : supplyCode;
 
-      const newState = { ...currentState, clients: newClients, consumptions: newConsumptions };
-      setLocalData(newState);
-      
-      const toName = toClient.nombre || `${toClient.nombres || ''} ${toClient.apellidos || ''}`;
-      setTimeout(() => addAuditLog('ACTUALIZAR', 'SOCIOS', `Transfirió suministro ${supplyCode} a ${toName}`), 0);
-      return newState;
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'clients', fromClientId), { 
+      suministros: newFromSums, 
+      codigoSuministro: newFromCodigo,
+      updatedBy: user?.email || 'Unknown'
     });
+    batch.update(doc(db, 'clients', toClientId), { 
+      suministros: newToSums, 
+      codigoSuministro: newToCod,
+      updatedBy: user?.email || 'Unknown'
+    });
+
+    const relatedConsumptions = state.consumptions.filter(c => c.clientId === fromClientId && normalizeSupplyCode(c.codigoSuministro) === supplyCode);
+    relatedConsumptions.forEach(c => {
+      batch.update(doc(db, 'consumptions', c.id), { 
+        clientId: toClientId,
+        updatedBy: user?.email || 'Unknown'
+      });
+    });
+
+    await batch.commit();
+    addAuditLog('ACTUALIZAR', 'SOCIOS', `Transfirió suministro ${supplyCode} a ${toName}`);
   };
 
   const addConsumption = async (consumption: Omit<Consumption, 'id' | 'montoCalculado' | 'estadoPago'>) => {
-    // Need to use the current state synchronously here, so we get it from the latest possible
-    setState(currentState => {
-      const client = currentState.clients.find(c => c.id === consumption.clientId);
-      if (!client) return currentState;
+    const client = state.clients.find(c => c.id === consumption.clientId);
+    if (!client) return;
 
-      // Check if this supply is currently exonerated by a committee
-      const exonerationClass = getExonerationClassification(currentState.comites, consumption.codigoSuministro, consumption.mes);
-      const isExonerated = exonerationClass === 'EXONERATED';
+    // Check if this supply is currently exonerated by a committee
+    const exonerationClass = getExonerationClassification(state.comites, consumption.codigoSuministro, consumption.mes);
+    const isExonerated = exonerationClass === 'EXONERATED';
 
-      const settings = currentState.settings || initialData.settings;
-      const isSocio = currentState.suppliesInfo.find(s => s.codigo === consumption.codigoSuministro)?.isSocio ?? (client.tipo === 'SOCIO');
-      const tarifa = client.faseSuministro === 'TRIFASICO' && settings.costoTrifasico > 0 
-        ? settings.costoTrifasico 
-        : isSocio ? settings.costoSocio : settings.costoUsuario;
-        
-      const minimoAplica = settings.consumoMinimo !== undefined ? settings.consumoMinimo : 6;
-      let montoCalculado = isExonerated ? 0 : (consumption.kwh || 0) * tarifa;
-      if (!isExonerated && montoCalculado < minimoAplica) {
-         montoCalculado = minimoAplica;
-      }
-
-      // Generate sequence number (correlativo) for this billing period (mes)
-      const [year, month] = consumption.mes.split('-');
-      const monthConsumptions = currentState.consumptions.filter(c => c.mes === consumption.mes);
-
-      let nextCorrelative = 1;
-      monthConsumptions.forEach(c => {
-        if (c.reciboNo) {
-          const parts = c.reciboNo.split('-');
-          if (parts.length === 4) {
-            const num = parseInt(parts[3], 10);
-            if (!isNaN(num) && num >= nextCorrelative) {
-              nextCorrelative = num + 1;
-            }
-          }
-        }
-      });
-
-      let nextNumberStr = nextCorrelative.toString().padStart(4, '0');
-      let finalReciboNo = `REC-${year}-${month}-${nextNumberStr}`;
-
-      while (currentState.consumptions.some(c => c.reciboNo === finalReciboNo)) {
-        nextCorrelative++;
-        nextNumberStr = nextCorrelative.toString().padStart(4, '0');
-        finalReciboNo = `REC-${year}-${month}-${nextNumberStr}`;
-      }
+    const settings = state.settings || initialData.settings;
+    const isSocio = state.suppliesInfo.find(s => s.codigo === consumption.codigoSuministro)?.isSocio ?? (client.tipo === 'SOCIO');
+    const tarifa = client.faseSuministro === 'TRIFASICO' && settings.costoTrifasico > 0 
+      ? settings.costoTrifasico 
+      : isSocio ? settings.costoSocio : settings.costoUsuario;
       
-      const newConsumption: Consumption = {
-        ...consumption,
-        id: generateId(),
-        kwh: consumption.kwh || 0,
-        reciboNo: finalReciboNo,
-        montoCalculado,
-        estadoPago: 'PENDIENTE',
-        createdBy: user?.email || 'Unknown',
-        observacion: isExonerated 
-          ? `EXONERADO (Miembro Comité Directivo). ${consumption.observacion || ''}`.trim()
-          : consumption.observacion
-      };
-      
-      const newState = { ...currentState, consumptions: [...currentState.consumptions, newConsumption] };
-      setLocalData(newState);
-      return newState;
-    });
+    const minimoAplica = settings.consumoMinimo !== undefined ? settings.consumoMinimo : 6;
+    let montoCalculado = isExonerated ? 0 : (consumption.kwh || 0) * tarifa;
+    if (!isExonerated && montoCalculado < minimoAplica) {
+       montoCalculado = minimoAplica;
+    }
+
+    const [year, month] = consumption.mes.split('-');
+    
+    // Server-authoritative sequential generation
+    const finalReciboNo = await getNextSequenceNumber('REC', `${year}-${month}`);
+
+    const newId = generateId();
+    const newConsumption: Consumption = {
+      ...consumption,
+      id: newId,
+      kwh: consumption.kwh || 0,
+      reciboNo: finalReciboNo,
+      montoCalculado,
+      estadoPago: 'PENDIENTE',
+      createdBy: user?.email || 'Unknown',
+      observacion: isExonerated 
+        ? `EXONERADO (Miembro Comité Directivo). ${consumption.observacion || ''}`.trim()
+        : consumption.observacion
+    };
+    
+    await setDoc(doc(db, 'consumptions', newId), newConsumption);
+    addAuditLog('CREAR', 'CONSUMOS', `Registró lectura para suministro ${consumption.codigoSuministro}. Recibo #${finalReciboNo}`);
   };
 
   const payConsumption = async (consumptionId: string) => {
     const consumption = state.consumptions.find(c => c.id === consumptionId);
     if (!consumption) return;
 
-    const newConsumptions = state.consumptions.map(c => 
-      c.id === consumptionId ? { ...c, estadoPago: 'PAGADO' as const } : c
-    );
-    persistState({ ...state, consumptions: newConsumptions });
+    await updateDoc(doc(db, 'consumptions', consumptionId), { 
+      estadoPago: 'PAGADO',
+      updatedBy: user?.email || 'Unknown' 
+    });
 
     await addTransaction({
       tipo: 'INGRESO',
@@ -600,34 +656,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const consumption = state.consumptions.find(c => c.id === id);
     if (!consumption) return;
     
-    const newConsumptions = state.consumptions.filter(c => c.id !== id);
-    persistState({ ...state, consumptions: newConsumptions });
-    setTimeout(() => addAuditLog('ELIMINAR', 'CONSUMOS', `Eliminó recibo ${id}. Motivo: ${reason}`), 0);
+    await deleteDoc(doc(db, 'consumptions', id));
+    addAuditLog('ELIMINAR', 'CONSUMOS', `Eliminó recibo ${id}. Motivo: ${reason}`);
   };
 
   const addFine = async (fine: Omit<Fine, 'id' | 'estadoPago' | 'fecha'>) => {
+    const newId = generateId();
     const newFine: Fine = {
       ...fine,
-      id: generateId(),
+      id: newId,
       estadoPago: 'PENDIENTE',
       fecha: new Date().toISOString(),
       createdBy: user?.email || 'Unknown'
     };
-    setState(prev => {
-      const newState = { ...prev, fines: [...(prev.fines || []), newFine] };
-      setLocalData(newState);
-      return newState;
-    });
+    await setDoc(doc(db, 'fines', newId), newFine);
+    addAuditLog('CREAR', 'FINANZAS', `Registró multa a favor de cliente ID: ${fine.clientId}`);
   };
 
   const payFine = async (fineId: string) => {
     const fine = state.fines?.find(f => f.id === fineId);
     if (!fine) return;
 
-    const newFines = (state.fines || []).map(f => 
-      f.id === fineId ? { ...f, estadoPago: 'PAGADO' as const } : f
-    );
-    persistState({ ...state, fines: newFines });
+    await updateDoc(doc(db, 'fines', fineId), { 
+      estadoPago: 'PAGADO',
+      updatedBy: user?.email || 'Unknown' 
+    });
 
     await addTransaction({
       tipo: 'INGRESO',
@@ -638,41 +691,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const addTransaction = async (transaction: Omit<Transaction, 'id' | 'fecha'>) => {
-    if (transaction.comprobante && transaction.comprobante.trim() !== '') {
-      const exists = state.transactions.some(
-        t => t.comprobante?.trim().toLowerCase() === transaction.comprobante!.trim().toLowerCase()
-      );
-      if (exists) {
-        throw new Error(`El comprobante correlativo "${transaction.comprobante}" ya se encuentra registrado.`);
+  const addTransaction = async (transaction: Omit<Transaction, 'id' | 'fecha'>): Promise<Transaction> => {
+    let finalComprobante = transaction.comprobante;
+
+    if (!finalComprobante || finalComprobante.trim() === '' || finalComprobante.includes('-173') || finalComprobante.startsWith('VS-') || finalComprobante.startsWith('TR-')) {
+      // Generate transaction counters atomically on the server
+      if (transaction.categoria === 'VENTA_SERVICIO') {
+        finalComprobante = await getNextSequenceNumber('VS');
+      } else if (transaction.categoria === 'TRANSFERENCIA') {
+        finalComprobante = await getNextSequenceNumber('TR');
+      } else {
+        const prefix = transaction.tipo === 'INGRESO' ? 'INC' : 'EXP';
+        finalComprobante = await getNextSequenceNumber(prefix);
+      }
+    } else {
+      if (transaction.comprobante && transaction.comprobante.trim() !== '') {
+        const exists = state.transactions.some(
+          t => t.comprobante?.trim().toLowerCase() === transaction.comprobante!.trim().toLowerCase()
+        );
+        if (exists) {
+          throw new Error(`El comprobante correlativo "${transaction.comprobante}" ya se encuentra registrado.`);
+        }
       }
     }
 
+    const newId = generateId();
     const newTx: Transaction = {
       ...transaction,
-      id: generateId(),
+      id: newId,
+      comprobante: finalComprobante,
       fecha: new Date().toISOString(),
       createdBy: user?.email || 'Unknown'
     };
-    // Need to use current state, since this might be called in sequence with other updates
-    setState(prev => {
-      const newState = { ...prev, transactions: [...prev.transactions, newTx] };
-      setLocalData(newState);
-      setTimeout(() => addAuditLog('CREAR', 'FINANZAS', `Registró ${transaction.tipo} por S/ ${transaction.monto} - ${transaction.categoria}`), 0);
-      return newState;
-    });
+    await setDoc(doc(db, 'transactions', newId), newTx);
+    addAuditLog('CREAR', 'FINANZAS', `Registró ${transaction.tipo} por S/ ${transaction.monto} - ${transaction.categoria}. Comprobante #${finalComprobante}`);
+    return newTx;
   };
 
   const toggleTransactionConciliado = async (id: string) => {
-    setState(prev => {
-      const newState = { 
-        ...prev, 
-        transactions: prev.transactions.map(t => t.id === id ? { ...t, conciliado: !t.conciliado } : t) 
-      };
-      setLocalData(newState);
-      setTimeout(() => addAuditLog('ACTUALIZAR', 'FINANZAS', `Alternó conciliación de transacción ${id}`), 0);
-      return newState;
+    const existing = state.transactions.find(t => t.id === id);
+    if (!existing) return;
+    await updateDoc(doc(db, 'transactions', id), { 
+      conciliado: !existing.conciliado,
+      updatedBy: user?.email || 'Unknown' 
     });
+    addAuditLog('ACTUALIZAR', 'FINANZAS', `Alternó conciliación de transacción ${id}`);
   };
 
   const addMeeting = async (meeting: Omit<Meeting, 'id'>) => {
@@ -683,21 +746,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
+    const newId = generateId();
     const newMeeting: Meeting = {
       ...meeting,
-      id: generateId(),
+      id: newId,
       createdBy: user?.email || 'Unknown'
     };
-    persistState({ ...state, meetings: [...state.meetings, newMeeting] });
-    setTimeout(() => addAuditLog('CREAR', 'REUNIONES', `Programó reunión para ${meeting.fecha.split('T')[0]}`), 0);
+    await setDoc(doc(db, 'meetings', newId), newMeeting);
+    addAuditLog('CREAR', 'REUNIONES', `Programó reunión para ${meeting.fecha.split('T')[0]}`);
   };
 
   const updateMeeting = async (id: string, meetingInfo: Partial<Meeting>) => {
-    persistState({
-      ...state,
-      meetings: state.meetings.map(m => m.id === id ? { ...m, ...meetingInfo } : m)
+    await updateDoc(doc(db, 'meetings', id), {
+      ...meetingInfo,
+      updatedBy: user?.email || 'Unknown'
     });
-    setTimeout(() => addAuditLog('ACTUALIZAR', 'REUNIONES', `Actualizó reunión ${id}`), 0);
+    addAuditLog('ACTUALIZAR', 'REUNIONES', `Actualizó reunión ${id}`);
   };
 
   const recordAttendance = async (meetingId: string, clientId: string, status: Meeting['asistencia'][string]) => {
@@ -705,29 +769,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!meeting) return;
 
     const newAsistencia = { ...(meeting.asistencia || {}), [clientId]: status };
-    const newMeetings = state.meetings.map(m => m.id === meetingId ? { ...m, asistencia: newAsistencia } : m);
     
-    let newFines = [...(state.fines || [])];
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'meetings', meetingId), { 
+      asistencia: newAsistencia,
+      updatedBy: user?.email || 'Unknown' 
+    });
     
     if (status === 'FALTA_INJUSTIFICADA') {
-      const existingFine = newFines.find(f => f.clientId === clientId && f.meetingId === meetingId);
+      const existingFine = state.fines?.find(f => f.clientId === clientId && f.meetingId === meetingId);
       if (!existingFine) {
-        newFines.push({
-          id: generateId(),
+        const fineId = generateId();
+        const nFine: Fine = {
+          id: fineId,
           clientId,
           meetingId,
           monto: state.settings?.multaReunion || 40,
           motivo: `Falta a reunión ${new Date(meeting.fecha).toLocaleDateString()}`,
           estadoPago: 'PENDIENTE',
-          fecha: new Date().toISOString()
-        });
+          fecha: new Date().toISOString(),
+          createdBy: 'SISTEMA_ASISTENCIA'
+        };
+        batch.set(doc(db, 'fines', fineId), nFine);
       }
     } else {
-      // Remove fine if the user was updated to something else
-      newFines = newFines.filter(f => !(f.clientId === clientId && f.meetingId === meetingId && f.estadoPago === 'PENDIENTE'));
+      const pendingFines = (state.fines || []).filter(f => f.clientId === clientId && f.meetingId === meetingId && f.estadoPago === 'PENDIENTE');
+      pendingFines.forEach(f => {
+        batch.delete(doc(db, 'fines', f.id));
+      });
     }
 
-    persistState({ ...state, meetings: newMeetings, fines: newFines });
+    await batch.commit();
   };
 
   const syncCommitteeAdmins = (stateData: AppState, comite: Committee, oldActiveComite?: Committee) => {
@@ -885,34 +957,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       throw new Error(`Ya existe un comité registrado para el período de elección "${committee.nombrePeriodo}".`);
     }
 
-    setState(prev => {
-      const id = generateId();
-      const newComite: Committee = {
-        ...committee,
-        id,
-        createdAt: new Date().toISOString(),
-        createdBy: user?.email || 'Unknown'
-      };
+    const id = generateId();
+    const newComite: Committee = {
+      ...committee,
+      id,
+      createdAt: new Date().toISOString(),
+      createdBy: user?.email || 'Unknown'
+    };
 
-      let updatedComites = [...(prev.comites || [])];
-      let updatedAdmins = [...prev.admins];
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'comites', id), newComite);
 
-      if (newComite.activo) {
-        const oldActive = updatedComites.find(c => c.activo);
-        updatedComites = updatedComites.map(c => ({ ...c, activo: false }));
-        updatedAdmins = syncCommitteeAdmins(prev, newComite, oldActive);
-      }
+    let updatedComites = [...state.comites];
+    let updatedAdmins = [...state.admins];
 
-      updatedComites.push(newComite);
+    if (newComite.activo) {
+      const oldActive = updatedComites.find(c => c.activo);
+      updatedComites.forEach(c => {
+         if (c.activo) {
+            batch.update(doc(db, 'comites', c.id), { activo: false });
+         }
+      });
+      updatedAdmins = syncCommitteeAdmins(state, newComite, oldActive);
+    }
 
-      const newState = { ...prev, comites: updatedComites, admins: updatedAdmins };
-      setLocalData(newState);
-      setTimeout(() => {
-        addAuditLog('CREAR', 'SISTEMA', `Registró nuevo comité: ${committee.nombrePeriodo}`);
-        logCommitteeExonerations(newComite, user?.email || 'Unknown');
-      }, 0);
-      return newState;
+    updatedAdmins.forEach(adm => {
+       batch.set(doc(db, 'admins', adm.id), adm);
     });
+
+    await batch.commit();
+    addAuditLog('CREAR', 'SISTEMA', `Registró nuevo comité: ${committee.nombrePeriodo}`);
+    logCommitteeExonerations(newComite, user?.email || 'Unknown');
   };
 
   const updateCommittee = async (id: string, updates: Partial<Committee>) => {
@@ -925,90 +1000,90 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    setState(prev => {
-      let updatedComites = [...(prev.comites || [])];
-      let updatedAdmins = [...prev.admins];
-      
-      const targetComiteIdx = updatedComites.findIndex(c => c.id === id);
-      if (targetComiteIdx === -1) return prev;
+    const batch = writeBatch(db);
+    const targetComite = state.comites.find(c => c.id === id);
+    if (!targetComite) return;
 
-      const oldComite = updatedComites[targetComiteIdx];
-      const mergedComite = { ...oldComite, ...updates };
+    const mergedComite = { ...targetComite, ...updates };
+    batch.set(doc(db, 'comites', id), mergedComite);
 
-      if (updates.activo !== undefined) {
-        if (updates.activo === true) {
-          const oldActive = updatedComites.find(c => c.activo && c.id !== id);
-          updatedComites = updatedComites.map(c => c.id === id ? mergedComite : { ...c, activo: false });
-          updatedAdmins = syncCommitteeAdmins(prev, mergedComite, oldActive);
-        } else {
-          updatedComites = updatedComites.map(c => c.id === id ? mergedComite : c);
-          updatedAdmins = deactiveMembersAdmins(prev, mergedComite);
-        }
+    let updatedAdmins = [...state.admins];
+
+    if (updates.activo !== undefined) {
+      if (updates.activo === true) {
+        const oldActive = state.comites.find(c => c.activo && c.id !== id);
+        state.comites.forEach(c => {
+          if (c.activo && c.id !== id) {
+            batch.update(doc(db, 'comites', c.id), { activo: false });
+          }
+        });
+        updatedAdmins = syncCommitteeAdmins(state, mergedComite, oldActive);
       } else {
-        updatedComites[targetComiteIdx] = mergedComite;
-        if (mergedComite.activo) {
-          updatedAdmins = syncCommitteeAdmins(prev, mergedComite, oldComite);
-        }
+        updatedAdmins = deactiveMembersAdmins(state, mergedComite);
       }
+    } else {
+      if (mergedComite.activo) {
+        updatedAdmins = syncCommitteeAdmins(state, mergedComite, targetComite);
+      }
+    }
 
-      const newState = { ...prev, comites: updatedComites, admins: updatedAdmins };
-      setLocalData(newState);
-      setTimeout(() => {
-        addAuditLog('ACTUALIZAR', 'SISTEMA', `Actualizó comité: ${mergedComite.nombrePeriodo}`);
-        logCommitteeExonerations(mergedComite, user?.email || 'Unknown');
-      }, 0);
-      return newState;
+    updatedAdmins.forEach(adm => {
+      batch.set(doc(db, 'admins', adm.id), adm);
     });
+
+    await batch.commit();
+    addAuditLog('ACTUALIZAR', 'SISTEMA', `Actualizó comité: ${mergedComite.nombrePeriodo}`);
+    logCommitteeExonerations(mergedComite, user?.email || 'Unknown');
   };
 
   const deleteCommittee = async (id: string) => {
-    setState(prev => {
-      const targetComite = (prev.comites || []).find(c => c.id === id);
-      if (!targetComite) return prev;
+    const targetComite = state.comites.find(c => c.id === id);
+    if (!targetComite) return;
 
-      let updatedAdmins = [...prev.admins];
-      if (targetComite.activo) {
-        updatedAdmins = deactiveMembersAdmins(prev, targetComite);
-      }
+    const batch = writeBatch(db);
+    batch.delete(doc(db, 'comites', id));
 
-      const updatedComites = (prev.comites || []).filter(c => c.id !== id);
-      const newState = { ...prev, comites: updatedComites, admins: updatedAdmins };
-      setLocalData(newState);
-      setTimeout(() => addAuditLog('ELIMINAR', 'SISTEMA', `Eliminó comité: ${targetComite.nombrePeriodo}`), 0);
-      return newState;
-    });
+    let updatedAdmins = [...state.admins];
+    if (targetComite.activo) {
+      updatedAdmins = deactiveMembersAdmins(state, targetComite);
+      updatedAdmins.forEach(adm => {
+        batch.set(doc(db, 'admins', adm.id), adm);
+      });
+    }
+
+    await batch.commit();
+    addAuditLog('ELIMINAR', 'SISTEMA', `Eliminó comité: ${targetComite.nombrePeriodo}`);
   };
 
   const toggleCommitteeStatus = async (id: string) => {
-    setState(prev => {
-      let updatedComites = [...(prev.comites || [])];
-      let updatedAdmins = [...prev.admins];
+    const targetComite = state.comites.find(c => c.id === id);
+    if (!targetComite) return;
 
-      const targetIdx = updatedComites.findIndex(c => c.id === id);
-      if (targetIdx === -1) return prev;
+    const batch = writeBatch(db);
+    const newStatus = !targetComite.activo;
 
-      const targetComite = updatedComites[targetIdx];
-      const newStatus = !targetComite.activo;
+    let updatedAdmins = [...state.admins];
 
-      if (newStatus === true) {
-        const oldActive = updatedComites.find(c => c.activo);
-        updatedComites = updatedComites.map((c, idx) => {
-          if (idx === targetIdx) {
-            return { ...c, activo: true };
-          }
-          return { ...c, activo: false };
-        });
-        updatedAdmins = syncCommitteeAdmins(prev, { ...targetComite, activo: true }, oldActive);
-      } else {
-        updatedComites[targetIdx] = { ...targetComite, activo: false };
-        updatedAdmins = deactiveMembersAdmins(prev, targetComite);
-      }
+    if (newStatus === true) {
+      const oldActive = state.comites.find(c => c.activo);
+      state.comites.forEach(c => {
+        if (c.activo) {
+          batch.update(doc(db, 'comites', c.id), { activo: false });
+        }
+      });
+      batch.update(doc(db, 'comites', id), { activo: true });
+      updatedAdmins = syncCommitteeAdmins(state, { ...targetComite, activo: true }, oldActive);
+    } else {
+      batch.update(doc(db, 'comites', id), { activo: false });
+      updatedAdmins = deactiveMembersAdmins(state, targetComite);
+    }
 
-      const newState = { ...prev, comites: updatedComites, admins: updatedAdmins };
-      setLocalData(newState);
-      setTimeout(() => addAuditLog('ACTUALIZAR', 'SISTEMA', `Modificó estado de vigencia del comité: ${targetComite.nombrePeriodo}`), 0);
-      return newState;
+    updatedAdmins.forEach(adm => {
+      batch.set(doc(db, 'admins', adm.id), adm);
     });
+
+    await batch.commit();
+    addAuditLog('ACTUALIZAR', 'SISTEMA', `Modificó estado de vigencia del comité: ${targetComite.nombrePeriodo}`);
   };
 
   const addTrabajador = async (trabajador: Omit<Trabajador, 'id' | 'fechaRegistro'>) => {
@@ -1026,16 +1101,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       throw new Error('El sueldo mensual debe ser mayor a cero.');
     }
 
+    const newId = `TRAB-${Date.now()}`;
     const nTrabajador: Trabajador = {
       ...trabajador,
-      id: `TRAB-${Date.now()}`,
+      id: newId,
       fechaRegistro: new Date().toISOString(),
       createdBy: user?.email || 'Admin'
     };
 
-    const newTrabajadores = [...(state.trabajadores || []), nTrabajador];
-    persistState({ ...state, trabajadores: newTrabajadores });
-    setTimeout(() => addAuditLog('CREAR', 'SISTEMA', `Registró al trabajador de planta: ${nTrabajador.nombres} ${nTrabajador.apellidos}`), 0);
+    await setDoc(doc(db, 'trabajadores', newId), nTrabajador);
+    addAuditLog('CREAR', 'SISTEMA', `Registró al trabajador de planta: ${nTrabajador.nombres} ${nTrabajador.apellidos}`);
   };
 
   const updateTrabajador = async (id: string, updates: Partial<Trabajador>) => {
@@ -1058,9 +1133,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       throw new Error('El sueldo mensual debe ser mayor a cero.');
     }
 
-    const newTrabajadores = (state.trabajadores || []).map(t => t.id === id ? { ...t, ...updates } : t);
-    persistState({ ...state, trabajadores: newTrabajadores });
-    setTimeout(() => addAuditLog('ACTUALIZAR', 'SISTEMA', `Actualizó información del trabajador ID: ${id}`), 0);
+    await updateDoc(doc(db, 'trabajadores', id), {
+      ...updates,
+      updatedBy: user?.email || 'Unknown'
+    });
+    addAuditLog('ACTUALIZAR', 'SISTEMA', `Actualizó información del trabajador ID: ${id}`);
   };
 
   const addPagoSueldo = async (pago: Omit<PagoSueldo, 'id' | 'fechaPago' | 'comprobante' | 'createdBy'>) => {
@@ -1085,29 +1162,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       throw new Error(`El trabajador ya tiene registrado el pago de sueldo correspondiente al mes de ${monthName}/${year}.`);
     }
 
-    let compNo = `S-${Date.now().toString().slice(-6)}`;
-    let existsComp = (state.pagosSueldos || []).some(p => p.comprobante === compNo) ||
-                     (state.transactions || []).some(t => t.comprobante === compNo);
-    let offset = 1;
-    while (existsComp) {
-      compNo = `S-${(Date.now() + offset).toString().slice(-6)}`;
-      existsComp = (state.pagosSueldos || []).some(p => p.comprobante === compNo) ||
-                   (state.transactions || []).some(t => t.comprobante === compNo);
-      offset++;
-    }
+    // Atomic continuous sequence
+    const compNo = await getNextSequenceNumber('S');
 
+    const newId = `PAG-${Date.now()}`;
     const nPago: PagoSueldo = {
       ...pago,
-      id: `PAG-${Date.now()}`,
+      id: newId,
       fechaPago: new Date().toISOString(),
       comprobante: compNo,
       createdBy: user?.email || 'Admin'
     };
 
-    const newPagos = [...(state.pagosSueldos || []), nPago];
-
+    const egresoTxId = `TX-EG-${Date.now()}`;
     const egresoTx: Transaction = {
-      id: `TX-EG-${Date.now()}`,
+      id: egresoTxId,
       tipo: 'EGRESO',
       categoria: 'SUELDOS',
       monto: Number(pago.monto),
@@ -1119,24 +1188,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       metodoPago: 'EFECTIVO'
     };
 
-    const newTransactions = [...(state.transactions || []), egresoTx];
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'pagosSueldos', newId), nPago);
+    batch.set(doc(db, 'transactions', egresoTxId), egresoTx);
 
-    persistState({
-      ...state,
-      pagosSueldos: newPagos,
-      transactions: newTransactions
-    });
+    await batch.commit();
 
-    setTimeout(() => addAuditLog('CREAR', 'FINANZAS', `Registró pago de sueldo a: ${pago.trabajadorNombreCompleto} por el mes ${pago.mesPagado}`), 0);
+    addAuditLog('CREAR', 'FINANZAS', `Registró pago de sueldo a: ${pago.trabajadorNombreCompleto} por el mes ${pago.mesPagado}`);
     return nPago;
   };
 
   const updateSettings = async (settings: any) => {
-    persistState({
-      ...state,
-      settings: { ...state.settings, ...settings }
-    });
-    setTimeout(() => addAuditLog('ACTUALIZAR', 'SISTEMA', `Actualizó configuración del sistema`), 0);
+    await setDoc(doc(db, 'settings', 'global'), { ...state.settings, ...settings });
+    addAuditLog('ACTUALIZAR', 'SISTEMA', `Actualizó configuración del sistema`);
   };
 
   return (

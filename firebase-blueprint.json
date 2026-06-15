@@ -1,0 +1,273 @@
+{
+  "entities": {
+    "Client": {
+      "title": "Client",
+      "description": "Represents a client / member of the system",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nombres": { "type": "string" },
+        "apellidos": { "type": "string" },
+        "tipoPersona": { "type": "string" },
+        "dni": { "type": "string" },
+        "direccion": { "type": "string" },
+        "numeroDireccion": { "type": "string" },
+        "referenciaDireccion": { "type": "string" },
+        "telefono": { "type": "string" },
+        "correo": { "type": "string" },
+        "codigoSuministro": { "type": "string" },
+        "suministros": { "type": "array" },
+        "numeroMedidor": { "type": "string" },
+        "tipo": { "type": "string", "enum": ["SOCIO", "USUARIO"] },
+        "faseSuministro": { "type": "string" },
+        "estado": { "type": "string", "enum": ["ACTIVO", "INACTIVO", "CORTADO"] },
+        "fechaRegistro": { "type": "string" },
+        "createdBy": { "type": "string" }
+      },
+      "required": ["id", "nombres", "apellidos", "dni", "tipo", "estado", "fechaRegistro"]
+    },
+    "Consumption": {
+      "title": "Consumption",
+      "description": "Represents a monthly water or electricity consumption reading and billing details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "clientId": { "type": "string" },
+        "codigoSuministro": { "type": "string" },
+        "fechaLectura": { "type": "string" },
+        "mes": { "type": "string" },
+        "kwh": { "type": "number" },
+        "lecturaAnterior": { "type": "number" },
+        "lecturaActual": { "type": "number" },
+        "montoCalculado": { "type": "number" },
+        "estadoPago": { "type": "string", "enum": ["PENDIENTE", "PAGADO"] },
+        "observacion": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "reciboNo": { "type": "string" }
+      },
+      "required": ["id", "clientId", "codigoSuministro", "fechaLectura", "mes", "kwh", "montoCalculado", "estadoPago", "reciboNo"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Represents financial cash flow transactions (income or expense)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "tipo": { "type": "string", "enum": ["INGRESO", "EGRESO"] },
+        "categoria": { "type": "string" },
+        "monto": { "type": "number" },
+        "fecha": { "type": "string" },
+        "descripcion": { "type": "string" },
+        "destinatario": { "type": "string" },
+        "clientId": { "type": "string" },
+        "codigoSuministro": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "conciliado": { "type": "boolean" },
+        "referencia": { "type": "string" },
+        "comprobante": { "type": "string" },
+        "metodoPago": { "type": "string" }
+      },
+      "required": ["id", "tipo", "categoria", "monto", "fecha", "descripcion"]
+    },
+    "Meeting": {
+      "title": "Meeting",
+      "description": "Represents community meetings and assemblies",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "fecha": { "type": "string" },
+        "horaTermino": { "type": "string" },
+        "motivo": { "type": "string" },
+        "asistencia": { "type": "object" },
+        "lugar": { "type": "string" },
+        "temas": { "type": "string" },
+        "acta": { "type": "string" },
+        "invitados": { "type": "string" },
+        "finalizada": { "type": "boolean" },
+        "estado": { "type": "string" },
+        "createdBy": { "type": "string" }
+      },
+      "required": ["id", "fecha", "motivo"]
+    },
+    "Fine": {
+      "title": "Fine",
+      "description": "Represents community and meeting penalties/fines",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "clientId": { "type": "string" },
+        "meetingId": { "type": "string" },
+        "monto": { "type": "number" },
+        "motivo": { "type": "string" },
+        "estadoPago": { "type": "string", "enum": ["PENDIENTE", "PAGADO"] },
+        "fecha": { "type": "string" },
+        "createdBy": { "type": "string" }
+      },
+      "required": ["id", "clientId", "monto", "motivo", "estadoPago", "fecha"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Represents audit logs for tracing actions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "fecha": { "type": "string" },
+        "usuario": { "type": "string" },
+        "accion": { "type": "string" },
+        "modulo": { "type": "string" },
+        "detalles": { "type": "string" }
+      },
+      "required": ["id", "fecha", "usuario", "accion", "modulo", "detalles"]
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "Represents system operators and administrative users",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string" },
+        "username": { "type": "string" },
+        "password": { "type": "string" },
+        "role": { "type": "string" },
+        "nombres": { "type": "string" },
+        "apellidos": { "type": "string" },
+        "mustChangePassword": { "type": "boolean" }
+      },
+      "required": ["id", "username", "role", "email"]
+    },
+    "GlobalSettings": {
+      "title": "GlobalSettings",
+      "description": "Represents the global parameters config of the ERP",
+      "type": "object",
+      "properties": {
+        "costoSocio": { "type": "number" },
+        "costoUsuario": { "type": "number" },
+        "costoTrifasico": { "type": "number" },
+        "multaReunion": { "type": "number" },
+        "costoReconexion": { "type": "number" },
+        "consumoMinimo": { "type": "number" },
+        "ventaNuevoServicio": { "type": "number" }
+      },
+      "required": ["costoSocio", "costoUsuario", "consumoMinimo"]
+    },
+    "Committee": {
+      "title": "Committee",
+      "description": "Represents directorship committee details and exoneration rules",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nombrePeriodo": { "type": "string" },
+        "fechaInicio": { "type": "string" },
+        "fechaFin": { "type": "string" },
+        "activo": { "type": "boolean" },
+        "presidente": { "type": "object" },
+        "secretario": { "type": "object" },
+        "tesorero": { "type": "object" },
+        "fiscalizador": { "type": "object" },
+        "vocal": { "type": "object" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "nombrePeriodo", "fechaInicio", "fechaFin", "activo"]
+    },
+    "Trabajador": {
+      "title": "Trabajador",
+      "description": "Represents system employees",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nombres": { "type": "string" },
+        "apellidos": { "type": "string" },
+        "dni": { "type": "string" },
+        "cargo": { "type": "string" },
+        "sueldoMensual": { "type": "number" },
+        "telefono": { "type": "string" },
+        "correo": { "type": "string" },
+        "direccion": { "type": "string" },
+        "observaciones": { "type": "string" },
+        "estado": { "type": "string", "enum": ["ACTIVO", "INACTIVO"] },
+        "fechaRegistro": { "type": "string" },
+        "createdBy": { "type": "string" }
+      },
+      "required": ["id", "nombres", "apellidos", "dni", "sueldoMensual", "estado", "fechaRegistro"]
+    },
+    "PagoSueldo": {
+      "title": "PagoSueldo",
+      "description": "Represents paid salary details of employees",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "trabajadorId": { "type": "string" },
+        "trabajadorNombreCompleto": { "type": "string" },
+        "trabajadorDni": { "type": "string" },
+        "trabajadorCargo": { "type": "string" },
+        "monto": { "type": "number" },
+        "mesPagado": { "type": "string" },
+        "fechaPago": { "type": "string" },
+        "comprobante": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "observaciones": { "type": "string" }
+      },
+      "required": ["id", "trabajadorId", "monto", "mesPagado", "fechaPago", "comprobante"]
+    },
+    "Counter": {
+      "title": "Counter",
+      "description": "Represents consecutive document counters for sequential numbering",
+      "type": "object",
+      "properties": {
+        "currentCount": { "type": "number" }
+      },
+      "required": ["currentCount"]
+    }
+  },
+  "firestore": {
+    "/clients/{clientId}": {
+      "schema": { "$ref": "#/entities/Client" },
+      "description": "Collection of clients and members"
+    },
+    "/consumptions/{consumptionId}": {
+      "schema": { "$ref": "#/entities/Consumption" },
+      "description": "Monthly water and electricity consumption records"
+    },
+    "/transactions/{transactionId}": {
+      "schema": { "$ref": "#/entities/Transaction" },
+      "description": "ERP financial cash ledger"
+    },
+    "/meetings/{meetingId}": {
+      "schema": { "$ref": "#/entities/Meeting" },
+      "description": "Registered meetings and attendances"
+    },
+    "/fines/{fineId}": {
+      "schema": { "$ref": "#/entities/Fine" },
+      "description": "Registered fines / penalities"
+    },
+    "/auditLogs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Audit and activity log of operators"
+    },
+    "/admins/{adminId}": {
+      "schema": { "$ref": "#/entities/Admin" },
+      "description": "Administrator and operators authentication details"
+    },
+    "/settings/global": {
+      "schema": { "$ref": "#/entities/GlobalSettings" },
+      "description": "Global erp system-wide settings"
+    },
+    "/comites/{comiteId}": {
+      "schema": { "$ref": "#/entities/Committee" },
+      "description": "Historical and active directorship committees"
+    },
+    "/trabajadores/{trabajadorId}": {
+      "schema": { "$ref": "#/entities/Trabajador" },
+      "description": "Active and inactive plant employees"
+    },
+    "/pagosSueldos/{pagoSueldoId}": {
+      "schema": { "$ref": "#/entities/PagoSueldo" },
+      "description": "Employee payroll transactions"
+    },
+    "/counters/{counterId}": {
+      "schema": { "$ref": "#/entities/Counter" },
+      "description": "Atomic incremental counters for safe numbering"
+    }
+  }
+}
