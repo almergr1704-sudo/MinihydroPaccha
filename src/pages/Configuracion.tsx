@@ -15,6 +15,7 @@ export default function Configuracion() {
   const { settings, updateSettings, userRole, user, updateAdmin, admins, mustChangePassword } = useAppContext();
   const { confirm } = useConfirm();
   const [configTab, setConfigTab] = useState<'operativa' | 'comite' | 'cuenta' | 'datos_manuales'>(() => {
+    if (userRole === 'OPERATOR') return 'cuenta';
     return userRole === 'ADMIN' ? 'operativa' : 'comite';
   });
   const [isCapturing, setIsCapturing] = useState(false);
@@ -504,17 +505,19 @@ export default function Configuracion() {
               Configuración Operativa
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => setConfigTab('comite')}
-            className={`pb-3 text-xs md:text-sm font-semibold border-b-2 transition-all px-2 whitespace-nowrap ${
-              configTab === 'comite' 
-                ? 'border-blue-500 text-blue-400' 
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Comité Directivo de la Central
-          </button>
+          {userRole !== 'OPERATOR' && (
+            <button
+              type="button"
+              onClick={() => setConfigTab('comite')}
+              className={`pb-3 text-xs md:text-sm font-semibold border-b-2 transition-all px-2 whitespace-nowrap ${
+                configTab === 'comite' 
+                  ? 'border-blue-500 text-blue-400' 
+                  : 'border-transparent text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Comité Directivo de la Central
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setConfigTab('cuenta')}
@@ -535,7 +538,7 @@ export default function Configuracion() {
                 : 'border-transparent text-slate-400 hover:text-slate-200'
               }`}
             >
-              Copias de Respaldo & Manuales
+              {userRole === 'OPERATOR' ? 'Manuales de Usuario' : 'Copias de Respaldo & Manuales'}
             </button>
           </div>
         )}
@@ -827,21 +830,29 @@ export default function Configuracion() {
               Manuales de Usuario y Capacitación
             </h3>
             <p className="text-sm text-slate-400">
-              Descargue los manuales detallados de uso del sistema según el rol del usuario, incluye descripciones de módulos e imágenes de referencia.
+              {userRole === 'OPERATOR' 
+                ? 'Descargue el manual detallado de uso correspondiente a su perfil de operador.'
+                : 'Descargue los manuales detallados de uso del sistema según el rol del usuario, incluye descripciones de módulos e imágenes de referencia.'}
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-              <Button type="button" onClick={() => handleDownloadManual('ADMIN')} variant="outline" className="text-slate-300 border-slate-700 hover:bg-slate-800 flex justify-center">
-                <Download className="w-4 h-4 mr-2" /> Manual Admin
+              {userRole !== 'OPERATOR' && (
+                <>
+                  <Button type="button" onClick={() => handleDownloadManual('ADMIN')} variant="outline" className="text-slate-300 border-slate-700 hover:bg-slate-800 flex justify-center">
+                    <Download className="w-4 h-4 mr-2" /> Manual Admin
+                  </Button>
+                  <Button type="button" onClick={() => handleDownloadManual('TESORERO')} variant="outline" className="text-slate-300 border-slate-700 hover:bg-slate-800 flex justify-center">
+                    <Download className="w-4 h-4 mr-2" /> Manual Tesorero
+                  </Button>
+                </>
+              )}
+              <Button type="button" onClick={() => handleDownloadManual('OPERATOR')} variant="outline" className="text-slate-300 border-slate-700 hover:bg-slate-800 flex justify-center border-blue-500/30 text-blue-300 hover:text-white">
+                <Download className="w-4 h-4 mr-2 text-blue-400" /> Manual Operador
               </Button>
-              <Button type="button" onClick={() => handleDownloadManual('TESORERO')} variant="outline" className="text-slate-300 border-slate-700 hover:bg-slate-800 flex justify-center">
-                <Download className="w-4 h-4 mr-2" /> Manual Tesorero
-              </Button>
-              <Button type="button" onClick={() => handleDownloadManual('OPERATOR')} variant="outline" className="text-slate-300 border-slate-700 hover:bg-slate-800 flex justify-center">
-                <Download className="w-4 h-4 mr-2" /> Manual Operador
-              </Button>
-              <Button type="button" onClick={() => handleDownloadManual('FISCALIZADOR')} variant="outline" className="text-slate-300 border-slate-700 hover:bg-slate-800 flex justify-center">
-                <Download className="w-4 h-4 mr-2" /> Manual Fiscalizador
-              </Button>
+              {userRole !== 'OPERATOR' && (
+                <Button type="button" onClick={() => handleDownloadManual('FISCALIZADOR')} variant="outline" className="text-slate-300 border-slate-700 hover:bg-slate-800 flex justify-center">
+                  <Download className="w-4 h-4 mr-2" /> Manual Fiscalizador
+                </Button>
+              )}
             </div>
           </div>
         </CardContent>

@@ -75,6 +75,7 @@ export default function Consumo() {
     });
     setSelectedMes(cons.mes);
     setEvidenciaFileBase64(cons.evidenciaFoto || '');
+    setJustificacion(cons.observacion || '');
     setIsModalOpen(true);
   };
 
@@ -126,6 +127,7 @@ export default function Consumo() {
     lecturaAnterior: '',
     lecturaActual: ''
   });
+  const [justificacion, setJustificacion] = useState('');
 
   const selectedClient = formData.clientAndSuministro ? clients.find(c => c.id === formData.clientAndSuministro.split('|')[0]) : undefined;
   const selectedClientConsumptions = selectedClient 
@@ -151,29 +153,56 @@ export default function Consumo() {
     }
   }
 
+  const getLecturaAtypicalReasons = (): string[] => {
+    const reasons: string[] = [];
+    if (!formData.lecturaActual) return reasons;
+    
+    const actual = Number(formData.lecturaActual);
+    const anterior = Number(currentLecturaAnterior);
+    
+    if (actual < anterior) {
+      reasons.push('Lectura actual es menor que la anterior registrada (un retroceso de medidor o error de digitación).');
+    }
+    
+    if (selectedClientConsumptions.length > 0 && averageKwh > 0 && formData.lecturaActual !== '') {
+      const variationThreshold = settings?.porcentajeVariacion || 50; // por defecto 50%
+      const upperLimit = averageKwh * (1 + variationThreshold / 100);
+      const lowerLimit = averageKwh * (1 - variationThreshold / 100);
+      
+      if (currentKwh > upperLimit) {
+        reasons.push(`Consumo calculado excesivamente alto (${currentKwh} kWh) respecto a su promedio histórico de ${averageKwh.toFixed(1)} kWh (Variación > ${variationThreshold}%).`);
+      } else if (currentKwh < lowerLimit) {
+        reasons.push(`Consumo calculado excesivamente bajo (${currentKwh} kWh) respecto a su promedio histórico de ${averageKwh.toFixed(1)} kWh (Variación > ${variationThreshold}%).`);
+      }
+    }
+    
+    return reasons;
+  };
+
+  const atypicalReasons = getLecturaAtypicalReasons();
+  const isAtypical = atypicalReasons.length > 0;
+
   const ultimaLectura = selectedClientConsumptions.length > 0 ? selectedClientConsumptions[selectedClientConsumptions.length - 1] : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.clientAndSuministro || !formData.lecturaActual || (isFirstReading && !formData.lecturaAnterior)) return;
 
-    if (Number(formData.lecturaActual) < Number(currentLecturaAnterior)) {
-      toast.error('La lectura actual no puede ser menor a la lectura anterior.');
-      return;
+    const reasons = getLecturaAtypicalReasons();
+    const isAtypicalReading = reasons.length > 0;
+
+    if (isAtypicalReading) {
+      if (!evidenciaFileBase64) {
+        toast.error('La captura de fotografía del medidor es obligatoria al detectarse una lectura atípica.');
+        return;
+      }
+      if (!justificacion.trim()) {
+        toast.error('Debe ingresar una observación o justificación para registrar esta lectura atípica.');
+        return;
+      }
     }
 
-    let observacion = undefined;
-    if (averageKwh > 0 && currentKwh > averageKwh * 2 && currentKwh > 20) {
-      const isConfirmed = await confirm({
-        title: 'Alerta de Consumo Excesivo',
-        message: `El consumo calculado de ${currentKwh} kWh es significativamente mayor a su promedio histórico (${averageKwh.toFixed(1)} kWh).\n\n¿Estás seguro de registrar esta lectura?`,
-        type: 'warning',
-        confirmLabel: 'Registrar Lectura'
-      });
-      if (!isConfirmed) return;
-      observacion = 'Posible Consumo Excesivo';
-    }
-
+    const finalObservacion = justificacion.trim() || (isAtypicalReading ? reasons.join(' | ') : undefined);
     const [clientId, codigoSuministro] = formData.clientAndSuministro.split('|');
 
     // MODO EDICIÓN
@@ -192,7 +221,9 @@ export default function Consumo() {
           lecturaAnterior: Number(currentLecturaAnterior),
           lecturaActual: Number(formData.lecturaActual),
           evidenciaFoto: evidenciaFileBase64 || undefined,
-          ...(observacion ? { observacion } : {})
+          observacion: finalObservacion || null,
+          fechaEdicion: new Date().toISOString(),
+          editedBy: user?.email || 'Sistema'
         });
         
         toast.success('Lectura modificada con éxito.');
@@ -201,6 +232,7 @@ export default function Consumo() {
         setFormData({ clientAndSuministro: '', lecturaAnterior: '', lecturaActual: '' });
         setClientSearch('');
         setEvidenciaFileBase64('');
+        setJustificacion('');
       } catch (err: any) {
         toast.error(err.message || 'Ocurrió un error al modificar la lectura.');
       }
@@ -226,9 +258,11 @@ export default function Consumo() {
     }
 
     const saveConfirmed = await confirm({
-      title: 'Guardar Lectura',
-      message: `¿Está seguro de guardar la lectura para el periodo ${selectedMes}?\nConsumo calculado: ${currentKwh} kWh`,
-      type: 'confirm',
+      title: isAtypicalReading ? '⚠ Registrar Lectura Atípica' : 'Guardar Lectura',
+      message: isAtypicalReading 
+        ? `Se ha clasificado como Lectura Atípica por: \n${reasons.map(r => `• ${r}`).join('\n')}\n\n¿Desea registrarla con la foto y la justificación ingresadas?`
+        : `¿Está seguro de guardar la lectura para el periodo ${selectedMes}?\nConsumo calculado: ${currentKwh} kWh`,
+      type: isAtypicalReading ? 'warning' : 'confirm',
       confirmLabel: 'Guardar'
     });
     if (!saveConfirmed) return;
@@ -243,13 +277,15 @@ export default function Consumo() {
         fechaLectura: new Date().toISOString(),
         mes: selectedMes,
         evidenciaFoto: evidenciaFileBase64 || undefined,
-        ...(observacion ? { observacion } : {})
+        observacion: finalObservacion,
+        createdBy: user?.email || 'Sistema'
       });
       
       toast.success('Lectura registrada con éxito.');
       setFormData({ clientAndSuministro: '', lecturaAnterior: '', lecturaActual: '' });
       setClientSearch('');
       setEvidenciaFileBase64('');
+      setJustificacion('');
       setShowSuministroDropdown(false);
       setIsModalOpen(false);
       setTimeout(() => {
@@ -1193,6 +1229,7 @@ export default function Consumo() {
               setEvidenciaFileBase64('');
               setClientSearch('');
               setFormData({ clientAndSuministro: '', lecturaAnterior: '', lecturaActual: '' });
+              setJustificacion('');
             }}></div>
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
             <div className="relative z-10 inline-block align-bottom bg-[#0B0E14] rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full">
@@ -1295,10 +1332,26 @@ export default function Consumo() {
                           onChange={e => setFormData({...formData, lecturaActual: e.target.value})} 
                           className={`mt-1 block w-full border rounded-md shadow-sm py-2 px-3 focus:outline-none sm:text-sm bg-[#0B0E14] text-slate-100 transition-colors duration-200 border-slate-700 focus:ring-blue-500 focus:border-blue-500`}
                         />
-                        {currentKwh > averageKwh * 2 && currentKwh > 20 && formData.lecturaActual !== '' && averageKwh > 0 && (
-                          <p className="mt-1 flex items-center text-xs text-amber-500 text-left">
-                            <AlertCircle className="w-3 h-3 mr-1 inline" />
-                            Advertencia: mayor al promedio habitual.
+                        {isAtypical && (
+                          <div className="mt-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-xs text-amber-400 text-left space-y-1 block">
+                            <div className="flex items-center gap-1.5 font-bold text-amber-300 border-b border-amber-500/20 pb-1 mb-1">
+                              <AlertCircle className="w-4 h-4 shrink-0 text-amber-500" />
+                              Alerta: Lectura Atípica Detectada
+                            </div>
+                            <ul className="list-disc pl-4 space-y-0.5 text-[11px] text-amber-200">
+                              {atypicalReasons.map((reason, idx) => (
+                                <li key={idx}>{reason}</li>
+                              ))}
+                            </ul>
+                            <p className="text-[10px] text-amber-400 font-semibold mt-1">
+                              * Se requiere de forma obligatoria fotografía de evidencia y justificación.
+                            </p>
+                          </div>
+                        )}
+                        {!isAtypical && formData.lecturaActual !== '' && (
+                          <p className="mt-1 flex items-center text-xs text-emerald-500 text-left">
+                            <Check className="w-3.5 h-3.5 mr-1 inline" />
+                            Consumo en rango normal (Fotografía y observación opcionales).
                           </p>
                         )}
                       </div>
@@ -1322,7 +1375,7 @@ export default function Consumo() {
                     {/* Evidencia Fotográfica */}
                     <div className="mt-4">
                       <label className="block text-sm font-medium text-slate-300 mb-1">
-                        Evidencia Fotográfica de la Lectura {userRole === 'OPERATOR' && <span className="text-red-400 font-semibold">(Obligatorio)</span>}
+                        Evidencia Fotográfica de la Lectura {isAtypical && <span className="text-red-400 font-semibold">(Obligatorio por Lectura Atípica)</span>}
                       </label>
                       <div
                         onDragEnter={handleDrag}
@@ -1340,7 +1393,7 @@ export default function Consumo() {
                           accept="image/*"
                           className="hidden"
                           onChange={handleFileChange}
-                          required={userRole === 'OPERATOR' && !evidenciaFileBase64}
+                          required={isAtypical && !evidenciaFileBase64}
                         />
                         {evidenciaFileBase64 ? (
                           <div className="space-y-2">
@@ -1373,6 +1426,23 @@ export default function Consumo() {
                         )}
                       </div>
                     </div>
+
+                    {/* Observación / Justificación */}
+                    <div className="mt-4">
+                      <label className="block text-sm font-medium text-slate-300 mb-1">
+                        Observación u Justificación {isAtypical && <span className="text-red-400 font-semibold">(Obligatorio por Lectura Atípica)</span>}
+                      </label>
+                      <textarea
+                        rows={2}
+                        placeholder={isAtypical 
+                          ? "Describa el motivo de la variación (ej. fuga identificada, cambio de de medidor, etc.)..."
+                          : "Ingrese una observación opcional si corresponde..."}
+                        value={justificacion}
+                        onChange={e => setJustificacion(e.target.value)}
+                        required={isAtypical}
+                        className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100 placeholder-slate-600 focus:outline-none"
+                      />
+                    </div>
                   </div>
                 </div>
                 <div className="bg-slate-800/50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
@@ -1385,6 +1455,7 @@ export default function Consumo() {
                     setEvidenciaFileBase64('');
                     setClientSearch('');
                     setFormData({ clientAndSuministro: '', lecturaAnterior: '', lecturaActual: '' });
+                    setJustificacion('');
                   }} className="mt-3 w-full sm:mt-0 sm:w-auto">Cancelar</Button>
                 </div>
               </form>

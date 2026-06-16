@@ -32,7 +32,7 @@ export function AppLayout() {
   const userInitial = user?.email ? user.email.charAt(0).toUpperCase() : 'U';
 
   const baseNavFiltered = userRole === 'OPERATOR' 
-    ? baseNavigation.filter(nav => ['Consumo & Facturación'].includes(nav.name))
+    ? baseNavigation.filter(nav => ['Consumo & Facturación', 'Configuración'].includes(nav.name))
     : userRole === 'SECRETARIO'
     ? baseNavigation.filter(nav => ['Reuniones', 'Configuración'].includes(nav.name))
     : userRole === 'VOCAL'
