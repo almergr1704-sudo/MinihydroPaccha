@@ -291,8 +291,10 @@ export default function Consumo() {
       setTimeout(() => {
         if (searchInputRef.current) searchInputRef.current.focus();
       }, 100);
-    } catch(err) {
-      toast.error('Ocurrió un error al registrar la lectura.');
+    } catch(err: any) {
+      console.error('Error during consumption registration:', err);
+      const errMessage = err instanceof Error ? err.message : String(err);
+      toast.error(`Error al registrar la lectura: ${errMessage || 'Error desconocido'}`);
     }
   };
 

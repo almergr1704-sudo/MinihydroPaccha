@@ -71,10 +71,6 @@ const RoleGuard = ({ children, allowedRoles }: { children: React.ReactNode, allo
   const { userRole, mustChangePassword } = useAppContext();
   const location = useLocation();
 
-  if (userRole === 'OPERATOR' && !mustChangePassword && location.pathname === '/config') {
-    return <Navigate to="/consumo" replace />;
-  }
-
   if (!allowedRoles.includes(userRole)) {
     let fallbackPath = '/';
     if (userRole === 'OPERATOR') {
