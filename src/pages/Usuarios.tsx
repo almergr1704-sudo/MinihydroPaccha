@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Shield, ShieldAlert, UserCheck, Plus, X, ChevronLeft, ChevronRight, Power, UserX, UserMinus, Search, Filter, Copy, CheckCircle2 } from 'lucide-react';
+import { Shield, ShieldAlert, UserCheck, Plus, X, ChevronLeft, ChevronRight, Power, UserX, UserMinus, Search, Filter, Copy, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Card, CardContent, Badge, Button, Pagination } from '../components/ui';
 import { useConfirm } from '../components/ui/ConfirmDialog';
@@ -25,6 +25,7 @@ export default function Usuarios() {
   const [newDni, setNewDni] = useState('');
   const [newRole, setNewRole] = useState<'ADMIN'|'TESORERO'|'OPERATOR'|'FISCALIZADOR'>('OPERATOR');
   const [creatingUser, setCreatingUser] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
   
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'TODOS' | 'ACTIVO' | 'INACTIVO'>('TODOS');
@@ -460,14 +461,45 @@ export default function Usuarios() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-300">Contraseña inicial recomendada (opcional: libre formato)</label>
-                    <input 
-                      type="password" 
-                      required 
-                      value={newPassword} 
-                      onChange={e => setNewPassword(e.target.value)} 
-                      className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100" 
-                    />
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="block text-sm font-medium text-slate-300">Contraseña inicial</label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const tempPass = `temp${Math.floor(1000 + Math.random() * 9000)}`;
+                          setNewPassword(tempPass);
+                          setShowNewPassword(true);
+                          toast.success(`Contraseña temporal asignada: ${tempPass}`, { icon: '🔑' });
+                        }}
+                        className="text-xs text-blue-500 hover:text-blue-400 font-medium hover:underline flex items-center gap-1 active:scale-95 transition-transform"
+                      >
+                        ⚡ Generar Clave Temporal
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <input 
+                        type={showNewPassword ? "text" : "password"} 
+                        required 
+                        value={newPassword} 
+                        onChange={e => setNewPassword(e.target.value)} 
+                        className="block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 pr-10 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100 placeholder:text-slate-600"
+                        placeholder="Ingrese la contraseña libremente"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPassword(!showNewPassword)}
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-200"
+                      >
+                        {showNewPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500 leading-relaxed font-normal">
+                      * Puede ingresar cualquier contraseña manual sin restricciones de longitud o complejidad. El cambio con políticas estrictas de seguridad será requerido obligatoriamente en el primer inicio de sesión del usuario.
+                    </p>
                     <PasswordStrengthIndicator passwordStr={newPassword} />
                   </div>
                 </div>
