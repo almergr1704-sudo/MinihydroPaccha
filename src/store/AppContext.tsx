@@ -604,6 +604,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const client = state.clients.find(c => c.id === consumption.clientId);
     if (!client) return;
 
+    // Check if there is already a reading in a later period
+    const hasLaterReading = state.consumptions.some(
+      c => c.codigoSuministro === consumption.codigoSuministro && c.mes > consumption.mes
+    );
+    if (hasLaterReading) {
+      throw new Error(`No es posible registrar la lectura porque ya existen períodos posteriores registrados para este suministro.`);
+    }
+
+    // Check chronological order
+    if (consumption.lecturaAnterior !== undefined && consumption.lecturaActual !== undefined && consumption.lecturaActual < consumption.lecturaAnterior) {
+      throw new Error(`La secuencia cronológica de lecturas no permite que la lectura actual (${consumption.lecturaActual}) sea menor que la anterior (${consumption.lecturaAnterior}).`);
+    }
+
     // Check if this supply is currently exonerated by a committee
     const exonerationClass = getExonerationClassification(state.comites, consumption.codigoSuministro, consumption.mes);
     const isExonerated = exonerationClass === 'EXONERATED';
@@ -652,6 +665,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       throw new Error("No se puede editar una lectura que ya fue pagada.");
     }
 
+    // Check if there is already a reading in a later period
+    const hasNewer = state.consumptions.some(
+      c => c.codigoSuministro === cons.codigoSuministro && c.mes > cons.mes
+    );
+    if (hasNewer) {
+      throw new Error("No es posible editar esta lectura porque existen períodos posteriores registrados para este suministro. Para modificar esta lectura, primero deben corregirse o eliminarse los períodos posteriores según las políticas establecidas.");
+    }
+
+    // Check chronological order
+    const lecturaAnterior = updates.lecturaAnterior !== undefined ? updates.lecturaAnterior : cons.lecturaAnterior;
+    const lecturaActual = updates.lecturaActual !== undefined ? updates.lecturaActual : cons.lecturaActual;
+    if (lecturaAnterior !== undefined && lecturaActual !== undefined && lecturaActual < lecturaAnterior) {
+      throw new Error(`La secuencia cronológica de lecturas no permite que la lectura actual (${lecturaActual}) sea menor que la anterior (${lecturaAnterior}).`);
+    }
+
     let finalUpdates = { ...updates };
     if (updates.kwh !== undefined || updates.lecturaActual !== undefined) {
       const client = state.clients.find(c => c.id === cons.clientId);
@@ -678,7 +706,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...finalUpdates,
       updatedBy: user?.email || 'Unknown'
     }));
-    addAuditLog('ACTUALIZAR', 'CONSUMOS', `Actualizó lectura para suministro ${cons.codigoSuministro}`);
+
+    // Generate extremely detailed audit log for the authorized change
+    const oldLectura = cons.lecturaActual;
+    const newLectura = updates.lecturaActual !== undefined ? updates.lecturaActual : cons.lecturaActual;
+    const motivo = updates.observacion || 'No especificado';
+    const emailStr = user?.email || 'Desconocido';
+    const fechaHora = new Date().toLocaleString('es-PE', { timeZone: 'America/Lima' });
+
+    addAuditLog('ACTUALIZAR', 'CONSUMOS', 
+      `Modificación autorizada de lectura para Suministro ${cons.codigoSuministro} (Periodo ${cons.mes}). ` +
+      `Usuario: ${emailStr} | Fecha/Hora: ${fechaHora} | ` +
+      `Lectura anterior registrada: ${oldLectura} | Nueva lectura ingresada: ${newLectura} | ` +
+      `Motivo de la modificación: ${motivo}`
+    );
   };
 
   const payConsumption = async (consumptionId: string) => {

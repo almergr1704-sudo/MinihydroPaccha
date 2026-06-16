@@ -63,6 +63,17 @@ export default function Consumo() {
   };
 
   const handleEditClick = (cons: Consumption) => {
+    const hasNewer = consumptions.some(
+      c => c.codigoSuministro === cons.codigoSuministro && c.mes > cons.mes
+    );
+    if (hasNewer) {
+      toast.error(
+        "No es posible editar esta lectura porque existen períodos posteriores registrados para este suministro. Para modificar esta lectura, primero deben corregirse o eliminarse los períodos posteriores según las políticas establecidas.",
+        { duration: 7000 }
+      );
+      return;
+    }
+
     setEditingConsumption(cons);
     const client = clients.find(c => c.id === cons.clientId);
     const clientLabel = client ? (client.nombre ? client.nombre : `${client.nombres || ''} ${client.apellidos || ''}`) : 'Cliente';
@@ -134,20 +145,26 @@ export default function Consumo() {
     ? consumptions.filter(c => c.clientId === selectedClient.id && c.codigoSuministro === formData.clientAndSuministro.split('|')[1]).sort((a,b) => a.mes.localeCompare(b.mes))
     : [];
   
-  const isFirstReading = selectedClientConsumptions.length === 0;
-  let previousAccumulated = 0;
-  if (!isFirstReading) {
-    const sumKwh = selectedClientConsumptions.reduce((a, b) => a + (b.kwh || 0), 0);
-    const initialLAnterior = selectedClientConsumptions[0].lecturaAnterior || 0;
-    previousAccumulated = initialLAnterior + sumKwh;
-  }
-  
-  const currentLecturaAnterior = isFirstReading ? formData.lecturaAnterior : previousAccumulated.toString();
+  const targetMonth = editingConsumption ? editingConsumption.mes : selectedMes;
+  const priorConsumptions = selectedClientConsumptions
+    .filter(c => c.mes < targetMonth)
+    .sort((a,b) => a.mes.localeCompare(b.mes));
+
+  const immediatelyAnteriorReading = priorConsumptions.length > 0
+    ? priorConsumptions[priorConsumptions.length - 1]
+    : undefined;
+
+  const isFirstReading = !immediatelyAnteriorReading;
+
+  const currentLecturaAnterior = immediatelyAnteriorReading 
+    ? (immediatelyAnteriorReading.lecturaActual ?? 0).toString()
+    : (editingConsumption ? (editingConsumption.lecturaAnterior ?? 0).toString() : formData.lecturaAnterior);
+
   const currentKwh = Math.max(0, Number(formData.lecturaActual) - Number(currentLecturaAnterior));
 
   let averageKwh = 0;
-  if (selectedClientConsumptions.length > 0) {
-    const pastKwhs = selectedClientConsumptions.map(c => c.kwh).filter(kwh => kwh != null) as number[];
+  if (priorConsumptions.length > 0) {
+    const pastKwhs = priorConsumptions.map(c => c.kwh).filter(kwh => kwh != null) as number[];
     if (pastKwhs.length > 0) {
       averageKwh = pastKwhs.reduce((a, b) => a + b, 0) / pastKwhs.length;
     }
@@ -164,7 +181,7 @@ export default function Consumo() {
       reasons.push('Lectura actual es menor que la anterior registrada (un retroceso de medidor o error de digitación).');
     }
     
-    if (selectedClientConsumptions.length > 0 && averageKwh > 0 && formData.lecturaActual !== '') {
+    if (priorConsumptions.length > 0 && averageKwh > 0 && formData.lecturaActual !== '') {
       const variationThreshold = settings?.porcentajeVariacion || 50; // por defecto 50%
       const upperLimit = averageKwh * (1 + variationThreshold / 100);
       const lowerLimit = averageKwh * (1 - variationThreshold / 100);
@@ -188,17 +205,31 @@ export default function Consumo() {
     e.preventDefault();
     if (!formData.clientAndSuministro || !formData.lecturaActual || (isFirstReading && !formData.lecturaAnterior)) return;
 
+    const actualNum = Number(formData.lecturaActual);
+    const anteriorNum = Number(currentLecturaAnterior);
+    if (actualNum < anteriorNum) {
+      toast.error(`La secuencia cronológica de lecturas no permite que la lectura actual (${actualNum}) sea menor que la anterior (${anteriorNum}).`);
+      return;
+    }
+
     const reasons = getLecturaAtypicalReasons();
     const isAtypicalReading = reasons.length > 0;
 
-    if (isAtypicalReading) {
-      if (!evidenciaFileBase64) {
-        toast.error('La captura de fotografía del medidor es obligatoria al detectarse una lectura atípica.');
+    if (editingConsumption) {
+      if (!justificacion.trim()) {
+        toast.error('Debe ingresar un motivo/justificación en la observación para modificar esta lectura.');
         return;
       }
-      if (!justificacion.trim()) {
-        toast.error('Debe ingresar una observación o justificación para registrar esta lectura atípica.');
-        return;
+    } else {
+      if (isAtypicalReading) {
+        if (!evidenciaFileBase64) {
+          toast.error('La captura de fotografía del medidor es obligatoria al detectarse una lectura atípica.');
+          return;
+        }
+        if (!justificacion.trim()) {
+          toast.error('Debe ingresar una observación o justificación para registrar esta lectura atípica.');
+          return;
+        }
       }
     }
 
@@ -1323,7 +1354,7 @@ export default function Consumo() {
                           step="1"
                           readOnly={!isFirstReading && !editingConsumption}
                           required 
-                          value={isFirstReading ? formData.lecturaAnterior : previousAccumulated} 
+                          value={isFirstReading ? formData.lecturaAnterior : currentLecturaAnterior} 
                           onChange={e => setFormData({...formData, lecturaAnterior: e.target.value})} 
                           className="mt-1 block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-slate-800 text-slate-300" 
                         />
