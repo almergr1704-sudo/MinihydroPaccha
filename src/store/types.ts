@@ -41,6 +41,7 @@ export interface Consumption {
   observacion?: string;
   createdBy?: string; // Para trazabilidad/auditoría
   reciboNo?: string; // REC-AAAA-MM-NNNN
+  evidenciaFoto?: string; // Evidencia fotográfica de la lectura
 }
 
 export interface Transaction {

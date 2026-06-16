@@ -68,7 +68,13 @@ const AuthGuard = ({ children }: { children: React.ReactNode }) => {
 };
 
 const RoleGuard = ({ children, allowedRoles }: { children: React.ReactNode, allowedRoles: string[] }) => {
-  const { userRole } = useAppContext();
+  const { userRole, mustChangePassword } = useAppContext();
+  const location = useLocation();
+
+  if (userRole === 'OPERATOR' && !mustChangePassword && location.pathname === '/config') {
+    return <Navigate to="/consumo" replace />;
+  }
+
   if (!allowedRoles.includes(userRole)) {
     let fallbackPath = '/';
     if (userRole === 'OPERATOR') {
@@ -103,7 +109,7 @@ export default function App() {
               <Route path="trabajadores" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><Trabajadores /></RoleGuard>} />
               <Route path="servicios" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><VentaServicios /></RoleGuard>} />
               <Route path="consumo" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR', 'OPERATOR']}><Consumo /></RoleGuard>} />
-              <Route path="recibos" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR', 'OPERATOR']}><RecibosRedirect /></RoleGuard>} />
+              <Route path="recibos" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><RecibosRedirect /></RoleGuard>} />
               <Route path="finanzas" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR']}><Finanzas /></RoleGuard>} />
               <Route path="reuniones" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR', 'SECRETARIO']}><Reuniones /></RoleGuard>} />
               <Route path="reportes" element={<RoleGuard allowedRoles={['ADMIN', 'TESORERO', 'FISCALIZADOR', 'VOCAL']}><Reportes /></RoleGuard>} />

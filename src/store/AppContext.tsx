@@ -32,6 +32,7 @@ interface AppContextType extends AppState {
   updateClient: (id: string, client: Partial<Client>) => Promise<void>;
   transferSupply: (fromClientId: string, toClientId: string, supplyCode: string) => Promise<void>;
   addConsumption: (consumption: Omit<Consumption, 'id' | 'montoCalculado' | 'estadoPago'>) => Promise<void>;
+  updateConsumption: (id: string, updates: Partial<Consumption>) => Promise<void>;
   payConsumption: (consumptionId: string) => Promise<void>;
   addFine: (fine: Omit<Fine, 'id' | 'estadoPago' | 'fecha'>) => Promise<void>;
   payFine: (fineId: string) => Promise<void>;
@@ -632,6 +633,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addAuditLog('CREAR', 'CONSUMOS', `Registró lectura para suministro ${consumption.codigoSuministro}. Recibo #${finalReciboNo}`);
   };
 
+  const updateConsumption = async (id: string, updates: Partial<Consumption>) => {
+    const cons = state.consumptions.find(c => c.id === id);
+    if (!cons) {
+      throw new Error("Lectura de consumo no encontrada.");
+    }
+    if (cons.estadoPago !== 'PENDIENTE') {
+      throw new Error("No se puede editar una lectura que ya fue pagada.");
+    }
+
+    let finalUpdates = { ...updates };
+    if (updates.kwh !== undefined || updates.lecturaActual !== undefined) {
+      const client = state.clients.find(c => c.id === cons.clientId);
+      if (client) {
+        const isSocio = state.suppliesInfo.find(s => s.codigo === cons.codigoSuministro)?.isSocio ?? (client.tipo === 'SOCIO');
+        const settings = state.settings || initialData.settings;
+        const tarifa = client.faseSuministro === 'TRIFASICO' && settings.costoTrifasico > 0 
+          ? settings.costoTrifasico 
+          : isSocio ? settings.costoSocio : settings.costoUsuario;
+          
+        const minimoAplica = settings.consumoMinimo !== undefined ? settings.consumoMinimo : 6;
+        const kwh = updates.kwh !== undefined ? updates.kwh : cons.kwh;
+        let montoCalculado = (kwh || 0) * tarifa;
+        if (montoCalculado < minimoAplica) {
+          montoCalculado = minimoAplica;
+        }
+        finalUpdates.montoCalculado = montoCalculado;
+      }
+    }
+
+    await updateDoc(doc(db, 'consumptions', id), {
+      ...finalUpdates,
+      updatedBy: user?.email || 'Unknown'
+    });
+    addAuditLog('ACTUALIZAR', 'CONSUMOS', `Actualizó lectura para suministro ${cons.codigoSuministro}`);
+  };
+
   const payConsumption = async (consumptionId: string) => {
     const consumption = state.consumptions.find(c => c.id === consumptionId);
     if (!consumption) return;
@@ -1217,6 +1254,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updateClient,
       transferSupply,
       addConsumption,
+      updateConsumption,
       payConsumption,
       addFine,
       payFine,
