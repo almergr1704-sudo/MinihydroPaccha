@@ -654,8 +654,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           
         const minimoAplica = settings.consumoMinimo !== undefined ? settings.consumoMinimo : 6;
         const kwh = updates.kwh !== undefined ? updates.kwh : cons.kwh;
-        let montoCalculado = (kwh || 0) * tarifa;
-        if (montoCalculado < minimoAplica) {
+        const exonerationClass = getExonerationClassification(state.comites, cons.codigoSuministro, cons.mes);
+        const isExonerated = exonerationClass === 'EXONERATED';
+        let montoCalculado = isExonerated ? 0 : (kwh || 0) * tarifa;
+        if (!isExonerated && montoCalculado < minimoAplica) {
           montoCalculado = minimoAplica;
         }
         finalUpdates.montoCalculado = montoCalculado;

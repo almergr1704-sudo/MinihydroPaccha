@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Plus, Check, FileText, Download, Upload, AlertCircle, Zap, Receipt, Camera, Edit2, X, Eye } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Button, Card, CardContent, Badge, Pagination } from '../components/ui';
-import { formatCurrency, normalizeSearchText } from '../lib/utils';
+import { formatCurrency, normalizeSearchText, getExonerationClassification } from '../lib/utils';
 import { useConfirm } from '../components/ui/ConfirmDialog';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -18,7 +18,7 @@ export default function Consumo() {
   const navigate = useNavigate();
   const location = useLocation();
   const { confirm } = useConfirm();
-  const { clients, consumptions, addConsumption, updateConsumption, deleteConsumption, settings, userRole, suppliesInfo, user } = useAppContext();
+  const { clients, consumptions, addConsumption, updateConsumption, deleteConsumption, settings, userRole, suppliesInfo, user, comites } = useAppContext();
   const [historyClientSuministro, setHistoryClientSuministro] = useState<{ clientId: string, codigoSuministro: string, clientName: string } | null>(null);
   const [editingConsumption, setEditingConsumption] = useState<Consumption | null>(null);
   const [evidenciaFileBase64, setEvidenciaFileBase64] = useState<string>('');
@@ -815,9 +815,14 @@ export default function Consumo() {
     const tableBody: any[][] = [];
     let totalMontoCalculado = 0;
 
-    if (cons && cons.estadoPago === 'PENDIENTE') {
+    const singleClassification = getExonerationClassification(comites, codSuministro, cons.mes);
+    if (cons && (cons.estadoPago === 'PENDIENTE' || cons.estadoPago === 'PAGADO')) {
+      let desc = 'Consumo Eléctrico' + (testEsMinimo ? ` (Mín. S/ ${testMinimoAplica.toFixed(2)})` : '');
+      if (singleClassification === 'EXONERATED') {
+        desc = 'Consumo Eléctrico - Exonerado de pago por cargo en Comité Directivo';
+      }
       tableBody.push([
-        'Consumo Eléctrico' + (testEsMinimo ? ` (Mín. S/ ${testMinimoAplica.toFixed(2)})` : ''),
+        desc,
         currentKwh.toString(), testTarifaAplicada.toFixed(2), calcFormatCurrencyStr(cons.montoCalculado)
       ]);
       totalMontoCalculado += cons.montoCalculado;
@@ -1501,7 +1506,14 @@ export default function Consumo() {
                       .sort((a,b) => b.mes.localeCompare(a.mes))
                       .map((hc, idx) => (
                       <tr key={hc.id} className={idx % 2 === 0 ? 'bg-[#0B0E14]' : 'bg-slate-900/20'}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 font-medium">{hc.mes}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 font-medium">
+                          {hc.mes}
+                          {getExonerationClassification(comites, hc.codigoSuministro, hc.mes) === 'EXONERATED' && (
+                            <span className="block text-[10px] text-emerald-400 font-semibold mt-0.5">
+                              Exonerado de pago por cargo en Comité Directivo
+                            </span>
+                          )}
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">{hc.lecturaActual || '-'}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">{hc.kwh} kWh</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-200 uppercase">{formatCurrency(hc.montoCalculado)}</td>

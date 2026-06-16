@@ -545,7 +545,7 @@ export default function Recibos() {
         const classification = getExonerationClassification(comites, codSuministro, cons.mes);
         let labelCons = 'Consumo Eléctrico';
         if (classification === 'EXONERATED') {
-          labelCons += ' - EXONERADO (Comité Directivo)';
+          labelCons += ' - Exonerado de pago por cargo en Comité Directivo';
         } else if (classification === 'PRE_EXONERATION') {
           labelCons += ' - (Anterior a Exoneración Directiva)';
         } else if (classification === 'POST_EXONERATION') {
@@ -948,7 +948,7 @@ export default function Recibos() {
                           if (classification === 'EXONERATED') {
                             return (
                               <span className="block mt-1 text-[10px] font-bold text-emerald-400 bg-emerald-950/40 border border-emerald-500/20 px-1.5 py-0.5 rounded w-fit">
-                                Exonerado (Comité Directivo)
+                                Exonerado de pago por cargo en Comité Directivo
                               </span>
                             );
                           } else if (classification === 'PRE_EXONERATION') {
