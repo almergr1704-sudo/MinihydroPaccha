@@ -32,7 +32,8 @@ export default function Finanzas() {
     toggleTransactionConciliado,
     trabajadores = [],
     pagosSueldos = [],
-    addPagoSueldo
+    addPagoSueldo,
+    user
   } = useAppContext();
   const [isModalOpen, setIsModalOpen] = useState<false | 'INGRESO' | 'EGRESO' | 'APTOS_CORTE' | 'PAGO_SUELDO'>(false);
   const [filterType, setFilterType] = useState<TransactionType | 'TODOS'>('INGRESO');
@@ -42,6 +43,7 @@ export default function Finanzas() {
   const [selectedClientId, setSelectedClientId] = useState('');
   const [selectedSupplyCode, setSelectedSupplyCode] = useState('');
   const [showSuministroDropdown, setShowSuministroDropdown] = useState(false);
+  const [aptosSearch, setAptosSearch] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
   
   const [formData, setFormData] = useState({
@@ -87,6 +89,7 @@ export default function Finanzas() {
   const closeModal = () => {
     setIsModalOpen(false);
     setShowOnlyAptForCut(false);
+    setAptosSearch('');
     setFormData({ tipo: 'INGRESO', categoria: 'OTROS', monto: '', descripcion: '', destinatario: '' });
     setSelectedClientId('');
     setClientSearch('');
@@ -103,6 +106,303 @@ export default function Finanzas() {
       monto: 0,
       observaciones: ''
     });
+  };
+
+  const generatePrintHTML = (clientsToPrint: any[]) => {
+    const orgName = settings?.nombreOrganizacion || 'Asociación Administradora de Servicios de Saneamiento';
+    const title = "Reporte de Suministros Aptos para Corte";
+    const userGen = user?.email || 'Administrador';
+    const dateFormatted = new Date().toLocaleString('es-PE', { timeZone: 'America/Lima' });
+
+    let totalSupplies = clientsToPrint.length;
+    let totalMonths = 0;
+    let totalOwed = 0;
+
+    const rowsHTML = clientsToPrint.map((c, index) => {
+      const pendingCons = consumptions.filter(cons => cons.clientId === c.id && cons.estadoPago === 'PENDIENTE');
+      const months = pendingCons.length;
+      const owedSum = pendingCons.reduce((sum, cons) => sum + (cons.montoCalculado || 0), 0);
+      const fullName = c.nombre ? c.nombre : `${c.nombres || ''} ${c.apellidos || ''}`;
+
+      totalMonths += months;
+      totalOwed += owedSum;
+
+      return `
+        <tr style="border-bottom: 1px solid #e2e8f0; page-break-inside: avoid;">
+          <td style="padding: 8px; text-align: left; font-size: 11px;">${index + 1}</td>
+          <td style="padding: 8px; text-align: left; font-size: 11px; font-weight: bold;">${c.codigoSuministro || '-'}</td>
+          <td style="padding: 8px; text-align: left; font-size: 11px;">${fullName}</td>
+          <td style="padding: 8px; text-align: left; font-size: 11px;">${c.tipo === 'SOCIO' ? 'Socio' : 'Usuario'}</td>
+          <td style="padding: 8px; text-align: left; font-size: 11px;">${c.direccion || '-'} ${c.numeroDireccion || ''}</td>
+          <td style="padding: 8px; text-align: center; font-size: 11px; font-weight: bold; color: #dc2626;">${months}</td>
+          <td style="padding: 8px; text-align: right; font-size: 11px; font-weight: bold;">S/ ${owedSum.toFixed(2)}</td>
+        </tr>
+      `;
+    }).join('');
+
+    return `
+      <!DOCTYPE html>
+      <html lang="es">
+      <head>
+        <meta charset="UTF-8">
+        <title>${title}</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            color: #1e293b;
+            margin: 30px;
+            line-height: 1.4;
+          }
+          .header {
+            border-bottom: 2px solid #0f172a;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+          }
+          .org-name {
+            font-size: 12px;
+            font-weight: bold;
+            color: #475569;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          .title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #0f172a;
+            margin: 5px 0;
+          }
+          .meta-info {
+            font-size: 10px;
+            color: #64748b;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 25px;
+          }
+          th {
+            background-color: #f1f5f9;
+            border-bottom: 2px solid #cbd5e1;
+            color: #334155;
+            font-weight: bold;
+            font-size: 11px;
+            padding: 10px 8px;
+          }
+          .summary-box {
+            border: 1px solid #cbd5e1;
+            background-color: #f8fafc;
+            border-radius: 6px;
+            padding: 12px;
+            width: 260px;
+            margin-left: auto;
+            page-break-inside: avoid;
+          }
+          .summary-title {
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 4px;
+            margin-bottom: 8px;
+            color: #1e293b;
+          }
+          .summary-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            margin-bottom: 4px;
+          }
+          .summary-row.total {
+            font-size: 12px;
+            font-weight: bold;
+            border-top: 1px solid #cbd5e1;
+            padding-top: 4px;
+            margin-top: 4px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="org-name">${orgName}</div>
+          <h1 class="title">${title}</h1>
+          <div class="meta-info">
+            Fecha de emisión: ${dateFormatted} | Usuario originador: ${userGen}
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 5%; text-align: left;">#</th>
+              <th style="width: 15%; text-align: left;">Suministro</th>
+              <th style="width: 30%; text-align: left;">Titular</th>
+              <th style="width: 12%; text-align: left;">Tipo</th>
+              <th style="width: 20%; text-align: left;">Dirección</th>
+              <th style="width: 8%; text-align: center;">Meses</th>
+              <th style="width: 10%; text-align: right;">Deuda Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHTML}
+          </tbody>
+        </table>
+
+        <div class="summary-box">
+          <div class="summary-title">Resumen de deudores</div>
+          <div class="summary-row">
+            <span>Suministros Aptos:</span>
+            <span style="font-weight: bold;">${totalSupplies}</span>
+          </div>
+          <div class="summary-row">
+            <span>Total Meses:</span>
+            <span style="font-weight: bold;">${totalMonths}</span>
+          </div>
+          <div class="summary-row total">
+            <span>Monto Total:</span>
+            <span style="color: #dc2626;">S/ ${totalOwed.toFixed(2)}</span>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  };
+
+  const handlePrintAptos = (clientsToPrint: any[]) => {
+    let printFrame = document.getElementById('print-iframe') as HTMLIFrameElement;
+    if (!printFrame) {
+      printFrame = document.createElement('iframe');
+      printFrame.id = 'print-iframe';
+      printFrame.style.position = 'fixed';
+      printFrame.style.right = '0';
+      printFrame.style.bottom = '0';
+      printFrame.style.width = '0';
+      printFrame.style.height = '0';
+      printFrame.style.border = '0';
+      document.body.appendChild(printFrame);
+    }
+    
+    const iframeDoc = printFrame.contentWindow?.document || printFrame.contentDocument;
+    if (iframeDoc) {
+      iframeDoc.open();
+      iframeDoc.write(generatePrintHTML(clientsToPrint));
+      iframeDoc.close();
+      setTimeout(() => {
+        printFrame.contentWindow?.focus();
+        printFrame.contentWindow?.print();
+      }, 500);
+    }
+  };
+
+  const handleGeneratePDFAptos = (clientsToPrint: any[]) => {
+    const doc = new jsPDF();
+    const orgName = settings?.nombreOrganizacion || 'Asociación Administradora de Servicios de Saneamiento';
+    const title = "Reporte de Suministros Aptos para Corte";
+    const userGen = user?.email || 'Administrador';
+    const dateFormatted = new Date().toLocaleString('es-PE', { timeZone: 'America/Lima' });
+
+    // Organization Header
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(orgName.toUpperCase(), 14, 15);
+    
+    // Title
+    doc.setFontSize(16);
+    doc.setTextColor(15, 23, 42); // slate 900
+    doc.setFont('helvetica', 'bold');
+    doc.text(title, 14, 25);
+
+    // Metadata line
+    doc.setFontSize(9);
+    doc.setTextColor(100);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Fecha/Hora de generación: ${dateFormatted}  |  Usuario: ${userGen}`, 14, 32);
+
+    // Divider line
+    doc.setDrawColor(15, 23, 42);
+    doc.setLineWidth(0.5);
+    doc.line(14, 35, 196, 35);
+
+    let totalSupplies = clientsToPrint.length;
+    let totalMonths = 0;
+    let totalOwed = 0;
+
+    const tableData = clientsToPrint.map((c, index) => {
+      const pendingCons = consumptions.filter(cons => cons.clientId === c.id && cons.estadoPago === 'PENDIENTE');
+      const months = pendingCons.length;
+      const owedSum = pendingCons.reduce((sum, cons) => sum + (cons.montoCalculado || 0), 0);
+      const fullName = c.nombre ? c.nombre : `${c.nombres || ''} ${c.apellidos || ''}`;
+
+      totalMonths += months;
+      totalOwed += owedSum;
+
+      return [
+        (index + 1).toString(),
+        c.codigoSuministro || '-',
+        fullName,
+        c.tipo === 'SOCIO' ? 'Socio' : 'Usuario',
+        `${c.direccion || '-'} ${c.numeroDireccion || ''}`.trim(),
+        months.toString(),
+        `S/ ${owedSum.toFixed(2)}`
+      ];
+    });
+
+    autoTable(doc, {
+      startY: 40,
+      head: [['#', 'Suministro', 'Titular', 'Tipo', 'Dirección', 'Meses', 'Deuda Total']],
+      body: tableData,
+      theme: 'striped',
+      headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
+      bodyStyles: { fontSize: 8 },
+      columnStyles: {
+        0: { cellWidth: 8 },
+        1: { cellWidth: 22, fontStyle: 'bold' },
+        2: { cellWidth: 45 },
+        3: { cellWidth: 18 },
+        4: { cellWidth: 60 },
+        5: { cellWidth: 15, halign: 'center', fontStyle: 'bold', textColor: [220, 38, 38] },
+        6: { cellWidth: 22, halign: 'right', fontStyle: 'bold' }
+      }
+    });
+
+    // Adding Summary Box after table
+    const finalY = (doc as any).lastAutoTable.finalY + 15;
+    
+    // Draw box
+    doc.setDrawColor(203, 213, 225); // slate 300
+    doc.setFillColor(248, 250, 252); // slate 50
+    doc.rect(130, finalY, 66, 30, 'FD');
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text('RESUMEN DE CORTES', 134, finalY + 6);
+    
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Suministros Aptos:`, 134, finalY + 13);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text(`${totalSupplies}`, 190, finalY + 13, { align: 'right' });
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Meses Adeudados:`, 134, finalY + 20);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text(`${totalMonths}`, 190, finalY + 20, { align: 'right' });
+
+    // Divider inside summary box
+    doc.setDrawColor(226, 232, 240);
+    doc.line(134, finalY + 23, 192, finalY + 23);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text(`Monto Total:`, 134, finalY + 28);
+    doc.setTextColor(220, 38, 38);
+    doc.text(`S/ ${totalOwed.toFixed(2)}`, 190, finalY + 28, { align: 'right' });
+
+    doc.save('Reporte_Suministros_Aptos_Corte.pdf');
   };
 
   const handleSueldoSubmit = async (e: React.FormEvent) => {
@@ -661,48 +961,157 @@ export default function Finanzas() {
           <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
             <div className="fixed inset-0 bg-slate-900 bg-opacity-75 transition-opacity" onClick={closeModal}></div>
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            <div className="relative z-10 inline-block align-bottom bg-[#0B0E14] rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full">
+            <div className={`relative z-10 inline-block align-bottom bg-[#0B0E14] rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:w-full ${isModalOpen === 'APTOS_CORTE' ? 'sm:max-w-4xl' : 'sm:max-w-md'}`}>
               <form onSubmit={handleSubmit}>
                 <div className="bg-[#0B0E14] px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                  <h3 className="text-lg leading-6 font-medium text-slate-100" id="modal-title">
+                  <h3 className="text-lg leading-6 font-medium text-slate-100 mb-4" id="modal-title">
                     {isModalOpen === 'INGRESO' ? 'Registrar Nuevo Cobro' : isModalOpen === 'EGRESO' ? 'Registrar Nuevo Pago' : 'Usuarios Aptos para Corte'}
                   </h3>
                   {isModalOpen === 'APTOS_CORTE' ? (
-                    <div className="mt-4 max-h-96 overflow-y-auto space-y-2">
-                      {clients.filter(c => {
-                        const pendingDebtsCount = consumptions.filter(cons => cons.clientId === c.id && cons.estadoPago === 'PENDIENTE').length;
-                        return pendingDebtsCount >= 3 && c.estado !== 'CORTADO';
-                      }).length === 0 ? (
-                        <p className="text-sm text-slate-400 p-4text-center">No hay usuarios aptos para corte.</p>
-                      ) : (
-                        clients.filter(c => {
+                    <div className="mt-2 space-y-4">
+                      {(() => {
+                        const filteredAptos = clients.filter(c => {
                           const pendingDebtsCount = consumptions.filter(cons => cons.clientId === c.id && cons.estadoPago === 'PENDIENTE').length;
-                          return pendingDebtsCount >= 3 && c.estado !== 'CORTADO';
-                        }).map(c => (
-                          <div key={c.id} className="flex justify-between items-center p-3 bg-slate-800/50 rounded-md border border-slate-700">
-                            <div>
-                              <div className="text-sm font-medium text-slate-200">{c.codigoSuministro} - {c.nombre ? c.nombre : `${c.nombres} ${c.apellidos}`}</div>
-                              <div className="text-xs font-semibold text-red-500 mt-1">{consumptions.filter(cons => cons.clientId === c.id && cons.estadoPago === 'PENDIENTE').length} meses adeudados</div>
+                          const isApto = pendingDebtsCount >= 3 && c.estado !== 'CORTADO';
+                          if (!isApto) return false;
+                          
+                          if (!aptosSearch) return true;
+                          const searchClean = normalizeSearchText(aptosSearch);
+                          const fullName = normalizeSearchText(c.nombre ? c.nombre : `${c.nombres || ''} ${c.apellidos || ''}`);
+                          const supply = normalizeSearchText(c.codigoSuministro || '');
+                          const dni = normalizeSearchText(c.dni || '');
+                          return fullName.includes(searchClean) || supply.includes(searchClean) || dni.includes(searchClean);
+                        });
+
+                        const totalAptos = filteredAptos.length;
+                        const totalMonths = filteredAptos.reduce((acc, c) => acc + consumptions.filter(cons => cons.clientId === c.id && cons.estadoPago === 'PENDIENTE').length, 0);
+                        const totalAmount = filteredAptos.reduce((acc, c) => acc + consumptions.filter(cons => cons.clientId === c.id && cons.estadoPago === 'PENDIENTE').reduce((sum, cons) => sum + (cons.montoCalculado || 0), 0), 0);
+
+                        return (
+                          <div className="space-y-4">
+                            {/* Search bar + buttons */}
+                            <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+                              <div className="relative flex-1">
+                                <input
+                                  type="text"
+                                  placeholder="Filtrar por suministro, titular o DNI..."
+                                  value={aptosSearch}
+                                  onChange={(e) => setAptosSearch(e.target.value)}
+                                  className="block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-slate-800 text-slate-100 placeholder-slate-400"
+                                />
+                              </div>
+                              <div className="flex gap-2 justify-end">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handlePrintAptos(filteredAptos)}
+                                  className="bg-slate-800 text-slate-200 hover:bg-slate-700 border-slate-700 font-semibold"
+                                  disabled={totalAptos === 0}
+                                >
+                                  <FileText className="w-4 h-4 mr-2 text-slate-400" />
+                                  Imprimir
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleGeneratePDFAptos(filteredAptos)}
+                                  className="bg-slate-800 text-slate-200 hover:bg-slate-700 border-slate-700 font-semibold"
+                                  disabled={totalAptos === 0}
+                                >
+                                  <Download className="w-4 h-4 mr-2 text-slate-400" />
+                                  Descargar PDF
+                                </Button>
+                              </div>
                             </div>
-                            {userRole !== 'FISCALIZADOR' && (
-                              <Button size="sm" variant="destructive" className="bg-red-600 hover:bg-red-700 font-semibold" type="button" onClick={async () => {
-                                const confirmChange = await confirm({
-                                  title: 'Cortar Servicio',
-                                  message: `¿Está seguro de cambiar el estado de ${c.codigoSuministro} a CORTADO?`,
-                                  type: 'danger',
-                                  confirmLabel: 'Sí, cortar'
-                                });
-                                if (confirmChange) {
-                                  updateClient(c.id, { estado: 'CORTADO' });
-                                }
-                              }}>
-                                <PowerOff className="w-4 h-4 mr-2" />
-                                Cortar servicio
-                              </Button>
+
+                            {totalAptos === 0 ? (
+                              <p className="text-sm text-slate-400 p-8 text-center bg-slate-900/20 border border-slate-800 rounded-lg">No hay usuarios aptos para corte que coincidan con la búsqueda.</p>
+                            ) : (
+                              <>
+                                <div className="max-h-96 overflow-auto border border-slate-700/60 rounded-lg">
+                                  <table className="min-w-full divide-y divide-slate-700 text-sm">
+                                    <thead className="bg-[#111622] sticky top-0 z-10 text-slate-300 font-semibold text-xs uppercase tracking-wider">
+                                      <tr>
+                                        <th scope="col" className="px-4 py-3 text-left">Suministro</th>
+                                        <th scope="col" className="px-4 py-3 text-left">Titular</th>
+                                        <th scope="col" className="px-4 py-3 text-left">Tipo</th>
+                                        <th scope="col" className="px-4 py-3 text-left">Dirección</th>
+                                        <th scope="col" className="px-4 py-3 text-center">Meses Deuda</th>
+                                        <th scope="col" className="px-4 py-3 text-right">Monto Total</th>
+                                        <th scope="col" className="px-4 py-3 text-center">Acción</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-800 text-slate-300 bg-slate-900/40">
+                                      {filteredAptos.map(c => {
+                                        const pending = consumptions.filter(cons => cons.clientId === c.id && cons.estadoPago === 'PENDIENTE');
+                                        const months = pending.length;
+                                        const amountOwed = pending.reduce((sum, cons) => sum + (cons.montoCalculado || 0), 0);
+                                        const fullName = c.nombre ? c.nombre : `${c.nombres || ''} ${c.apellidos || ''}`;
+
+                                        return (
+                                          <tr key={c.id} className="hover:bg-slate-800/40 transition-colors">
+                                            <td className="px-4 py-3 font-semibold text-purple-300 text-xs">{c.codigoSuministro}</td>
+                                            <td className="px-4 py-3 text-xs font-medium text-slate-200" title={fullName}>
+                                              {fullName.length > 25 ? `${fullName.substring(0, 25)}...` : fullName}
+                                            </td>
+                                            <td className="px-4 py-3 text-xs">
+                                              <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider ${
+                                                c.tipo === 'SOCIO' ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-800/55' : 'bg-blue-950/40 text-blue-400 border border-blue-800/55'
+                                              }`}>
+                                                {c.tipo}
+                                              </span>
+                                            </td>
+                                            <td className="px-4 py-3 text-xs text-slate-400" title={c.direccion}>
+                                              {c.direccion ? (c.direccion.length > 22 ? `${c.direccion.substring(0, 22)}...` : c.direccion) : '-'}
+                                            </td>
+                                            <td className="px-4 py-3 text-center font-bold text-red-500 text-xs">{months}</td>
+                                            <td className="px-4 py-3 text-right font-semibold text-slate-200 text-xs">{formatCurrency(amountOwed)}</td>
+                                            <td className="px-4 py-3 text-center">
+                                              {userRole !== 'FISCALIZADOR' && (
+                                                <Button size="sm" variant="destructive" className="bg-red-600 hover:bg-red-700 font-semibold py-1 h-7 text-xs" type="button" onClick={async () => {
+                                                  const confirmChange = await confirm({
+                                                    title: 'Cortar Servicio',
+                                                    message: `¿Está seguro de cambiar el estado de ${c.codigoSuministro} a CORTADO?`,
+                                                    type: 'danger',
+                                                    confirmLabel: 'Sí, cortar'
+                                                  });
+                                                  if (confirmChange) {
+                                                    updateClient(c.id, { estado: 'CORTADO' });
+                                                  }
+                                                }}>
+                                                  Cortar
+                                                </Button>
+                                              )}
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </table>
+                                </div>
+
+                                {/* Summary Box */}
+                                <div className="border border-slate-700 bg-slate-900/50 p-3 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-3">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-slate-400">Total Suministros:</span>
+                                    <span className="font-bold text-slate-100 text-sm">{totalAptos}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-slate-400">Meses de Deuda:</span>
+                                    <span className="font-bold text-slate-100 text-sm">{totalMonths}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-slate-400">Monto Adeudado:</span>
+                                    <span className="font-bold text-red-400 text-sm">{formatCurrency(totalAmount)}</span>
+                                  </div>
+                                </div>
+                              </>
                             )}
                           </div>
-                        ))
-                      )}
+                        );
+                      })()}
                     </div>
                   ) : (
                   <div className="mt-4 space-y-4">
@@ -969,7 +1378,7 @@ export default function Finanzas() {
                   )}
                 </div>
                 <div className="bg-slate-800/50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                  {!['CONSUMO', 'MULTA'].includes(formData.categoria) && (
+                  {isModalOpen !== 'APTOS_CORTE' && !['CONSUMO', 'MULTA'].includes(formData.categoria) && (
                     <Button type="submit" className="w-full sm:ml-3 sm:w-auto">Guardar Transacción</Button>
                   )}
                   <Button type="button" variant="outline" onClick={closeModal} className="mt-3 w-full sm:mt-0 sm:w-auto">Cerrar</Button>
