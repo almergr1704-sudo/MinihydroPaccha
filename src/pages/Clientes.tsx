@@ -600,7 +600,7 @@ export default function Clientes() {
                          </button>
                        )}
                       <button 
-                        onClick={() => navigate(`/recibos?clientId=${client.id}`)}
+                        onClick={() => navigate(`/consumo?tab=recibos&clientId=${client.id}`)}
                         className="text-amber-500 hover:text-amber-400 mr-3 font-semibold"
                         title="Ver Historial de Recibos"
                       >

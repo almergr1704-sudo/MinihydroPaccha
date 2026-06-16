@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Plus, Check, FileText, Download, Upload, AlertCircle } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Plus, Check, FileText, Download, Upload, AlertCircle, Zap, Receipt } from 'lucide-react';
 import { useAppContext } from '../store/AppContext';
 import { Button, Card, CardContent, Badge, Pagination } from '../components/ui';
 import { formatCurrency, normalizeSearchText } from '../lib/utils';
@@ -12,12 +12,28 @@ import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { Consumption } from '../store/types';
 import { toast } from 'react-hot-toast';
+import Recibos from './Recibos';
 
 export default function Consumo() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { confirm } = useConfirm();
   const { clients, consumptions, addConsumption, deleteConsumption, settings, userRole, suppliesInfo } = useAppContext();
   const [historyClientSuministro, setHistoryClientSuministro] = useState<{ clientId: string, codigoSuministro: string, clientName: string } | null>(null);
+
+  const [mainView, setMainView] = useState<'FACTURACION' | 'BUSCAR_RECIBO'>(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get('tab') === 'recibos' || params.has('clientId') || params.has('supplyCode') ? 'BUSCAR_RECIBO' : 'FACTURACION';
+  });
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('tab') === 'recibos' || params.has('clientId') || params.has('supplyCode')) {
+      setMainView('BUSCAR_RECIBO');
+    } else {
+      setMainView('FACTURACION');
+    }
+  }, [location.search]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedMes, setSelectedMes] = useState(() => {
     const d = new Date();
@@ -824,17 +840,56 @@ export default function Consumo() {
             Registro de lecturas de medidor y control de pagos.
           </p>
         </div>
-        <div className="mt-4 sm:mt-0 flex items-center space-x-2">
-          {userRole !== 'FISCALIZADOR' && (
-            <Button onClick={() => setIsModalOpen(true)}>
-              <Plus className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
-              Registrar Lectura
-            </Button>
-          )}
-        </div>
+        {mainView === 'FACTURACION' && (
+          <div className="mt-4 sm:mt-0 flex items-center space-x-2">
+            {userRole !== 'FISCALIZADOR' && (
+              <Button onClick={() => setIsModalOpen(true)}>
+                <Plus className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
+                Registrar Lectura
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
-      <Card>
+      {/* Sub-navigation tabs for switching views inside the Consumo module */}
+      <div className="border-b border-slate-800">
+        <nav className="flex space-x-6" aria-label="Views">
+          <button
+            onClick={() => {
+              setMainView('FACTURACION');
+              navigate('/consumo', { replace: true });
+            }}
+            className={`pb-4 px-1 border-b-2 font-medium text-sm transition-all duration-150 flex items-center gap-2 ${
+              mainView === 'FACTURACION'
+                ? 'border-blue-500 text-blue-500 font-semibold'
+                : 'border-transparent text-slate-400 hover:text-slate-300 hover:border-slate-300'
+            }`}
+          >
+            <Zap className="h-4 w-4" />
+            Lecturas y Facturación
+          </button>
+          <button
+            onClick={() => {
+              setMainView('BUSCAR_RECIBO');
+              navigate('/consumo?tab=recibos', { replace: true });
+            }}
+            className={`pb-4 px-1 border-b-2 font-medium text-sm transition-all duration-150 flex items-center gap-2 ${
+              mainView === 'BUSCAR_RECIBO'
+                ? 'border-blue-500 text-blue-500 font-semibold'
+                : 'border-transparent text-slate-400 hover:text-slate-300 hover:border-slate-300'
+            }`}
+          >
+            <Receipt className="h-4 w-4" />
+            Buscar Recibo
+          </button>
+        </nav>
+      </div>
+
+      {mainView === 'BUSCAR_RECIBO' ? (
+        <Recibos />
+      ) : (
+        <Card>
         <CardContent className="p-0">
           <div className="border-b border-slate-800">
             <nav className="flex -mb-px" aria-label="Tabs">
@@ -976,7 +1031,7 @@ export default function Consumo() {
                             Anular
                           </Button>
                         )}
-                        <Button size="sm" variant="ghost" className="hover:text-amber-400 text-amber-500/95" onClick={() => navigate(`/recibos?supplyCode=${cons.codigoSuministro || client?.codigoSuministro}`)}>
+                        <Button size="sm" variant="ghost" className="hover:text-amber-400 text-amber-500/95" onClick={() => navigate(`/consumo?tab=recibos&supplyCode=${cons.codigoSuministro || client?.codigoSuministro}`)}>
                           Buscador
                         </Button>
                         <Button size="sm" variant="ghost" className="text-blue-600" onClick={() => handleGenerateReceipt(cons)}>
@@ -1011,6 +1066,7 @@ export default function Consumo() {
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* Modal Add Consumption */}
       {isModalOpen && (
