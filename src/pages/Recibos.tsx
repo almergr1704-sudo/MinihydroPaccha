@@ -132,7 +132,7 @@ export default function Recibos() {
     setSelectedClientId('');
     setSelectedSupplyCode('');
     setCurrentPage(1);
-    navigate('/recibos', { replace: true });
+    navigate('/consumo?tab=recibos', { replace: true });
   };
 
   // Helper to extract debt info (identically match getDebtInfo in Consumo)

@@ -837,53 +837,46 @@ export default function Consumo() {
             Consumo & Facturación
           </h2>
           <p className="mt-1 text-sm text-slate-400">
-            Registro de lecturas de medidor y control de pagos.
+            {mainView === 'BUSCAR_RECIBO' 
+              ? 'Consulta, visualización e impresión de recibos generados.' 
+              : 'Registro de lecturas de medidor y control de pagos.'}
           </p>
         </div>
-        {mainView === 'FACTURACION' && (
-          <div className="mt-4 sm:mt-0 flex items-center space-x-2">
-            {userRole !== 'FISCALIZADOR' && (
-              <Button onClick={() => setIsModalOpen(true)}>
-                <Plus className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
-                Registrar Lectura
+        <div className="mt-4 sm:mt-0 flex items-center space-x-2">
+          {mainView === 'FACTURACION' ? (
+            <>
+              <Button 
+                variant="outline"
+                className="border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white"
+                onClick={() => {
+                  setMainView('BUSCAR_RECIBO');
+                  navigate('/consumo?tab=recibos', { replace: true });
+                }}
+              >
+                <Receipt className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
+                Buscar Recibo
               </Button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Sub-navigation tabs for switching views inside the Consumo module */}
-      <div className="border-b border-slate-800">
-        <nav className="flex space-x-6" aria-label="Views">
-          <button
-            onClick={() => {
-              setMainView('FACTURACION');
-              navigate('/consumo', { replace: true });
-            }}
-            className={`pb-4 px-1 border-b-2 font-medium text-sm transition-all duration-150 flex items-center gap-2 ${
-              mainView === 'FACTURACION'
-                ? 'border-blue-500 text-blue-500 font-semibold'
-                : 'border-transparent text-slate-400 hover:text-slate-300 hover:border-slate-300'
-            }`}
-          >
-            <Zap className="h-4 w-4" />
-            Lecturas y Facturación
-          </button>
-          <button
-            onClick={() => {
-              setMainView('BUSCAR_RECIBO');
-              navigate('/consumo?tab=recibos', { replace: true });
-            }}
-            className={`pb-4 px-1 border-b-2 font-medium text-sm transition-all duration-150 flex items-center gap-2 ${
-              mainView === 'BUSCAR_RECIBO'
-                ? 'border-blue-500 text-blue-500 font-semibold'
-                : 'border-transparent text-slate-400 hover:text-slate-300 hover:border-slate-300'
-            }`}
-          >
-            <Receipt className="h-4 w-4" />
-            Buscar Recibo
-          </button>
-        </nav>
+              {userRole !== 'FISCALIZADOR' && (
+                <Button onClick={() => setIsModalOpen(true)}>
+                  <Plus className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
+                  Registrar Lectura
+                </Button>
+              )}
+            </>
+          ) : (
+            <Button 
+              variant="outline"
+              className="border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white"
+              onClick={() => {
+                setMainView('FACTURACION');
+                navigate('/consumo', { replace: true });
+              }}
+            >
+              <Zap className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
+              Lecturas y Facturación
+            </Button>
+          )}
+        </div>
       </div>
 
       {mainView === 'BUSCAR_RECIBO' ? (
