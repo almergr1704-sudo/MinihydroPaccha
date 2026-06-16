@@ -290,6 +290,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const generateId = () => Math.random().toString(36).substr(2, 9);
 
+  const cleanUndefinedKeys = <T extends object>(obj: T): T => {
+    const newObj = { ...obj } as any;
+    Object.keys(newObj).forEach((key) => {
+      if (newObj[key] === undefined) {
+        delete newObj[key];
+      }
+    });
+    return newObj;
+  };
+
   // Atomic transactions sequential database sequences
   const getNextSequenceNumber = async (prefix: string, keySuffix?: string): Promise<string> => {
     const counterId = keySuffix ? `${prefix}-${keySuffix}` : prefix;
@@ -629,7 +639,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         : consumption.observacion
     };
     
-    await setDoc(doc(db, 'consumptions', newId), newConsumption);
+    await setDoc(doc(db, 'consumptions', newId), cleanUndefinedKeys(newConsumption));
     addAuditLog('CREAR', 'CONSUMOS', `Registró lectura para suministro ${consumption.codigoSuministro}. Recibo #${finalReciboNo}`);
   };
 
@@ -664,10 +674,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    await updateDoc(doc(db, 'consumptions', id), {
+    await updateDoc(doc(db, 'consumptions', id), cleanUndefinedKeys({
       ...finalUpdates,
       updatedBy: user?.email || 'Unknown'
-    });
+    }));
     addAuditLog('ACTUALIZAR', 'CONSUMOS', `Actualizó lectura para suministro ${cons.codigoSuministro}`);
   };
 

@@ -1400,7 +1400,6 @@ export default function Consumo() {
                           accept="image/*"
                           className="hidden"
                           onChange={handleFileChange}
-                          required={isAtypical && !evidenciaFileBase64}
                         />
                         {evidenciaFileBase64 ? (
                           <div className="space-y-2">
