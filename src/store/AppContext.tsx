@@ -52,6 +52,8 @@ interface AppContextType extends AppState {
   addTrabajador: (trabajador: Omit<Trabajador, 'id' | 'fechaRegistro'>) => Promise<void>;
   updateTrabajador: (id: string, updates: Partial<Trabajador>) => Promise<void>;
   addPagoSueldo: (pago: Omit<PagoSueldo, 'id' | 'fechaPago' | 'comprobante' | 'createdBy'>) => Promise<PagoSueldo>;
+  initializeCounter: (counterId: string, startValue: number) => Promise<void>;
+  seedDatabaseFromBackup: (backupData: any) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -159,34 +161,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isInitialRef.current[colName] = true;
       
       const unsub = onSnapshot(collection(db, colName), (snapshot) => {
-        // Migration/Seeding of empty firestore collections
-        if (snapshot.empty) {
-          const local = getLocalLegacyData();
-          let legacyItems = (local[stateKey] || []) as any[];
-          
-          if (stateKey === 'admins') {
-            const hasAdmin = legacyItems.some((a: any) => a.email === 'admin@paccha.local');
-            if (!hasAdmin) {
-              legacyItems.push({
-                id: 'admin_default',
-                email: 'admin@paccha.local',
-                username: 'admin',
-                password: 'ALANgaona2010@',
-                role: 'ADMIN',
-                nombres: 'Super',
-                apellidos: 'Admin',
-                mustChangePassword: true,
-                estado: 'ACTIVO'
-              });
-            }
-          }
-
-          if (legacyItems.length > 0) {
-            legacyItems.forEach((item: any) => {
-              setDoc(doc(db, colName, item.id), item);
-            });
-            return;
-          }
+        // Seeding of default admin if empty
+        if (snapshot.empty && colName === 'admins') {
+          const defaultAdmin = {
+            id: 'admin_default',
+            email: 'admin@paccha.local',
+            username: 'admin',
+            password: '$2a$10$uV28KID0yL9jXpIuCj6VseZlOen5O5/9U9fR4n9G476I2v27iIbe6', // bcrypt of ALANgaona2010@
+            role: 'ADMIN',
+            nombres: 'Super',
+            apellidos: 'Admin',
+            mustChangePassword: true,
+            estado: 'ACTIVO'
+          };
+          setDoc(doc(db, colName, defaultAdmin.id), defaultAdmin);
+          return;
         }
 
         const items = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as any));
@@ -307,47 +296,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     return runTransaction(db, async (txn) => {
       const docSnap = await txn.get(docRef);
-      let nextNum = 1;
-      if (docSnap.exists()) {
-        nextNum = docSnap.data().currentCount + 1;
-      } else {
-        if (prefix === 'REC' && keySuffix) {
-          const existing = state.consumptions
-            .filter(c => c.mes === keySuffix && c.reciboNo)
-            .map(c => {
-              const parts = c.reciboNo!.split('-');
-              return parts.length === 4 ? parseInt(parts[3], 10) : 0;
-            })
-            .filter(n => !isNaN(n));
-          const max = existing.length > 0 ? Math.max(...existing) : 0;
-          nextNum = max + 1;
-        } else if (prefix === 'S') {
-          const existing = (state.pagosSueldos || [])
-            .map(p => p.comprobante)
-            .filter(c => c && c.startsWith('S-'))
-            .map(c => parseInt(c.slice(2), 10))
-            .filter(n => !isNaN(n));
-          const max = existing.length > 0 ? Math.max(...existing) : 1000;
-          nextNum = max + 1;
-        } else if (prefix === 'VS') {
-          const existing = state.transactions
-            .map(t => t.comprobante)
-            .filter(c => c && c.startsWith('VS-'))
-            .map(c => parseInt(c.slice(3), 10))
-            .filter(n => !isNaN(n));
-          const max = existing.length > 0 ? Math.max(...existing) : 1000;
-          nextNum = max + 1;
-        } else if (prefix === 'TR') {
-          const existing = state.transactions
-            .map(t => t.comprobante)
-            .filter(c => c && c.startsWith('TR-'))
-            .map(c => parseInt(c.slice(3), 10))
-            .filter(n => !isNaN(n));
-          const max = existing.length > 0 ? Math.max(...existing) : 1000;
-          nextNum = max + 1;
-        }
+      if (!docSnap.exists()) {
+        throw new Error(`El contador fiscal / correlativo para "${counterId}" no se encuentra inicializado en el servidor. Por favor, realice la inicialización administrativa del período o contador desde el panel de Configuración.`);
       }
-
+      const nextNum = docSnap.data().currentCount + 1;
       txn.set(docRef, { currentCount: nextNum });
       
       if (prefix === 'REC') {
@@ -356,6 +308,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return `${prefix}-${nextNum.toString().padStart(6, '0')}`;
       }
     });
+  };
+
+  const initializeCounter = async (counterId: string, startValue: number) => {
+    const docRef = doc(db, 'counters', counterId);
+    await setDoc(docRef, { currentCount: startValue });
+    addAuditLog('CREAR', 'SISTEMA', `Inicializó correlativo ${counterId} con valor de inicio ${startValue}`);
+  };
+
+  const seedDatabaseFromBackup = async (backupData: any) => {
+    const collectionsToSeed = [
+      { key: 'clients', col: 'clients' },
+      { key: 'consumptions', col: 'consumptions' },
+      { key: 'transactions', col: 'transactions' },
+      { key: 'meetings', col: 'meetings' },
+      { key: 'fines', col: 'fines' },
+      { key: 'admins', col: 'admins' },
+      { key: 'auditLogs', col: 'auditLogs' },
+      { key: 'suppliesInfo', col: 'suppliesInfo' },
+      { key: 'comites', col: 'comites' },
+      { key: 'trabajadores', col: 'trabajadores' },
+      { key: 'pagosSueldos', col: 'pagosSueldos' }
+    ];
+
+    for (const { key, col } of collectionsToSeed) {
+      const items = backupData[key] || [];
+      for (const item of items) {
+        if (item.id) {
+          if (key === 'admins' && item.password) {
+            const isHashed = item.password.startsWith('$2a$') || item.password.startsWith('$2b$') || item.password.startsWith('$2y$');
+            if (!isHashed) {
+              item.password = bcrypt.hashSync(item.password, 10);
+            }
+          }
+          await setDoc(doc(db, col, item.id), item);
+        }
+      }
+    }
+
+    if (backupData.settings) {
+      await setDoc(doc(db, 'settings', 'global'), backupData.settings);
+    }
+    
+    const counters = backupData.counters || {};
+    for (const counterId of Object.keys(counters)) {
+      await setDoc(doc(db, 'counters', counterId), { currentCount: counters[counterId] });
+    }
+
+    addAuditLog('CREAR', 'SISTEMA', 'Sembrado y aprovisionamiento manual de base de datos desde respaldo');
   };
 
   const updateAdmin = async (id: string, updates: Partial<any>) => {
@@ -1331,7 +1331,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       toggleCommitteeStatus,
       addTrabajador,
       updateTrabajador,
-      addPagoSueldo
+      addPagoSueldo,
+      initializeCounter,
+      seedDatabaseFromBackup
     }}>
       {children}
     </AppContext.Provider>

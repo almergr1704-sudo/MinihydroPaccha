@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../store/AppContext';
 import { Card, CardContent, Badge, Button, Pagination } from '../components/ui';
 import { formatCurrency, normalizeSearchText, getExonerationClassification } from '../lib/utils';
-import { generateGeneralPaymentReceiptPDF, generatePayrollReceiptPDF } from '../lib/receipts';
+import { generateGeneralPaymentReceiptPDF, generatePayrollReceiptPDF, generateConsumptionTicketPDF } from '../lib/receipts';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { toast } from 'react-hot-toast';
@@ -422,6 +422,42 @@ export default function Recibos() {
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
+
+  // Handle direct PDF downloads targeting exact generators
+  const handleDownloadTicket = (item: VirtualReceipt) => {
+    const toastId = toast.loading('Generando Ticket (80mm)...');
+    try {
+      if (item.sourceType !== 'CONSUMO') {
+        const client = clients.find(c => c.id === item.clientId);
+        const success = generateGeneralPaymentReceiptPDF(item.rawPayload, client);
+        if (success) {
+          toast.success('Ticket descargado exitosamente.', { id: toastId });
+        } else {
+          toast.error('Error al descargar ticket.', { id: toastId });
+        }
+        return;
+      }
+
+      const cons = item.rawPayload;
+      const client = clients.find(c => c.id === cons.clientId);
+      if (!client) {
+        toast.error('Cliente asociado no existe.', { id: toastId });
+        return;
+      }
+      const codSuministro = cons.codigoSuministro || client.codigoSuministro;
+      const debtInfo = getDebtInfo(client.id, codSuministro || '', cons.mes);
+
+      const success = generateConsumptionTicketPDF(cons, client, settings, debtInfo);
+      if (success) {
+        toast.success('Ticket descargado exitosamente.', { id: toastId });
+      } else {
+        toast.error('Error al descargar ticket.', { id: toastId });
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Fallo al generar ticket.', { id: toastId });
+    }
+  };
 
   // Handle direct PDF downloads targeting exact generators
   const handleDownloadPDF = (item: VirtualReceipt) => {
@@ -987,6 +1023,17 @@ export default function Recibos() {
                         className="p-1.5 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
                       >
                         <FileText className="h-4 w-4" />
+                      </Button>
+
+                      {/* Descargar Ticket 80mm */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDownloadTicket(item)}
+                        title="Imprimir Ticket (80mm)"
+                        className="p-1.5 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+                      >
+                        <Printer className="h-4 w-4" />
                       </Button>
 
                       {/* Anular Comprobante */}

@@ -425,42 +425,6 @@ export function generatePayrollReceiptPDF(payment: PagoSueldo): boolean {
     doc.rect(qrX, qrY, qrSize, qrSize);
     
     // Draw QR finders
-    doc.setFillColor(0, 0, 0);
-    // Top-left
-    doc.rect(qrX + 1, qrY + 1, 5, 5);
-    doc.setFillColor(255, 255, 255);
-    doc.rect(qrX + 1.8, qrY + 1.8, 3.4, 3.4);
-    doc.setFillColor(0, 0, 0);
-    doc.rect(qrX + 2.5, qrY + 2.5, 2, 2);
-
-    // Top-right
-    doc.rect(qrX + qrSize - 6, qrY + 1, 5, 5);
-    doc.setFillColor(255, 255, 255);
-    doc.rect(qrX + qrSize - 5.2, qrY + 1.8, 3.4, 3.4);
-    doc.setFillColor(0, 0, 0);
-    doc.rect(qrX + qrSize - 4.5, qrY + 2.5, 2, 2);
-
-    // Bottom-left
-    doc.rect(qrX + 1, qrY + qrSize - 6, 5, 5);
-    doc.setFillColor(255, 255, 255);
-    doc.rect(qrX + 1.8, qrY + qrSize - 5.2, 3.4, 3.4);
-    doc.setFillColor(0, 0, 0);
-    doc.rect(qrX + 2.5, qrY + qrSize - 4.5, 2, 2);
-    
-    // Draw randomly styled code lines to realistically stand in for pixels
-    doc.rect(qrX + 8, qrY + 2, 2, 1, 'F');
-    doc.rect(qrX + 12, qrY + 3, 1, 2, 'F');
-    doc.rect(qrX + 10, qrY + 6, 2, 1, 'F');
-    doc.rect(qrX + 8, qrY + 9, 3, 1, 'F');
-    doc.rect(qrX + 13, qrY + 8, 2, 2, 'F');
-    doc.rect(qrX + 9, qrY + 12, 1, 3, 'F');
-    doc.rect(qrX + 11, qrY + 11, 3, 1, 'F');
-    doc.rect(qrX + 16, qrY + 9, 1, 4, 'F');
-    doc.rect(qrX + 14, qrY + 14, 4, 2, 'F');
-    doc.rect(qrX + 8, qrY + 17, 2, 1, 'F');
-    doc.rect(qrX + 11, qrY + 18, 3, 1, 'F');
-    doc.rect(qrX + 16, qrY + 17, 2, 2, 'F');
-
     // Footers
     doc.setFontSize(7);
     doc.setFont('helvetica', 'italic');
@@ -475,3 +439,168 @@ export function generatePayrollReceiptPDF(payment: PagoSueldo): boolean {
     return false;
   }
 }
+
+/**
+ * Generates and downloads a consumption receipt in a narrow 80mm ticket format.
+ */
+export function generateConsumptionTicketPDF(
+  cons: any,
+  client: Client,
+  settings: any,
+  debtInfo: any
+): boolean {
+  try {
+    const doc = new jsPDF({
+      unit: 'mm',
+      format: [80, 195]
+    });
+
+    const centerX = 40;
+
+    // --- ENCABEZADO INSTITUCIONAL ---
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text('RECIBO DE CONSUMO DE ENERGÍA', centerX, 12, { align: 'center' });
+    
+    doc.setFontSize(9);
+    doc.text('Mini Central Hidroeléctrica Paccha', centerX, 17, { align: 'center' });
+    
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.text('Asoc. de Usuarios de la Microcuenca Paccha', centerX, 21, { align: 'center' });
+    doc.text('RUC: 20608945231', centerX, 25, { align: 'center' });
+    
+    // Separator
+    doc.setLineWidth(0.2);
+    doc.setDrawColor(100, 116, 139);
+    doc.line(5, 28, 75, 28);
+    
+    // --- DATOS DEL COMPROBANTE ---
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.text('DATOS DEL RECIBO:', 5, 32);
+    
+    doc.setFont('helvetica', 'normal');
+    const [yearPart, monthPart] = cons.mes.split('-');
+    const displayReciboNo = cons.reciboNo || `REC-${yearPart}-${monthPart}-${cons.id.slice(-4).toUpperCase()}`;
+    doc.text(`Recibo Nro: ${displayReciboNo}`, 5, 37);
+    doc.text(`Suministro: ${cons.codigoSuministro || client.codigoSuministro}`, 5, 42);
+    doc.text(`Periodo: ${cons.mes}`, 5, 47);
+    
+    const fechaFormatted = cons.fechaLectura 
+      ? new Date(cons.fechaLectura).toLocaleDateString('es-PE') 
+      : new Date().toLocaleDateString('es-PE');
+    doc.text(`Fecha Lectura: ${fechaFormatted}`, 5, 52);
+    
+    doc.line(5, 55, 75, 55);
+
+    // --- DATOS DEL CLIENTE ---
+    doc.setFont('helvetica', 'bold');
+    doc.text('DATOS DEL CLIENTE:', 5, 59);
+    doc.setFont('helvetica', 'normal');
+    const titularName = `${client.apellidos}, ${client.nombres}`;
+    const nameLines = doc.splitTextToSize(titularName, 68);
+    doc.text(nameLines, 5, 64);
+    
+    const nameOffset = (nameLines.length - 1) * 4;
+    const yAfterName = 69 + nameOffset;
+    
+    doc.text(`DNI: ${client.dni || 'No Registrado'}`, 5, yAfterName);
+    
+    const addressVal = client.direccion || 'Sin dirección';
+    const addressLines = doc.splitTextToSize(`Dirección: ${addressVal}`, 68);
+    doc.text(addressLines, 5, yAfterName + 5);
+    
+    const addressOffset = (addressLines.length - 1) * 4;
+    const yAfterAddress = yAfterName + 10 + addressOffset;
+    
+    doc.line(5, yAfterAddress, 75, yAfterAddress);
+
+    // --- CONSUMO ---
+    doc.setFont('helvetica', 'bold');
+    doc.text('DETALLE DE CONSUMO:', 5, yAfterAddress + 4);
+    doc.setFont('helvetica', 'normal');
+    
+    doc.text(`Lectura Anterior: ${cons.lecturaAnterior ?? 0} kWh`, 5, yAfterAddress + 9);
+    doc.text(`Lectura Actual: ${cons.lecturaActual ?? 0} kWh`, 5, yAfterAddress + 14);
+    doc.text(`Consumo del Mes: ${cons.kwh || 0} kWh`, 5, yAfterAddress + 19);
+    
+    const yAfterConsumo = yAfterAddress + 23;
+    doc.line(5, yAfterConsumo, 75, yAfterConsumo);
+
+    // --- CALCULOS DE PAGO ---
+    doc.setFont('helvetica', 'bold');
+    doc.text('DETALLE DE CONCEPTOS:', 5, yAfterConsumo + 4);
+    
+    let y = yAfterConsumo + 9;
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Consumo Eléctrico:`, 5, y);
+    doc.text(`S/ ${(cons.montoCalculado || 0).toFixed(2)}`, 75, y, { align: 'right' });
+    
+    if (debtInfo.previousUnpaid && debtInfo.previousUnpaid.length > 0) {
+      debtInfo.previousUnpaid.forEach((unpaid: any) => {
+        y += 5;
+        doc.text(`Deuda mes ${unpaid.mes}:`, 5, y);
+        doc.text(`S/ ${(unpaid.montoCalculado || 0).toFixed(2)}`, 75, y, { align: 'right' });
+      });
+    }
+
+    const totalAPagar = (cons.montoCalculado || 0) + (debtInfo.totalDeuda || 0);
+    
+    y += 7;
+    doc.line(5, y - 4, 75, y - 4);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`TOTAL A PAGAR:`, 5, y);
+    doc.text(`S/ ${totalAPagar.toFixed(2)}`, 75, y, { align: 'right' });
+    
+    y += 7;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    const monthName = new Date(`${cons.mes}-02`).toLocaleDateString('es', { month: 'long' });
+    doc.text(`* Vence el último día de ${monthName}.`, 5, y);
+    
+    if (debtInfo.warning) {
+      y += 4;
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(220, 38, 38);
+      doc.text('ATENCIÓN: SERVICIO APTO PARA CORTE', 5, y);
+      doc.setTextColor(0, 0, 0);
+    }
+
+    y += 10;
+    // Draw simulated QR pixel pattern in ticket box
+    const qrX = centerX - 10;
+    const qrY = y;
+    const qrSize = 20;
+    doc.rect(qrX, qrY, qrSize, qrSize);
+    
+    doc.setFillColor(0, 0, 0);
+    doc.rect(qrX + 1, qrY + 1, 5, 5);
+    doc.setFillColor(255, 255, 255);
+    doc.rect(qrX + 1.8, qrY + 1.8, 3.4, 3.4);
+    doc.setFillColor(0, 0, 0);
+    doc.rect(qrX + 2.5, qrY + 2.5, 2, 2);
+
+    doc.rect(qrX + qrSize - 6, qrY + 1, 5, 5);
+    doc.setFillColor(255, 255, 255);
+    doc.rect(qrX + qrSize - 5.2, qrY + 1.8, 3.4, 3.4);
+    doc.setFillColor(0, 0, 0);
+    doc.rect(qrX + qrSize - 4.5, qrY + 2.5, 2, 2);
+
+    doc.rect(qrX + 1, qrY + qrSize - 6, 5, 5);
+    doc.setFillColor(255, 255, 255);
+    doc.rect(qrX + 1.8, qrY + qrSize - 5.2, 3.4, 3.4);
+    doc.setFillColor(0, 0, 0);
+    doc.rect(qrX + 2.5, qrY + qrSize - 4.5, 2, 2);
+
+    doc.setFontSize(6);
+    doc.text('ESCANEE PARA VALIDAR', centerX, y + 24, { align: 'center' });
+
+    doc.save(`Ticket_Consumo_${cons.codigoSuministro || client.codigoSuministro}_${cons.mes}.pdf`);
+    return true;
+  } catch (error) {
+    console.error('Error generating consumption ticket print:', error);
+    return false;
+  }
+}
+

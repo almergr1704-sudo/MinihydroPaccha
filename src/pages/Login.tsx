@@ -45,11 +45,10 @@ export default function Login() {
         const isEmailMatch = a.username?.toLowerCase() === emailLower || a.email?.toLowerCase() === emailLower;
         if (!isEmailMatch) return false;
         
-        // Ensure backward compatibility with sha256 or plain fallback if not bcrypt
         try {
-          return bcrypt.compareSync(password, a.password) || a.password === password;
+          return bcrypt.compareSync(password, a.password);
         } catch (e) {
-           return a.password === password; // fallback
+          return false;
         }
       });
 

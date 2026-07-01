@@ -12,7 +12,7 @@ import ManualCapture from '../components/ManualCapture';
 import ComiteDirectivo from '../components/ComiteDirectivo';
 
 export default function Configuracion() {
-  const { settings, updateSettings, userRole, user, updateAdmin, admins, mustChangePassword } = useAppContext();
+  const { settings, updateSettings, userRole, user, updateAdmin, admins, mustChangePassword, seedDatabaseFromBackup, initializeCounter } = useAppContext();
   const { confirm } = useConfirm();
   const [configTab, setConfigTab] = useState<'operativa' | 'comite' | 'cuenta' | 'datos_manuales'>(() => {
     if (userRole === 'OPERATOR') return 'cuenta';
@@ -28,6 +28,11 @@ export default function Configuracion() {
     consumoMinimo: 6.00,
     ventaNuevoServicio: 0.00
   });
+
+  const [counterPrefix, setCounterPrefix] = useState<'REC' | 'S' | 'VS' | 'TR'>('REC');
+  const [counterSuffix, setCounterSuffix] = useState(new Date().toISOString().slice(0, 7));
+  const [counterStart, setCounterStart] = useState<number>(0);
+  const [isInitializingCounter, setIsInitializingCounter] = useState(false);
 
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
@@ -144,7 +149,7 @@ export default function Configuracion() {
 
     const isConfirmed = await confirm({
       title: 'Restaurar Copia de Seguridad',
-      message: '¿ESTÁS SEGURO? Importar una copia de seguridad sobrescribirá TODOS los datos actuales del sistema. Esta acción no se puede deshacer.',
+      message: '¿ESTÁS SEGURO? Importar una copia de seguridad sobrescribirá TODOS los datos actuales del sistema en Firestore. Esta acción no se puede deshacer.',
       type: 'danger',
       confirmLabel: 'Restaurar',
       cancelLabel: 'Cancelar'
@@ -156,18 +161,46 @@ export default function Configuracion() {
     }
 
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
+      const toastId = toast.loading('Sincronizando base de datos en Firestore...');
       try {
         const jsonStr = evt.target?.result as string;
-        JSON.parse(jsonStr); // Validate JSON
-        localStorage.setItem('erp_data', jsonStr);
-        toast.success('Base de datos restaurada correctamente. Recargando sistema...');
+        const parsedData = JSON.parse(jsonStr); // Validate JSON
+        await seedDatabaseFromBackup(parsedData);
+        toast.success('Base de datos restaurada correctamente en la nube. Recargando...', { id: toastId });
         setTimeout(() => window.location.reload(), 1500);
       } catch (error) {
-        toast.error('El archivo de respaldo no es válido o está dañado.');
+        toast.error('El archivo de respaldo no es válido o está dañado.', { id: toastId });
       }
     };
     reader.readAsText(file);
+  };
+
+  const handleInitCounter = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsInitializingCounter(true);
+    const counterId = counterPrefix === 'REC' ? `${counterPrefix}-${counterSuffix}` : counterPrefix;
+    
+    const isConfirmed = await confirm({
+      title: 'Inicializar Correlativo',
+      message: `¿Está seguro de inicializar el correlativo "${counterId}" con valor de inicio ${counterStart}? Si ya existe, se sobrescribirá.`,
+      type: 'warning',
+      confirmLabel: 'Inicializar'
+    });
+
+    if (!isConfirmed) {
+      setIsInitializingCounter(false);
+      return;
+    }
+
+    try {
+      await initializeCounter(counterId, counterStart);
+      toast.success(`Contador "${counterId}" inicializado en ${counterStart} correctamente.`);
+    } catch (err: any) {
+      toast.error(err.message || 'Error al inicializar contador.');
+    } finally {
+      setIsInitializingCounter(false);
+    }
   };
 
   const handleDownloadManual = async (roleType: string) => {
@@ -819,6 +852,68 @@ export default function Configuracion() {
           </div>
         </CardContent>
       </Card>
+      )}
+
+      {(!mustChangePassword && configTab === 'datos_manuales' && userRole === 'ADMIN') && (
+        <Card>
+          <CardContent className="p-6">
+            <form onSubmit={handleInitCounter} className="space-y-4">
+              <h3 className="text-lg font-medium text-slate-200 border-b border-slate-700 pb-2 flex items-center">
+                <Settings className="w-5 h-5 mr-2 text-slate-400" />
+                Inicialización Administrativa de Correlativos (Contadores)
+              </h3>
+              <p className="text-xs text-slate-400">
+                Por motivos de seguridad y de integridad histórica, los correlativos secuenciales de recibos y planillas deben inicializarse manualmente para cada período. No se permite la autoinferencia desde la memoria cache.
+              </p>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-300">Tipo de Documento</label>
+                  <select
+                    value={counterPrefix}
+                    onChange={e => setCounterPrefix(e.target.value as any)}
+                    className="mt-1 block w-full rounded-md border border-slate-700 bg-[#0B0E14] py-2 px-3 text-slate-100 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
+                  >
+                    <option value="REC">Recibo de Consumo (REC-YYYY-MM)</option>
+                    <option value="S">Planilla de Sueldo (S-000000)</option>
+                    <option value="VS">Egreso de Caja (VS-000000)</option>
+                    <option value="TR">Transacción de Ingreso (TR-000000)</option>
+                  </select>
+                </div>
+
+                {counterPrefix === 'REC' && (
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300">Periodo (Mes)</label>
+                    <input
+                      type="month"
+                      value={counterSuffix}
+                      onChange={e => setCounterSuffix(e.target.value)}
+                      className="mt-1 block w-full rounded-md border border-slate-700 bg-[#0B0E14] py-2 px-3 text-slate-100 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-300">Número Inicial (Valor de Inicio)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={counterStart}
+                    onChange={e => setCounterStart(parseInt(e.target.value, 10) || 0)}
+                    className="mt-1 block w-full rounded-md border border-slate-700 bg-[#0B0E14] py-2 px-3 text-slate-100 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
+                    placeholder="Ej. 1000"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <Button type="submit" disabled={isInitializingCounter} className="bg-emerald-600 hover:bg-emerald-500 text-white">
+                  {isInitializingCounter ? 'Inicializando...' : 'Inicializar Contador en Servidor'}
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
       )}
 
       {(!mustChangePassword && configTab === 'datos_manuales') && (

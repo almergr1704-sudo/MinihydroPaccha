@@ -34,6 +34,15 @@ export default function Usuarios() {
   const [resetPasswordData, setResetPasswordData] = useState<{ password: string, username: string }>({ password: '', username: '' });
   const [isCopied, setIsCopied] = useState(false);
 
+  const generateSecureRandomPassword = (): string => {
+    const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+    let password = "";
+    for (let i = 0; i < 12; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return password;
+  };
+
   const handleUpdateRole = (id: string) => {
     updateAdmin(id, { role: selectedRole });
     setEditingId(null);
@@ -177,7 +186,12 @@ export default function Usuarios() {
         </div>
         <div className="mt-4 sm:mt-0">
           {userRole !== 'FISCALIZADOR' && (
-            <Button onClick={() => setIsModalOpen(true)} className="flex items-center">
+            <Button onClick={() => {
+              const securePass = generateSecureRandomPassword();
+              setNewPassword(securePass);
+              setShowNewPassword(true);
+              setIsModalOpen(true);
+            }} className="flex items-center">
               <Plus className="mr-2 h-4 w-4" />
               Crear Usuario Local
             </Button>
@@ -466,24 +480,25 @@ export default function Usuarios() {
                       <button
                         type="button"
                         onClick={() => {
-                          const tempPass = `temp${Math.floor(1000 + Math.random() * 9000)}`;
+                          const tempPass = generateSecureRandomPassword();
                           setNewPassword(tempPass);
                           setShowNewPassword(true);
-                          toast.success(`Contraseña temporal asignada: ${tempPass}`, { icon: '🔑' });
+                          toast.success(`Contraseña aleatoria asignada: ${tempPass}`, { icon: '🔑' });
                         }}
                         className="text-xs text-blue-500 hover:text-blue-400 font-medium hover:underline flex items-center gap-1 active:scale-95 transition-transform"
                       >
-                        ⚡ Generar Clave Temporal
+                        ⚡ Generar Otra Clave Temporal
                       </button>
                     </div>
                     <div className="relative">
                       <input 
                         type={showNewPassword ? "text" : "password"} 
                         required 
+                        readOnly
                         value={newPassword} 
                         onChange={e => setNewPassword(e.target.value)} 
-                        className="block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 pr-10 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#0B0E14] text-slate-100 placeholder:text-slate-600"
-                        placeholder="Ingrese la contraseña libremente"
+                        className="block w-full border border-slate-700 rounded-md shadow-sm py-2 px-3 pr-10 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-[#141A24] text-emerald-400 font-mono"
+                        placeholder="Generando contraseña segura..."
                       />
                       <button
                         type="button"
