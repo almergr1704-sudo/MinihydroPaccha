@@ -179,6 +179,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
 
         const items = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as any));
+
+        // Automatic one-time migration for legacy plain text passwords in Firestore to bcrypt
+        if (colName === 'admins') {
+          items.forEach((admin: any) => {
+            const isHashed = admin.password && (admin.password.startsWith('$2a$') || admin.password.startsWith('$2b$') || admin.password.startsWith('$2y$'));
+            if (admin.password && !isHashed) {
+              try {
+                const hashedPassword = bcrypt.hashSync(admin.password, 10);
+                setDoc(doc(db, 'admins', admin.id), {
+                  ...admin,
+                  password: hashedPassword
+                });
+                console.log(`Migrada contraseña de administrador ${admin.username || admin.email} a bcrypt.`);
+              } catch (err) {
+                console.error(`Error migrando contraseña para administrador ${admin.id}:`, err);
+              }
+            }
+          });
+        }
         
         // Notify user about real-time concurrency modifications by other operators
         if (!isInitialRef.current[colName]) {
