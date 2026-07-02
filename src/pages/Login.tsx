@@ -9,7 +9,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { user, loadingAuth, login } = useAppContext();
+  const { user, loadingAuth, login, admins } = useAppContext();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -38,10 +38,10 @@ export default function Login() {
         return;
       }
       
-      // Check local configuration
+      // Check real-time configuration from Firestore with local storage as a fallback
       const storedData = JSON.parse(localStorage.getItem('erp_data') || '{"admins":[]}');
-      const admins = storedData.admins || [];
-      const userMatched = admins.find((a: any) => {
+      const adminsList = (admins && admins.length > 0) ? admins : (storedData.admins || []);
+      const userMatched = adminsList.find((a: any) => {
         const isEmailMatch = a.username?.toLowerCase() === emailLower || a.email?.toLowerCase() === emailLower;
         if (!isEmailMatch) return false;
         

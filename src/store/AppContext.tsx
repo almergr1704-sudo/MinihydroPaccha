@@ -180,9 +180,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         const items = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as any));
 
-        // Automatic one-time migration for legacy plain text passwords in Firestore to bcrypt
+        // Automatic one-time migration and admin reconfiguration for the system
         if (colName === 'admins') {
+          const defaultAdminInDb = items.find((a: any) => a.id === 'admin_default' || a.username === 'admin');
+          if (defaultAdminInDb) {
+            let needsUpdate = false;
+            try {
+              const isCorrectPassword = defaultAdminInDb.password && bcrypt.compareSync('ALANgaona2010@', defaultAdminInDb.password);
+              if (!isCorrectPassword) {
+                needsUpdate = true;
+              }
+            } catch (e) {
+              needsUpdate = true;
+            }
+
+            if (needsUpdate) {
+              try {
+                const correctHash = bcrypt.hashSync('ALANgaona2010@', 10);
+                setDoc(doc(db, 'admins', defaultAdminInDb.id), {
+                  ...defaultAdminInDb,
+                  password: correctHash,
+                  username: 'admin',
+                  estado: 'ACTIVO'
+                });
+                console.log('Reconfigurado usuario admin con contraseña ALANgaona2010@ en Firestore.');
+              } catch (err) {
+                console.error('Error al reconfigurar contraseña admin:', err);
+              }
+            }
+          }
+
+          // Legacy plain text passwords conversion to bcrypt for all other admin accounts
           items.forEach((admin: any) => {
+            if (admin.id === 'admin_default' || admin.username === 'admin') return;
             const isHashed = admin.password && (admin.password.startsWith('$2a$') || admin.password.startsWith('$2b$') || admin.password.startsWith('$2y$'));
             if (admin.password && !isHashed) {
               try {
